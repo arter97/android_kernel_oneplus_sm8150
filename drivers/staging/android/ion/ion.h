@@ -309,7 +309,7 @@ int ion_alloc_fd(size_t len, unsigned int heap_id_mask, unsigned int flags);
  * this function will be called to setup a shrinker to shrink the freelists
  * and call the heap's shrink op.
  */
-void ion_heap_init_shrinker(struct ion_heap *heap);
+int ion_heap_init_shrinker(struct ion_heap *heap);
 
 /**
  * ion_heap_init_deferred_free -- initialize deferred free functionality
