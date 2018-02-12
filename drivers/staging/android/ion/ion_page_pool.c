@@ -15,7 +15,6 @@
  */
 
 #include <linux/list.h>
-#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/sched/signal.h>
@@ -204,9 +203,3 @@ void ion_page_pool_destroy(struct ion_page_pool *pool)
 {
 	kfree(pool);
 }
-
-static int __init ion_page_pool_init(void)
-{
-	return 0;
-}
-device_initcall(ion_page_pool_init);
