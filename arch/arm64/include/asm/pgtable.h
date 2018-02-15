@@ -228,7 +228,7 @@ pte_bad:
 pte_ok:
 #endif
 
-	*ptep = pte;
+	WRITE_ONCE(*ptep, pte);
 
 	/*
 	 * Only if the new pte is valid and kernel, otherwise TLB maintenance
@@ -263,6 +263,8 @@ extern void __sync_icache_dcache(pte_t pteval, unsigned long addr);
 static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 			      pte_t *ptep, pte_t pte)
 {
+	pte_t old_pte;
+
 	if (pte_present(pte) && pte_user_exec(pte) && !pte_special(pte))
 		__sync_icache_dcache(pte, addr);
 
@@ -271,13 +273,14 @@ static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 	 * hardware updates of the pte (ptep_set_access_flags safely changes
 	 * valid ptes without going through an invalid entry).
 	 */
-	if (pte_valid(*ptep) && pte_valid(pte)) {
+	old_pte = READ_ONCE(*ptep);
+	if (pte_valid(old_pte) && pte_valid(pte)) {
 		VM_WARN_ONCE(!pte_young(pte),
 			     "%s: racy access flag clearing: 0x%016llx -> 0x%016llx",
-			     __func__, pte_val(*ptep), pte_val(pte));
-		VM_WARN_ONCE(pte_write(*ptep) && !pte_dirty(pte),
+			     __func__, pte_val(old_pte), pte_val(pte));
+		VM_WARN_ONCE(pte_write(old_pte) && !pte_dirty(pte),
 			     "%s: racy dirty state clearing: 0x%016llx -> 0x%016llx",
-			     __func__, pte_val(*ptep), pte_val(pte));
+			     __func__, pte_val(old_pte), pte_val(pte));
 	}
 
 	set_pte(ptep, pte);
@@ -414,7 +417,7 @@ static inline bool pud_table(pud_t pud) { return true; }
 
 static inline void set_pmd(pmd_t *pmdp, pmd_t pmd)
 {
-	*pmdp = pmd;
+	WRITE_ONCE(*pmdp, pmd);
 	dsb(ishst);
 	isb();
 }
@@ -471,7 +474,7 @@ static inline void pte_unmap(pte_t *pte) { }
 
 static inline void set_pud(pud_t *pudp, pud_t pud)
 {
-	*pudp = pud;
+	WRITE_ONCE(*pudp, pud);
 	dsb(ishst);
 	isb();
 }
@@ -494,7 +497,7 @@ static inline unsigned long pud_page_vaddr(pud_t pud)
 /* Find an entry in the second-level page table. */
 #define pmd_index(addr)		(((addr) >> PMD_SHIFT) & (PTRS_PER_PMD - 1))
 
-#define pmd_offset_phys(dir, addr)	(pud_page_paddr(*(dir)) + pmd_index(addr) * sizeof(pmd_t))
+#define pmd_offset_phys(dir, addr)	(pud_page_paddr(READ_ONCE(*(dir))) + pmd_index(addr) * sizeof(pmd_t))
 #define pmd_offset(dir, addr)		((pmd_t *)__va(pmd_offset_phys((dir), (addr))))
 
 #define pmd_set_fixmap(addr)		((pmd_t *)set_fixmap_offset(FIX_PMD, addr))
@@ -529,7 +532,7 @@ static inline unsigned long pud_page_vaddr(pud_t pud)
 
 static inline void set_pgd(pgd_t *pgdp, pgd_t pgd)
 {
-	*pgdp = pgd;
+	WRITE_ONCE(*pgdp, pgd);
 	dsb(ishst);
 }
 
@@ -551,7 +554,7 @@ static inline unsigned long pgd_page_vaddr(pgd_t pgd)
 /* Find an entry in the frst-level page table. */
 #define pud_index(addr)		(((addr) >> PUD_SHIFT) & (PTRS_PER_PUD - 1))
 
-#define pud_offset_phys(dir, addr)	(pgd_page_paddr(*(dir)) + pud_index(addr) * sizeof(pud_t))
+#define pud_offset_phys(dir, addr)	(pgd_page_paddr(READ_ONCE(*(dir))) + pud_index(addr) * sizeof(pud_t))
 #define pud_offset(dir, addr)		((pud_t *)__va(pud_offset_phys((dir), (addr))))
 
 #define pud_set_fixmap(addr)		((pud_t *)set_fixmap_offset(FIX_PUD, addr))
