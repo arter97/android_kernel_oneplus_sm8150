@@ -99,7 +99,7 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 
 #if 0
 	length = scnprintf(tmpbuf, TMPBUFLEN, "%d",
-			   is_enforcing(&selinux_state));
+			   enforcing_enabled(&selinux_state));
 #else
 	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", 1);
 #endif
@@ -133,7 +133,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 
 	new_value = !!new_value;
 
-	old_value = is_enforcing(&selinux_state);
+	old_value = enforcing_enabled(&selinux_state);
 
 	if (new_value != old_value) {
 		length = avc_has_perm(current_sid(), SECINITSID_SECURITY,
@@ -146,7 +146,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 			new_value, old_value,
 			from_kuid(&init_user_ns, audit_get_loginuid(current)),
 			audit_get_sessionid(current));
-		set_enforcing(&selinux_state, new_value);
+		enforcing_set(&selinux_state, new_value);
 		if (new_value)
 			avc_ss_reset(0);
 		selnl_notify_setenforce(new_value);
