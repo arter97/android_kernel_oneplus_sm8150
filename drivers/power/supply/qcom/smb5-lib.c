@@ -112,6 +112,9 @@ void op_typec_state_change_irq_handler(void);
 	|| typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH)	\
 	&& !chg->typec_legacy)
 
+static unsigned int forced_current = 0;
+module_param(forced_current, uint, S_IWUSR | S_IRUGO);
+
 static void update_sw_icl_max(struct smb_charger *chg, int pst);
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val)
@@ -1390,6 +1393,9 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	if (suspend)
 		return smblib_set_usb_suspend(chg, true);
 
+	if (forced_current)
+		return op_usb_icl_set(chg, forced_current * 1000);
+
 	if (icl_ua == INT_MAX)
 		goto set_mode;
 
@@ -2635,7 +2641,12 @@ int smblib_disable_hw_jeita(struct smb_charger *chg, bool disable)
 static int smblib_set_sw_thermal_regulation(struct smb_charger *chg,
 						bool enable)
 {
-	int rc = 0;
+	int rc;
+
+	if (forced_current)
+		return op_usb_icl_set(chg, forced_current * 1000);
+
+	rc = 0;
 
 	if (!(chg->wa_flags & SW_THERM_REGULATION_WA))
 		return rc;
