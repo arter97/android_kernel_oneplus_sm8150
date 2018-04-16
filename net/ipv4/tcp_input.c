@@ -4669,6 +4669,17 @@ err:
 
 }
 
+void tcp_data_ready(struct sock *sk)
+{
+	const struct tcp_sock *tp = tcp_sk(sk);
+	int avail = tp->rcv_nxt - tp->copied_seq;
+
+	if (avail < sk->sk_rcvlowat && !sock_flag(sk, SOCK_DONE))
+		return;
+
+	sk->sk_data_ready(sk);
+}
+
 static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -4726,7 +4737,7 @@ queue_and_out:
 		if (eaten > 0)
 			kfree_skb_partial(skb, fragstolen);
 		if (!sock_flag(sk, SOCK_DEAD))
-			sk->sk_data_ready(sk);
+			tcp_data_ready(sk);
 		return;
 	}
 
@@ -5544,7 +5555,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 no_ack:
 			if (eaten)
 				kfree_skb_partial(skb, fragstolen);
-			sk->sk_data_ready(sk);
+			tcp_data_ready(sk);
 			return;
 		}
 	}
