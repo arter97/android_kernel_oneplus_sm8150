@@ -686,7 +686,7 @@ static bool tcp_should_autocork(struct sock *sk, struct sk_buff *skb,
 {
 	return skb->len < size_goal &&
 	       sysctl_tcp_autocorking &&
-	       skb != tcp_write_queue_head(sk) &&
+	       !tcp_rtx_queue_empty(sk) &&
 	       refcount_read(&sk->sk_wmem_alloc) > skb->truesize;
 }
 
