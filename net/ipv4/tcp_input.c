@@ -2057,6 +2057,11 @@ static inline int tcp_dupack_heuristics(const struct tcp_sock *tp)
 	return tp->sacked_out + 1;
 }
 
+static bool tcp_is_rack(const struct sock *sk)
+{
+	return sysctl_tcp_recovery & TCP_RACK_LOSS_DETECTION;
+}
+
 /* Linux NewReno/SACK/ECN state machine.
  * --------------------------------------
  *
@@ -2163,7 +2168,7 @@ static bool tcp_time_to_recover(struct sock *sk, int flag)
 		return true;
 
 	/* Not-A-Trick#2 : Classic rule... */
-	if (tcp_dupack_heuristics(tp) > tp->reordering)
+	if (!tcp_is_rack(sk) && tcp_dupack_heuristics(tp) > tp->reordering)
 		return true;
 
 	return false;
@@ -2746,8 +2751,7 @@ static void tcp_rack_identify_loss(struct sock *sk, int *ack_flag)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	/* Use RACK to detect loss */
-	if (sysctl_tcp_recovery & TCP_RACK_LOSS_DETECTION) {
+	if (tcp_is_rack(sk)) {
 		u32 prior_retrans = tp->retrans_out;
 
 		tcp_rack_mark_lost(sk);
@@ -2885,7 +2889,7 @@ static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 		fast_rexmit = 1;
 	}
 
-	if (do_lost)
+	if (!tcp_is_rack(sk) && do_lost)
 		tcp_update_scoreboard(sk, fast_rexmit);
 	*rexmit = REXMIT_LOST;
 }
