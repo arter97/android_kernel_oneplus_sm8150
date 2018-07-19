@@ -105,6 +105,7 @@
 #include <linux/ioport.h>
 #include <linux/phy.h>
 #include <linux/mdio.h>
+#include <linux/micrel_phy.h>
 #if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
 #define DWC_ETH_QOS_ENABLE_VLAN_TAG
 #include <linux/if_vlan.h>
@@ -307,6 +308,16 @@
 #define DISABLE_TX_DELAY 0x0
 #define DWC_ETH_QOS_PHY_DEBUG_PORT_ADDR_OFFSET 0x1d
 #define DWC_ETH_QOS_PHY_DEBUG_PORT_DATAPORT 0x1e
+
+#define DWC_ETH_QOS_MICREL_PHY_DEBUG_PORT_ADDR_OFFSET 0x0d
+#define DWC_ETH_QOS_MICREL_PHY_DEBUG_PORT_DATAPORT 0x0e
+#define DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR 0x2
+#define DWC_ETH_QOS_MICREL_PHY_INTCS 0x1b
+#define DWC_ETH_QOS_MICREL_PHY_CTL 0x1f
+#define DWC_ETH_QOS_MICREL_INTR_LEVEL 0x4000
+#define DWC_ETH_QOS_BASIC_STATUS     0x0001
+#define LINK_STATE_MASK 0x4
+#define AUTONEG_STATE_MASK 0x20
 
 #define LINK_DOWN_STATE 0x800
 #define LINK_UP_STATE 0x400
@@ -616,6 +627,10 @@
 #define EMAC_GPIO_PHY_INTR_REDIRECT_NAME "qcom,phy-intr-redirect"
 #define EMAC_GPIO_PHY_RESET_NAME "qcom,phy-reset"
 
+/* The values used in gpio_set_value() are boolean, zero for low, nonzero for high.*/
+#define PHY_RESET_GPIO_LOW  0
+#define PHY_RESET_GPIO_HIGH  1
+
 #define VOTE_IDX_0MBPS 0
 #define VOTE_IDX_10MBPS 1
 #define VOTE_IDX_100MBPS 2
@@ -638,6 +653,31 @@
 
 #define MII_100_LOW_SVS_CLK_FREQ  (25 * 1000 * 1000UL)
 #define MII_10_LOW_SVS_CLK_FREQ  (2.5 * 1000 * 1000UL)
+
+/**
+ * enum emac_hw_core_version - EMAC hardware core version type
+* @EMAC_HW_None: EMAC hardware version not defined
+* @EMAC_HW_v2_0_0: EMAC core version 2.0.0. & chips is SDX24(Chiron)
+* @EMAC_HW_v2_1_0: EMAC core version 2.1.0. & chips is SM8150(Hana)
+* @EMAC_HW_v2_1_1: EMAC core version 2.1.1. & chips is SC8180X(Poipu)
+* @EMAC_HW_v2_1_2: EMAC core version 2.1.2. & chips is SC810X(Poipu)v2,SM8150(Hana)v2
+* @EMAC_HW_v2_2_0: EMAC core version 2.2.0. & chips is SDX24(Chiron)v2
+* @EMAC_HW_v2_3_0: EMAC core version 2.3.0. & chips is QCS405(Vipertooth)
+* @EMAC_HW_v2_3_1: EMAC core version 2.3.1. & chips is SM6150(Talos)
+* @EMAC_HW_v2_3_2: EMAC core version 2.3.2. & chips is SDX55(Huracan)
+*/
+enum emac_core_version {
+	EMAC_HW_None = 0,
+	EMAC_HW_v2_0_0 = 1,
+	EMAC_HW_v2_1_0 = 2,
+	EMAC_HW_v2_1_1 = 3,
+	EMAC_HW_v2_1_2 = 4,
+	EMAC_HW_v2_2_0 = 5,
+	EMAC_HW_v2_3_0 = 6,
+	EMAC_HW_v2_3_1 = 7,
+	EMAC_HW_v2_3_2 = 8
+};
+
 
 /* C data types typedefs */
 typedef unsigned short BOOL;
@@ -1455,8 +1495,6 @@ struct DWC_ETH_QOS_res_data {
 	u32 emac_mem_size;
 	u32 rgmii_mem_base;
 	u32 rgmii_mem_size;
-	u32 tlmm_central_mem_base;
-	u32 tlmm_central_mem_size;
 	u32 sbd_intr;
 	u32 lpi_intr;
 	u32 io_macro_tx_mode_non_id;
@@ -1468,6 +1506,9 @@ struct DWC_ETH_QOS_res_data {
 #endif
 
 	/* GPIOs */
+	bool is_gpio_phy_intr_redirect;
+	bool is_gpio_phy_reset;
+	bool is_pinctrl_names;
 	int gpio_phy_intr_redirect;
 	int gpio_phy_reset;
 
@@ -1482,6 +1523,7 @@ struct DWC_ETH_QOS_res_data {
 	struct clk *ahb_clk;
 	struct clk *rgmii_clk;
 	struct clk *ptp_clk;
+	enum emac_core_version emac_hw_version_type;
 };
 
 struct DWC_ETH_QOS_prv_ipa_data {
@@ -1731,6 +1773,7 @@ struct DWC_ETH_QOS_prv_data {
 	unsigned int io_macro_tx_mode_non_id;
 	unsigned int io_macro_phy_intf;
 	int phy_irq;
+	enum emac_core_version emac_hw_version_type;
 };
 
 typedef enum {
@@ -1741,6 +1784,9 @@ typedef enum {
 #define ATH8031_PHY_ID 0x004dd074
 #define ATH8035_PHY_ID 0x004dd072
 #define QCA8337_PHY_ID 0x004dd036
+#define ATH8030_PHY_ID 0x004dd076
+#define MICREL_PHY_ID PHY_ID_KSZ9031
+
 
 static const u32 qca8337_phy_ids[] = {
 	0x004dd035, /* qca8337 PHY*/
@@ -1787,6 +1833,11 @@ INT DWC_ETH_QOS_mdio_read_direct(struct DWC_ETH_QOS_prv_data *pdata,
 				 int phyaddr, int phyreg, int *phydata);
 INT DWC_ETH_QOS_mdio_write_direct(struct DWC_ETH_QOS_prv_data *pdata,
 				  int phyaddr, int phyreg, int phydata);
+void DWC_ETH_QOS_mdio_mmd_register_write_direct(struct DWC_ETH_QOS_prv_data *pdata,
+				 int phyaddr, int devaddr, int offset, u16 phydata);
+void DWC_ETH_QOS_mdio_mmd_register_read_direct(struct DWC_ETH_QOS_prv_data *pdata,
+				 int phyaddr, int devaddr, int offset, u16 *phydata);
+
 void dbgpr_regs(void);
 void dump_phy_registers(struct DWC_ETH_QOS_prv_data *);
 void dump_tx_desc(struct DWC_ETH_QOS_prv_data *pdata, int first_desc_idx,
@@ -1851,6 +1902,23 @@ void dump_rgmii_io_macro_registers(void);
 #define EMAC_SDCC_HC_REG_DDR_CONFIG_POR 0x00000000
 #define EMAC_SDCC_HC_REG_DLL_CONFIG_2_POR 0x00200000
 #define EMAC_SDCC_USR_CTL_POR 0x00000000
+
+#define EMAC_MDC "dev-emac-mdc"
+#define EMAC_MDIO "dev-emac-mdio"
+
+#define EMAC_RGMII_TXD0 "dev-emac-rgmii_txd0_state"
+#define EMAC_RGMII_TXD1 "dev-emac-rgmii_txd1_state"
+#define EMAC_RGMII_TXD2 "dev-emac-rgmii_txd2_state"
+#define EMAC_RGMII_TXD3 "dev-emac-rgmii_txd3_state"
+#define EMAC_RGMII_TXC "dev-emac-rgmii_txc_state"
+#define EMAC_RGMII_TX_CTL "dev-emac-rgmii_tx_ctl_state"
+
+#define EMAC_RGMII_RXD0 "dev-emac-rgmii_rxd0_state"
+#define EMAC_RGMII_RXD1 "dev-emac-rgmii_rxd1_state"
+#define EMAC_RGMII_RXD2 "dev-emac-rgmii_rxd2_state"
+#define EMAC_RGMII_RXD3 "dev-emac-rgmii_rxd3_state"
+#define EMAC_RGMII_RXC "dev-emac-rgmii_rxc_state"
+#define EMAC_RGMII_RX_CTL "dev-emac-rgmii_rx_ctl_state"
 
 #ifdef PER_CH_INT
 void DWC_ETH_QOS_handle_DMA_Int(struct DWC_ETH_QOS_prv_data *pdata, int chinx, bool);
