@@ -58,10 +58,21 @@ ULONG dwc_rgmii_io_csr_base_addr;
 struct DWC_ETH_QOS_prv_data *gDWC_ETH_QOS_prv_data;
 struct emac_emb_smmu_cb_ctx emac_emb_smmu_ctx = {0};
 
+#define INVALID_MODULE_PARAM_VAL 0xFFFFFFFF
+
 int ipa_offload_en = 1;
 module_param(ipa_offload_en, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(ipa_offload_en,
 		 "Enable IPA offload [0-DISABLE, 1-ENABLE]");
+
+static char *phy_intf = "";
+module_param(phy_intf, charp, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(phy_intf, "phy interface [rgmii, rmii, mii]");
+
+static uint phy_intf_bypass_mode = INVALID_MODULE_PARAM_VAL;
+module_param(phy_intf_bypass_mode, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(phy_intf_bypass_mode,
+		 "Phy interface bypass mode [1-Non-ID, 0-ID]");
 
 void DWC_ETH_QOS_init_all_fptrs(struct DWC_ETH_QOS_prv_data *pdata)
 {
@@ -203,28 +214,34 @@ static int DWC_ETH_QOS_get_bus_config(struct platform_device *pdev)
 static int DWC_ETH_QOS_get_io_macro_config(struct platform_device *pdev)
 {
 	int ret = 0;
-	const char *io_macro_phy_intf = NULL;
+	const char *io_macro_phy_intf = phy_intf;
 	struct device_node *dev_node = NULL;
+	dwc_eth_qos_res_data.io_macro_tx_mode_non_id = phy_intf_bypass_mode;
 
 	dev_node = of_find_node_by_name(pdev->dev.of_node, "io-macro-info");
 	if (dev_node == NULL) {
 		EMACERR("Failed to find io-macro-info node from device tree\n");
+		ret = -EIO;
 		goto err_out;
 	}
 
-	ret = of_property_read_u32(
-		dev_node, "io-macro-bypass-mode",
-		&dwc_eth_qos_res_data.io_macro_tx_mode_non_id);
-	if (ret < 0) {
-		EMACERR("Unable to read bypass mode value from device tree\n");
-		goto err_out;
+	if (phy_intf_bypass_mode != 0 && phy_intf_bypass_mode != 1) {
+		ret = of_property_read_u32(
+			dev_node, "io-macro-bypass-mode",
+			&dwc_eth_qos_res_data.io_macro_tx_mode_non_id);
+		if (ret < 0) {
+			EMACERR("Unable to read bypass mode value from device tree\n");
+			goto err_out;
+		}
 	}
 	EMACDBG("io-macro-bypass-mode = %d\n", dwc_eth_qos_res_data.io_macro_tx_mode_non_id);
 
-	ret = of_property_read_string(dev_node, "io-interface", &io_macro_phy_intf);
-	if (ret < 0) {
-		EMACERR("Failed to read io mode cfg from device tree\n");
-		goto err_out;
+	if (strlen(io_macro_phy_intf) == 0) {
+		ret = of_property_read_string(dev_node, "io-interface", &io_macro_phy_intf);
+		if (ret < 0) {
+			EMACERR("Failed to read io mode cfg from device tree\n");
+			goto err_out;
+		}
 	}
 	if (strcasecmp(io_macro_phy_intf, "rgmii") == 0) {
 		dwc_eth_qos_res_data.io_macro_phy_intf = RGMII_MODE;
@@ -615,55 +632,121 @@ err_out_map_failed:
 	return ret;
 }
 
-
-void DWC_ETH_QOS_scale_clks(struct DWC_ETH_QOS_prv_data *pdata, int speed)
+int DWC_ETH_QOS_enable_ptp_clk(struct device *dev)
 {
-	u32 vote_idx = VOTE_IDX_0MBPS;
+	int ret;
 
-	EMACDBG("Enter\n");
+	/* valid value of dwc_eth_qos_res_data.ptp_clk indicates that clock is enabled */
+	if (!dwc_eth_qos_res_data.ptp_clk) {
 
-	if (pdata->bus_hdl) {
-		switch (speed) {
-		case SPEED_1000:
-			vote_idx = VOTE_IDX_1000MBPS;
-			break;
-		case SPEED_100:
-			vote_idx = VOTE_IDX_100MBPS;
-			break;
-		case SPEED_10:
-			vote_idx = VOTE_IDX_10MBPS;
-			break;
-		default:
-			vote_idx = VOTE_IDX_0MBPS;
-			break;
+		dwc_eth_qos_res_data.ptp_clk = devm_clk_get(dev, "eth_ptp_clk");
+
+		if (IS_ERR(dwc_eth_qos_res_data.ptp_clk)) {
+			dwc_eth_qos_res_data.ptp_clk = NULL;
+			if (dwc_eth_qos_res_data.ptp_clk != ERR_PTR(-EPROBE_DEFER)) {
+				EMACERR("unable to get ptp_clk\n");
+				return -EIO;
+			}
 		}
 
-		if (msm_bus_scale_client_update_request(
-			  pdata->bus_hdl, vote_idx)) WARN_ON(1);
+		ret = clk_prepare_enable(dwc_eth_qos_res_data.ptp_clk);
+
+		if (ret) {
+			EMACERR("Failed to enable ptp_clk\n");
+			goto ptp_clk_fail;
+		}
+
+		ret = clk_set_rate(dwc_eth_qos_res_data.ptp_clk, DWC_ETH_QOS_SYSCLOCK);
+
+		if (ret) {
+			EMACERR("Failed to set rate for ptp_clk\n");
+			goto ptp_clk_fail;
+		}
 	}
+
+	return 0;
+
+ptp_clk_fail:
+
+	DWC_ETH_QOS_disable_ptp_clk(dev);
+	return ret;
+}
+
+void DWC_ETH_QOS_disable_ptp_clk(struct device* dev)
+{
+	if (dwc_eth_qos_res_data.ptp_clk){
+		clk_disable_unprepare(dwc_eth_qos_res_data.ptp_clk);
+		devm_clk_put(dev, dwc_eth_qos_res_data.ptp_clk);
+	}
+
+	dwc_eth_qos_res_data.ptp_clk = NULL;
+}
+
+void DWC_ETH_QOS_resume_clks(struct DWC_ETH_QOS_prv_data *pdata)
+{
+	EMACDBG("Enter\n");
+
+	if (dwc_eth_qos_res_data.axi_clk)
+		clk_prepare_enable(dwc_eth_qos_res_data.axi_clk);
+
+	if (dwc_eth_qos_res_data.ahb_clk)
+		clk_prepare_enable(dwc_eth_qos_res_data.ahb_clk);
+
+	if (dwc_eth_qos_res_data.rgmii_clk)
+		clk_prepare_enable(dwc_eth_qos_res_data.rgmii_clk);
+
+	if (DWC_ETH_QOS_is_phy_link_up(pdata))
+		DWC_ETH_QOS_set_clk_and_bus_config(pdata, pdata->speed);
+	else
+		DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
+
+	pdata->clks_suspended = 0;
+	complete_all(&pdata->clk_enable_done);
 
 	EMACDBG("Exit\n");
 }
 
-void DWC_ETH_QOS_disable_clks(void)
+void DWC_ETH_QOS_suspend_clks(struct DWC_ETH_QOS_prv_data *pdata)
 {
+	EMACDBG("Enter\n");
+
+	reinit_completion(&pdata->clk_enable_done);
+	pdata->clks_suspended = 1;
+
+	DWC_ETH_QOS_set_clk_and_bus_config(pdata, 0);
+
 	if (dwc_eth_qos_res_data.axi_clk)
 		clk_disable_unprepare(dwc_eth_qos_res_data.axi_clk);
-
-	dwc_eth_qos_res_data.axi_clk = NULL;
 
 	if (dwc_eth_qos_res_data.ahb_clk)
 		clk_disable_unprepare(dwc_eth_qos_res_data.ahb_clk);
 
-	dwc_eth_qos_res_data.ahb_clk = NULL;
-
-	if (dwc_eth_qos_res_data.ptp_clk)
-		clk_disable_unprepare(dwc_eth_qos_res_data.ptp_clk);
-
-	dwc_eth_qos_res_data.ptp_clk = NULL;
-
 	if (dwc_eth_qos_res_data.rgmii_clk)
 		clk_disable_unprepare(dwc_eth_qos_res_data.rgmii_clk);
+
+	EMACDBG("Exit\n");
+}
+
+void DWC_ETH_QOS_disable_clks(struct device* dev)
+{
+	if (dwc_eth_qos_res_data.axi_clk){
+		clk_disable_unprepare(dwc_eth_qos_res_data.axi_clk);
+		devm_clk_put(dev, dwc_eth_qos_res_data.axi_clk);
+	}
+
+	dwc_eth_qos_res_data.axi_clk = NULL;
+
+	if (dwc_eth_qos_res_data.ahb_clk){
+		clk_disable_unprepare(dwc_eth_qos_res_data.ahb_clk);
+		devm_clk_put(dev, dwc_eth_qos_res_data.ahb_clk);
+	}
+
+	dwc_eth_qos_res_data.ahb_clk = NULL;
+
+	if (dwc_eth_qos_res_data.rgmii_clk){
+		clk_disable_unprepare(dwc_eth_qos_res_data.rgmii_clk);
+		devm_clk_put(dev, dwc_eth_qos_res_data.rgmii_clk);
+	}
 
 	dwc_eth_qos_res_data.rgmii_clk = NULL;
 
@@ -720,13 +803,6 @@ static int DWC_ETH_QOS_get_clks(struct device *dev)
 		}
 	}
 
-	dwc_eth_qos_res_data.ptp_clk = devm_clk_get(dev, ptp_clock_name);
-	if (IS_ERR(dwc_eth_qos_res_data.ptp_clk)) {
-		if (dwc_eth_qos_res_data.ptp_clk != ERR_PTR(-EPROBE_DEFER)) {
-			EMACERR("unable to get ptp_clk\n");
-			return -EIO;
-		}
-	}
 
 	ret = clk_prepare_enable(dwc_eth_qos_res_data.axi_clk);
 
@@ -749,24 +825,10 @@ static int DWC_ETH_QOS_get_clks(struct device *dev)
 		goto fail_clk;
 	}
 
-	ret = clk_prepare_enable(dwc_eth_qos_res_data.ptp_clk);
-
-	if (ret) {
-		EMACERR("Failed to enable ptp_clk\n");
-		goto fail_clk;
-	}
-
-	ret = clk_set_rate(dwc_eth_qos_res_data.ptp_clk, DWC_ETH_QOS_SYSCLOCK);
-
-	if (ret) {
-		EMACERR("Failed to set rate for ptp_clk\n");
-		goto fail_clk;
-	}
-
 	return ret;
 
 fail_clk:
-	DWC_ETH_QOS_disable_clks();
+	DWC_ETH_QOS_disable_clks(dev);
 	return ret;
 }
 
@@ -774,9 +836,26 @@ static int DWC_ETH_QOS_panic_notifier(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
 	if (gDWC_ETH_QOS_prv_data) {
-		DBGPR("DWC_ETH_QOS: 0x%pK\n", gDWC_ETH_QOS_prv_data);
+		EMACINFO("gDWC_ETH_QOS_prv_data 0x%p\n", gDWC_ETH_QOS_prv_data);
 		DWC_ETH_QOS_ipa_stats_read(gDWC_ETH_QOS_prv_data);
 		DWC_ETH_QOS_dma_desc_stats_read(gDWC_ETH_QOS_prv_data);
+
+		gDWC_ETH_QOS_prv_data->iommu_domain = emac_emb_smmu_ctx.iommu_domain;
+		EMACINFO("emac iommu domain 0x%p\n", gDWC_ETH_QOS_prv_data->iommu_domain);
+
+		gDWC_ETH_QOS_prv_data->emac_reg_base_address =
+			(unsigned int *)kzalloc(dwc_eth_qos_res_data.emac_mem_size, GFP_KERNEL);
+		EMACINFO("emac register mem 0x%p\n", gDWC_ETH_QOS_prv_data->emac_reg_base_address);
+		if (gDWC_ETH_QOS_prv_data->emac_reg_base_address != NULL)
+			memcpy(gDWC_ETH_QOS_prv_data->emac_reg_base_address, (void*)dwc_eth_qos_base_addr,
+				   dwc_eth_qos_res_data.emac_mem_size);
+
+		gDWC_ETH_QOS_prv_data->rgmii_reg_base_address =
+			(unsigned int *)kzalloc(dwc_eth_qos_res_data.rgmii_mem_size, GFP_KERNEL);
+		EMACINFO("rgmii register mem 0x%p\n", gDWC_ETH_QOS_prv_data->rgmii_reg_base_address);
+		if (gDWC_ETH_QOS_prv_data->rgmii_reg_base_address != NULL)
+			memcpy(gDWC_ETH_QOS_prv_data->rgmii_reg_base_address, (void*)dwc_rgmii_io_csr_base_addr,
+				   dwc_eth_qos_res_data.rgmii_mem_size);
 	}
 	return NOTIFY_DONE;
 }
@@ -1069,7 +1148,6 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 	pdata->io_macro_tx_mode_non_id =
 		dwc_eth_qos_res_data.io_macro_tx_mode_non_id;
 	pdata->io_macro_phy_intf = dwc_eth_qos_res_data.io_macro_phy_intf;
-
 #ifdef DWC_ETH_QOS_CONFIG_DEBUGFS
 	/* to give prv data to debugfs */
 	DWC_ETH_QOS_get_pdata(pdata);
@@ -1077,6 +1155,13 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 
 	/* store emac hw version in pdata*/
 	pdata->emac_hw_version_type = dwc_eth_qos_res_data.emac_hw_version_type;
+
+	/* Scale the clocks to 10Mbps speed */
+	pdata->speed = SPEED_10;
+	DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
+
+	DWC_ETH_QOS_set_rgmii_func_clk_en();
+
 	/* issue software reset to device */
 	hw_if->exit();
 	/* IEMAC: Find and Read the IRQ from DTS */
@@ -1138,7 +1223,7 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 			 continue;
 
 		netif_napi_add(dev, &rx_queue->napi, DWC_ETH_QOS_poll_mq,
-			  (64 * DWC_ETH_QOS_RX_QUEUE_CNT));
+			  (NAPI_PER_QUEUE_POLL_BUDGET * DWC_ETH_QOS_RX_QUEUE_CNT));
 	}
 
 	dev->ethtool_ops = DWC_ETH_QOS_get_ethtool_ops();
@@ -1220,6 +1305,9 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 		netif_carrier_off(dev);
 		dev_alert(&pdev->dev, "carrier off till LINK is up\n");
 	}
+
+	if (!pdata->always_on_phy)
+		DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
 
 	EMACDBG("<-- DWC_ETH_QOS_configure_netdevice\n");
 
@@ -1352,6 +1440,9 @@ static int emac_emb_smmu_cb_probe(struct platform_device *pdev)
 		goto err_smmu_probe;
 	}
 
+	emac_emb_smmu_ctx.iommu_domain =
+		iommu_get_domain_for_dev(&emac_emb_smmu_ctx.smmu_pdev->dev);
+
 	EMACDBG("Successfully attached to IOMMU\n");
 	if (emac_emb_smmu_ctx.pdev_master) {
 		result = DWC_ETH_QOS_configure_netdevice(emac_emb_smmu_ctx.pdev_master);
@@ -1447,7 +1538,7 @@ static int DWC_ETH_QOS_probe(struct platform_device *pdev)
 	return ret;
 
  err_out_dev_failed:
-	DWC_ETH_QOS_disable_clks();
+	DWC_ETH_QOS_disable_clks(&pdev->dev);
 
  err_get_clk_failed:
 	DWC_ETH_QOS_free_gpios();
@@ -1525,6 +1616,9 @@ int DWC_ETH_QOS_remove(struct platform_device *pdev)
 		pdata->phy_irq = 0;
 	}
 
+	if (pdata->phy_intr_en && pdata->phy_irq)
+		cancel_work_sync(&pdata->emac_phy_work);
+
 	if (pdata->hw_feat.sma_sel == 1)
 		DWC_ETH_QOS_mdio_unregister(dev);
 
@@ -1553,11 +1647,14 @@ int DWC_ETH_QOS_remove(struct platform_device *pdev)
 
 	emac_emb_smmu_exit();
 
+	DWC_ETH_QOS_set_clk_and_bus_config(pdata, 0);
+
 	free_netdev(dev);
 
 	platform_set_drvdata(pdev, NULL);
-	DWC_ETH_QOS_disable_clks();
 
+	DWC_ETH_QOS_disable_clks(&pdev->dev);
+	DWC_ETH_QOS_disable_ptp_clk(&pdev->dev);
 	DWC_ETH_QOS_disable_regulators();
 	DWC_ETH_QOS_free_gpios();
 
@@ -1639,6 +1736,19 @@ static INT DWC_ETH_QOS_suspend(struct platform_device *pdev, pm_message_t state)
 		return 0;
 	}
 
+	if ((pdata->ipa_enabled && pdata->prv_ipa.ipa_offload_conn)) {
+		pdata->power_down_type |= DWC_ETH_QOS_EMAC_INTR_WAKEUP;
+		enable_irq_wake(pdata->irq_number);
+
+		/* Set PHY intr as wakeup-capable to handle change in PHY link status after suspend */
+		if (pdata->phy_intr_en && pdata->phy_irq && pdata->phy_wol_wolopts) {
+			pmt_flags |= DWC_ETH_QOS_PHY_INTR_WAKEUP;
+			enable_irq_wake(pdata->phy_irq);
+		}
+
+		return 0;
+	}
+
 	if (!dev || !netif_running(dev)) {
 		return -EINVAL;
 	}
@@ -1654,15 +1764,11 @@ static INT DWC_ETH_QOS_suspend(struct platform_device *pdev, pm_message_t state)
 	if (pdata->phy_intr_en && pdata->phy_irq && pdata->phy_wol_wolopts)
 		pmt_flags |= DWC_ETH_QOS_PHY_INTR_WAKEUP;
 
-	if (pdata->ipa_enabled && !pdata->prv_ipa.ipa_offload_susp)
-		pmt_flags |= DWC_ETH_QOS_EMAC_INTR_WAKEUP;
-
 	ret = DWC_ETH_QOS_powerdown(dev, pmt_flags, DWC_ETH_QOS_DRIVER_CONTEXT);
 
-	EMACDBG("<--DWC_ETH_QOS_suspend ret = %d\n", ret);
+	DWC_ETH_QOS_suspend_clks(pdata);
 
-	if (pdata->ipa_enabled)
-		DWC_ETH_QOS_ipa_offload_event_handler(pdata, EV_DPM_SUSPEND);
+	EMACDBG("<--DWC_ETH_QOS_suspend ret = %d\n", ret);
 
 	return ret;
 }
@@ -1704,12 +1810,33 @@ static INT DWC_ETH_QOS_resume(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	DWC_ETH_QOS_scale_clks(pdata, pdata->speed);
+	if (pdata->ipa_enabled && pdata->prv_ipa.ipa_offload_conn) {
+		if (pdata->power_down_type & DWC_ETH_QOS_EMAC_INTR_WAKEUP) {
+			disable_irq_wake(pdata->irq_number);
+			pdata->power_down_type &= ~DWC_ETH_QOS_EMAC_INTR_WAKEUP;
+		}
+
+		if (pdata->power_down_type & DWC_ETH_QOS_PHY_INTR_WAKEUP) {
+			disable_irq_wake(pdata->phy_irq);
+			pdata->power_down_type &= ~DWC_ETH_QOS_PHY_INTR_WAKEUP;
+		}
+
+		/* Wakeup reason can be PHY link event or a RX packet */
+		/* Set a wakeup event to ensure enough time for processing */
+		pm_wakeup_event(&pdev->dev, 5000);
+		return 0;
+	}
+
+	DWC_ETH_QOS_resume_clks(pdata);
+
+	ret = DWC_ETH_QOS_powerup(dev, DWC_ETH_QOS_DRIVER_CONTEXT);
 
 	if (pdata->ipa_enabled)
 		DWC_ETH_QOS_ipa_offload_event_handler(pdata, EV_DPM_RESUME);
 
-	ret = DWC_ETH_QOS_powerup(dev, DWC_ETH_QOS_DRIVER_CONTEXT);
+	/* Wakeup reason can be PHY link event or a RX packet */
+	/* Set a wakeup event to ensure enough time for processing */
+	pm_wakeup_event(&pdev->dev, 5000);
 
 	DBGPR("<--DWC_ETH_QOS_resume\n");
 

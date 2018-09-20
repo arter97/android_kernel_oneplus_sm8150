@@ -559,7 +559,7 @@
 /* for EEE */
 #define DWC_ETH_QOS_DEFAULT_LPI_LS_TIMER 0x3E8 /* 1000 in decimal */
 #define DWC_ETH_QOS_DEFAULT_LPI_TWT_TIMER 0x11 /* Typical 17uS */
-#define DWC_ETH_QOS_DEFAULT_LPI_LPIET_TIMER 125 /* 8*125uS=1000uS=1mS*/
+#define DWC_ETH_QOS_DEFAULT_LPI_LPIET_TIMER 0x1FFFF /* 131071uS=131.071mS */
 
 #define DWC_ETH_QOS_DEFAULT_LPI_TIMER 1000 /* LPI Tx local expiration time in msec */
 #define DWC_ETH_QOS_LPI_TIMER(x) (jiffies + msecs_to_jiffies(x))
@@ -654,6 +654,8 @@
 #define MII_100_LOW_SVS_CLK_FREQ  (25 * 1000 * 1000UL)
 #define MII_10_LOW_SVS_CLK_FREQ  (2.5 * 1000 * 1000UL)
 
+#define NAPI_PER_QUEUE_POLL_BUDGET 64
+
 /**
  * enum emac_hw_core_version - EMAC hardware core version type
 * @EMAC_HW_None: EMAC hardware version not defined
@@ -666,17 +668,17 @@
 * @EMAC_HW_v2_3_1: EMAC core version 2.3.1.
 * @EMAC_HW_v2_3_2: EMAC core version 2.3.2.
 */
-enum emac_core_version {
-	EMAC_HW_None = 0,
-	EMAC_HW_v2_0_0 = 1,
-	EMAC_HW_v2_1_0 = 2,
-	EMAC_HW_v2_1_1 = 3,
-	EMAC_HW_v2_1_2 = 4,
-	EMAC_HW_v2_2_0 = 5,
-	EMAC_HW_v2_3_0 = 6,
-	EMAC_HW_v2_3_1 = 7,
-	EMAC_HW_v2_3_2 = 8
-};
+
+#define EMAC_HW_None 0
+#define EMAC_HW_v2_0_0 1
+#define EMAC_HW_v2_1_0 2
+#define EMAC_HW_v2_1_1 3
+#define EMAC_HW_v2_1_2 4
+#define EMAC_HW_v2_2_0 5
+#define EMAC_HW_v2_3_0 6
+#define EMAC_HW_v2_3_1 7
+#define EMAC_HW_v2_3_2 8
+#define EMAC_HW_vMAX 9
 
 
 /* C data types typedefs */
@@ -1523,7 +1525,7 @@ struct DWC_ETH_QOS_res_data {
 	struct clk *ahb_clk;
 	struct clk *rgmii_clk;
 	struct clk *ptp_clk;
-	enum emac_core_version emac_hw_version_type;
+	unsigned int emac_hw_version_type;
 };
 
 struct DWC_ETH_QOS_prv_ipa_data {
@@ -1572,6 +1574,8 @@ struct DWC_ETH_QOS_prv_data {
 	uint32_t bus_hdl;
 	u32 rgmii_clk_rate;
 	unsigned int vote_idx;
+	int clks_suspended;
+	struct completion clk_enable_done;
 
 #ifdef PER_CH_INT
 	bool per_ch_intr_en;
@@ -1773,7 +1777,15 @@ struct DWC_ETH_QOS_prv_data {
 	unsigned int io_macro_tx_mode_non_id;
 	unsigned int io_macro_phy_intf;
 	int phy_irq;
-	enum emac_core_version emac_hw_version_type;
+	unsigned int emac_hw_version_type;
+
+	/* Work struct for handling phy interrupt */
+	struct work_struct emac_phy_work;
+
+	/* Context variabled used for debugger */
+	struct iommu_domain *iommu_domain;
+	unsigned int *emac_reg_base_address;
+	unsigned int *rgmii_reg_base_address;
 };
 
 typedef enum {
@@ -1799,7 +1811,7 @@ struct emac_emb_smmu_cb_ctx {
 	struct platform_device *pdev_master;
 	struct platform_device *smmu_pdev;
 	struct dma_iommu_mapping *mapping;
-	struct iommu_domain *iommu;
+	struct iommu_domain *iommu_domain;
 	u32 va_start;
 	u32 va_size;
 	u32 va_end;
@@ -1825,8 +1837,8 @@ void DWC_ETH_QOS_get_pdata(struct DWC_ETH_QOS_prv_data *pdata);
 int create_debug_files(void);
 void remove_debug_files(void);
 
-void DWC_ETH_QOS_scale_clks(struct DWC_ETH_QOS_prv_data *pdata, int speed);
 bool DWC_ETH_QOS_is_phy_link_up(struct DWC_ETH_QOS_prv_data *pdata);
+void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata, int speed);
 int DWC_ETH_QOS_mdio_register(struct net_device *dev);
 void DWC_ETH_QOS_mdio_unregister(struct net_device *dev);
 INT DWC_ETH_QOS_mdio_read_direct(struct DWC_ETH_QOS_prv_data *pdata,
@@ -1864,13 +1876,21 @@ UINT DWC_ETH_QOS_get_total_desc_cnt(struct DWC_ETH_QOS_prv_data *pdata,
 int DWC_ETH_QOS_ptp_init(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_ptp_remove(struct DWC_ETH_QOS_prv_data *pdata);
 phy_interface_t DWC_ETH_QOS_get_phy_interface(struct DWC_ETH_QOS_prv_data *pdata);
+int DWC_ETH_QOS_enable_ptp_clk(struct device *dev);
+void DWC_ETH_QOS_disable_ptp_clk(struct device *dev);
+
+#ifdef DWC_ETH_QOS_CONFIG_PTP
 /* PTP function to find PHC Index*/
 int DWC_ETH_QOS_phc_index(struct DWC_ETH_QOS_prv_data *pdata);
+#endif /* end of DWC_ETH_QOS_CONFIG_PTP */
+
 bool DWC_ETH_QOS_eee_init(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_handle_eee_interrupt(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_disable_eee_mode(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_enable_eee_mode(struct DWC_ETH_QOS_prv_data *pdata);
-
+void DWC_ETH_QOS_suspend_clks(struct DWC_ETH_QOS_prv_data *pdata);
+void DWC_ETH_QOS_resume_clks(struct DWC_ETH_QOS_prv_data *pdata);
+void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata, int speed);
 #ifdef DWC_ETH_QOS_CONFIG_PGTEST
 irqreturn_t DWC_ETH_QOS_ISR_SW_DWC_ETH_QOS_pg(int irq, void *dev_data);
 void DWC_ETH_QOS_default_confs(struct DWC_ETH_QOS_prv_data *pdata);
@@ -1892,16 +1912,10 @@ int DWC_ETH_QOS_rgmii_io_macro_sdcdc_enable_lp_mode(void);
 int DWC_ETH_QOS_rgmii_io_macro_sdcdc_config(void);
 int DWC_ETH_QOS_rgmii_io_macro_init(struct DWC_ETH_QOS_prv_data *);
 int DWC_ETH_QOS_sdcc_set_bypass_mode(void);
-int DWC_ETH_QOS_rgmii_io_macro_dll_reset(void);
+int DWC_ETH_QOS_rgmii_io_macro_dll_reset(struct DWC_ETH_QOS_prv_data *pdata);
 void dump_rgmii_io_macro_registers(void);
-
-/* POR values for IO macro and DLL registers */
-#define EMAC_RGMII_IO_MACRO_CONFIG_POR 0x40C01343
-#define EMAC_RGMII_IO_MACRO_CONFIG_2_POR 0x00002060
-#define EMAC_SDCC_HC_REG_DLL_CONFIG_POR 0x2004642C
-#define EMAC_SDCC_HC_REG_DDR_CONFIG_POR 0x00000000
-#define EMAC_SDCC_HC_REG_DLL_CONFIG_2_POR 0x00200000
-#define EMAC_SDCC_USR_CTL_POR 0x00000000
+int DWC_ETH_QOS_set_rgmii_func_clk_en(void);
+void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata, int speed);
 
 #define EMAC_MDC "dev-emac-mdc"
 #define EMAC_MDIO "dev-emac-mdio"
@@ -1927,6 +1941,7 @@ void DWC_ETH_QOS_deregister_per_ch_intr(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_dis_en_ch_intr(struct DWC_ETH_QOS_prv_data *pdata,
 								bool enable);
 #endif
+void DWC_ETH_QOS_defer_phy_isr_work(struct work_struct *work);
 irqreturn_t DWC_ETH_QOS_PHY_ISR(int irq, void *dev_id);
 
 void DWC_ETH_QOS_dma_desc_stats_read(struct DWC_ETH_QOS_prv_data *pdata);

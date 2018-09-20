@@ -380,7 +380,9 @@ static const struct ethtool_ops DWC_ETH_QOS_ethtool_ops = {
 	.get_ethtool_stats = DWC_ETH_QOS_get_ethtool_stats,
 	.get_strings = DWC_ETH_QOS_get_strings,
 	.get_sset_count = DWC_ETH_QOS_get_sset_count,
+#ifdef DWC_ETH_QOS_CONFIG_PTP
 	.get_ts_info = DWC_ETH_QOS_get_ts_info,
+#endif /* end of DWC_ETH_QOS_CONFIG_PTP */
 };
 
 struct ethtool_ops *DWC_ETH_QOS_get_ethtool_ops(void)
@@ -729,7 +731,17 @@ static int DWC_ETH_QOS_setsettings(struct net_device *dev,
 		spin_unlock_irq(&pdata->lock);
 	} else {
 		mutex_lock(&pdata->mlock);
-		ret = phy_ethtool_sset(pdata->phydev, cmd);
+
+		/* Half duplex is not supported */
+		if (cmd->duplex != DUPLEX_FULL) {
+			ret = -EINVAL;
+		} else {
+			/* Advertise all supported speeds when autoneg is enabled */
+			if (cmd->autoneg == AUTONEG_ENABLE)
+				cmd->advertising = pdata->phydev->supported;
+
+			ret = phy_ethtool_sset(pdata->phydev, cmd);
+		}
 		mutex_unlock(&pdata->mlock);
 	}
 
@@ -1147,6 +1159,9 @@ static int DWC_ETH_QOS_get_sset_count(struct net_device *dev, int sset)
 
 	return len;
 }
+
+#ifdef DWC_ETH_QOS_CONFIG_PTP
+
 /*!
  * \details This function gets the PHC index
  *
@@ -1169,3 +1184,5 @@ static int DWC_ETH_QOS_get_ts_info(struct net_device *dev,
 	DBGPR("<--DWC_ETH_QOS_get_ts_info\n");
 	return 0;
 }
+
+#endif /* end of DWC_ETH_QOS_CONFIG_PTP */

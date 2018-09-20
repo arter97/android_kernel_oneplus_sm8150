@@ -606,13 +606,13 @@ static void configure_phy_rx_tx_delay(struct DWC_ETH_QOS_prv_data *pdata)
  *
  * \retval Y_SUCCESS on success and Y_FAILURE on failure.
  */
-static void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata)
+void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata, int speed)
 {
 	EMACDBG("Enter\n");
 
 	switch (pdata->io_macro_phy_intf) {
 	case RGMII_MODE:
-		switch (pdata->speed) {
+		switch (speed) {
 
 		case SPEED_1000:
 			pdata->rgmii_clk_rate = RGMII_1000_NOM_CLK_FREQ;
@@ -635,7 +635,7 @@ static void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdat
 		break;
 
 	case RMII_MODE:
-		switch (pdata->speed) {
+		switch (speed) {
 		case SPEED_100:
 			pdata->rgmii_clk_rate = RMII_100_LOW_SVS_CLK_FREQ;
 			break;
@@ -647,7 +647,7 @@ static void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdat
 		break;
 
 	case MII_MODE:
-		switch (pdata->speed) {
+		switch (speed) {
 		case SPEED_100:
 			pdata->rgmii_clk_rate = MII_100_LOW_SVS_CLK_FREQ;
 			break;
@@ -656,6 +656,22 @@ static void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdat
 			break;
 		}
 		break;
+	}
+
+	switch (speed) {
+		case SPEED_1000:
+			pdata->vote_idx = VOTE_IDX_1000MBPS;
+			break;
+		case SPEED_100:
+			pdata->vote_idx = VOTE_IDX_100MBPS;
+			break;
+		case SPEED_10:
+			pdata->vote_idx = VOTE_IDX_10MBPS;
+			break;
+		case 0:
+			pdata->vote_idx = VOTE_IDX_0MBPS;
+			pdata->rgmii_clk_rate = 0;
+			break;
 	}
 
 	if (pdata->bus_hdl) {
@@ -690,9 +706,9 @@ static inline int DWC_ETH_QOS_configure_io_macro_dll_settings(
 	EMACDBG("Enter\n");
 
 	if (pdata->emac_hw_version_type == EMAC_HW_v2_0_0)
-		DWC_ETH_QOS_rgmii_io_macro_dll_reset();
-
 #ifndef DWC_ETH_QOS_EMULATION_PLATFORM
+	DWC_ETH_QOS_rgmii_io_macro_dll_reset(pdata);
+
 	/* For RGMII ID mode with internal delay*/
 	if (pdata->io_macro_phy_intf == RGMII_MODE && !pdata->io_macro_tx_mode_non_id) {
 		EMACDBG("Initialize and configure SDCC DLL\n");
@@ -759,7 +775,7 @@ static int DWC_ETH_QOS_config_qca_link(struct DWC_ETH_QOS_prv_data* pdata)
 	pdata->oldduplex = 1;
 
 	/* Set RGMII clock and bus scale request based on link speed and phy mode */
-	DWC_ETH_QOS_set_clk_and_bus_config(pdata);
+	DWC_ETH_QOS_set_clk_and_bus_config(pdata, pdata->speed);
 
 	ret = DWC_ETH_QOS_configure_io_macro_dll_settings(pdata);
 
@@ -838,15 +854,12 @@ void DWC_ETH_QOS_adjust_link(struct net_device *dev)
 			switch (phydev->speed) {
 			case SPEED_1000:
 				hw_if->set_gmii_speed();
-				pdata->vote_idx = VOTE_IDX_1000MBPS;
 				break;
 			case SPEED_100:
 				hw_if->set_mii_speed_100();
-				pdata->vote_idx = VOTE_IDX_100MBPS;
 				break;
 			case SPEED_10:
 				hw_if->set_mii_speed_10();
-				pdata->vote_idx = VOTE_IDX_10MBPS;
 				break;
 			}
 			pdata->speed = phydev->speed;
@@ -859,7 +872,7 @@ void DWC_ETH_QOS_adjust_link(struct net_device *dev)
 
 			/* Set RGMII clock and bus scale request based on link speed and phy mode */
 			if (pdata->io_macro_phy_intf != RMII_MODE) {
-				DWC_ETH_QOS_set_clk_and_bus_config(pdata);
+				DWC_ETH_QOS_set_clk_and_bus_config(pdata, pdata->speed);
 
 				ret = DWC_ETH_QOS_configure_io_macro_dll_settings(pdata);
 				if (ret < 0) {
@@ -869,11 +882,13 @@ void DWC_ETH_QOS_adjust_link(struct net_device *dev)
 			}
 		}
 
-		if (!pdata->oldlink) {
+		if (!pdata->oldlink || (pdata->oldlink == -1)) {
 			new_state = 1;
 			pdata->oldlink = 1;
+			netif_carrier_on(dev);
 		}
 	} else if (pdata->oldlink) {
+		netif_carrier_off(dev);
 		new_state = 1;
 		pdata->oldlink = 0;
 		pdata->speed = 0;
@@ -891,7 +906,7 @@ void DWC_ETH_QOS_adjust_link(struct net_device *dev)
 		}
 
 		if (phydev->link == 0 && pdata->io_macro_phy_intf != RMII_MODE)
-			DWC_ETH_QOS_scale_clks(pdata,SPEED_10);
+			DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
 	}
 
 	/* At this stage, it could be need to setup the EEE or adjust some
@@ -939,7 +954,12 @@ static void DWC_ETH_QOS_request_phy_wol(struct DWC_ETH_QOS_prv_data *pdata)
 
 bool DWC_ETH_QOS_is_phy_link_up(struct DWC_ETH_QOS_prv_data *pdata)
 {
-	return pdata->always_on_phy ? 1 : (pdata->phydev && pdata->phydev->link);
+	/* PHY driver initializes phydev->link=1.
+	 * So, phydev->link is 1 even on booup with no PHY connected.
+	 * phydev->link is valid only after adjust_link is called once.
+	 * Use (pdata->oldlink != -1) to indicate phy link is not up */
+	return pdata->always_on_phy ? 1 :
+		((pdata->oldlink != -1) && pdata->phydev && pdata->phydev->link);
 }
 
 /*!
@@ -961,12 +981,12 @@ static int DWC_ETH_QOS_init_phy(struct net_device *dev)
 	struct phy_device *phydev = NULL;
 	char phy_id_fmt[MII_BUS_ID_SIZE + 3];
 	char bus_id[MII_BUS_ID_SIZE];
-
 	u32 phydata = 0;
+	int ret = 0;
 
 	DBGPR_MDIO("-->DWC_ETH_QOS_init_phy\n");
 
-	pdata->oldlink = 0;
+	pdata->oldlink = -1;
 	pdata->speed = 0;
 	pdata->oldduplex = -1;
 
@@ -1042,27 +1062,32 @@ static int DWC_ETH_QOS_init_phy(struct net_device *dev)
 	}
 
 	if (pdata->phy_intr_en && pdata->phy_irq) {
-	   if (request_irq(pdata->phy_irq, DWC_ETH_QOS_PHY_ISR,
-				IRQF_SHARED, DEV_NAME, pdata)) {
-		   pr_alert("Unable to register PHY IRQ %d\n", pdata->phy_irq);
-		   return -EIO;
-	   } else {
-		   phydev->irq = PHY_IGNORE_INTERRUPT;
-		   phydev->interrupts =  PHY_INTERRUPT_ENABLED;
 
-		   if ((phydev->phy_id & phydev->drv->phy_id_mask) == MICREL_PHY_ID) {
-				DWC_ETH_QOS_mdio_write_direct(pdata, pdata->phyaddr,
-					DWC_ETH_QOS_MICREL_PHY_CTL, DWC_ETH_QOS_MICREL_INTR_LEVEL);
-				DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr,
-					DWC_ETH_QOS_MICREL_PHY_CTL, &phydata);
-				EMACDBG( "Micrel PHY Control Reg (%#x) = %#x\n",
-					DWC_ETH_QOS_MICREL_PHY_CTL, phydata);
-			}
+		INIT_WORK(&pdata->emac_phy_work, DWC_ETH_QOS_defer_phy_isr_work);
+		init_completion(&pdata->clk_enable_done);
 
-		   if (phydev->drv->config_intr &&
-			   !phydev->drv->config_intr(phydev))
-					DWC_ETH_QOS_request_phy_wol(pdata);
+		ret = request_irq(pdata->phy_irq, DWC_ETH_QOS_PHY_ISR,
+						IRQF_SHARED, DEV_NAME, pdata);
+		if (ret) {
+			pr_alert("Unable to register PHY IRQ %d\n", pdata->phy_irq);
+			return ret;
 		}
+
+		phydev->irq = PHY_IGNORE_INTERRUPT;
+		phydev->interrupts =  PHY_INTERRUPT_ENABLED;
+
+        if ((phydev->phy_id & phydev->drv->phy_id_mask) == MICREL_PHY_ID) {
+            DWC_ETH_QOS_mdio_write_direct(pdata, pdata->phyaddr,
+                 DWC_ETH_QOS_MICREL_PHY_CTL, DWC_ETH_QOS_MICREL_INTR_LEVEL);
+            DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr,
+                 DWC_ETH_QOS_MICREL_PHY_CTL, &phydata);
+            EMACDBG("Micrel PHY Control Reg (%#x) = %#x\n",
+                    DWC_ETH_QOS_MICREL_PHY_CTL, phydata);
+        }
+
+		if (phydev->drv->config_intr &&
+			!phydev->drv->config_intr(phydev))
+			DWC_ETH_QOS_request_phy_wol(pdata);
 	}
 
 	phy_start(pdata->phydev);
@@ -1178,7 +1203,7 @@ int DWC_ETH_QOS_mdio_register(struct net_device *dev)
 	}
 	if (pdata->io_macro_phy_intf == RMII_MODE) {
 		pdata->speed = SPEED_100; //Default speed
-		DWC_ETH_QOS_set_clk_and_bus_config(pdata);
+		DWC_ETH_QOS_set_clk_and_bus_config(pdata, pdata->speed);
 		ret = DWC_ETH_QOS_configure_io_macro_dll_settings(pdata);
 		if (ret < 0) {
 			EMACERR("Failed to configure IO macro and DLL settings\n");

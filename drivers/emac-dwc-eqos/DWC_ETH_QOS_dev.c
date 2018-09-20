@@ -4075,8 +4075,10 @@ static INT DWC_ETH_QOS_yexit(void)
 	/*Poll Until Poll Condition */
 	vy_count = 0;
 	while (1) {
-		if (vy_count > RETRYCOUNT)
+		if (vy_count > RETRYCOUNT) {
+			EMACERR("Unable to reset MAC 0x%x\n", VARDMA_BMR);
 			return -Y_FAILURE;
+		}
 
 		vy_count++;
 		mdelay(1);
@@ -4187,8 +4189,10 @@ static INT configure_tx_queue(UINT queue_index)
 
 	/*Poll Until Poll Condition */
 	while (1) {
-		if (vy_count > RETRYCOUNT)
+		if (vy_count > RETRYCOUNT) {
+			EMACERR("unable to flush tx queue %d", queue_index);
 			return -Y_FAILURE;
+		}
 		vy_count++;
 		usleep_range(1000, 1500);
 		MTL_QTOMR_RGRD(queue_index, VARMTL_QTOMR);
@@ -4352,8 +4356,10 @@ static INT configure_mtl_queue(UINT QINX, struct DWC_ETH_QOS_prv_data *pdata)
 	/*Poll Until Poll Condition */
 	vy_count = 0;
 	while (1) {
-		if (vy_count > RETRYCOUNT)
+		if (vy_count > RETRYCOUNT){
+			EMACERR("unable to flush tx queue %d", QINX);
 			return -Y_FAILURE;
+		}
 		vy_count++;
 		mdelay(1);
 
@@ -4566,11 +4572,10 @@ static int enable_mac_interrupts(void)
 	unsigned long varmac_imr;
 
 	/* Enable following interrupts */
-	/* PHYIE - PHY Interrupt Enable */
 	/* LPIIM - LPI Interrupt Enable */
 	MAC_IMR_RGRD(varmac_imr);
-	varmac_imr = varmac_imr & (unsigned long)(0x1008);
-	varmac_imr = varmac_imr | ((0x1) << 3) | ((0x1) << 5);
+	varmac_imr = varmac_imr & (unsigned long)(0x1000);
+	varmac_imr = varmac_imr | ((0x1) << 5);
 	MAC_IMR_RGWR(varmac_imr);
 
 	return Y_SUCCESS;
@@ -4687,6 +4692,18 @@ static INT configure_mac(struct DWC_ETH_QOS_prv_data *pdata)
 	VARMAC_MCR |= ((0x1) << 1);
 #endif
 	MAC_MCR_RGWR(VARMAC_MCR);
+
+	switch (pdata->speed) {
+	case SPEED_1000:
+		set_gmii_speed();
+		break;
+	case SPEED_100:
+		set_mii_speed_100();
+		break;
+	case SPEED_10:
+		set_mii_speed_10();
+		break;
+	}
 
 	if (pdata->hw_feat.rx_coe_sel &&
 	    ((pdata->dev_state & NETIF_F_RXCSUM) == NETIF_F_RXCSUM))
