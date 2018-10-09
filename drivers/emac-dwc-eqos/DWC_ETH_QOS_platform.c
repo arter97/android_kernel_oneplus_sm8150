@@ -59,6 +59,8 @@ struct DWC_ETH_QOS_prv_data *gDWC_ETH_QOS_prv_data;
 struct emac_emb_smmu_cb_ctx emac_emb_smmu_ctx = {0};
 
 #define INVALID_MODULE_PARAM_VAL 0xFFFFFFFF
+static struct qmp_pkt pkt;
+static char qmp_buf[MAX_QMP_MSG_SIZE + 1] = {0};
 
 int ipa_offload_en = 1;
 module_param(ipa_offload_en, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -73,6 +75,103 @@ static uint phy_intf_bypass_mode = INVALID_MODULE_PARAM_VAL;
 module_param(phy_intf_bypass_mode, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(phy_intf_bypass_mode,
 		 "Phy interface bypass mode [1-Non-ID, 0-ID]");
+
+int phy_interrupt_en = 1;
+module_param(phy_interrupt_en, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(phy_interrupt_en,
+		"Enable PHY interrupt [0-DISABLE, 1-ENABLE]");
+
+static ssize_t read_phy_reg_dump(struct file *file,
+	char __user *user_buf, size_t count, loff_t *ppos)
+{
+	struct DWC_ETH_QOS_prv_data *pdata = file->private_data;
+	unsigned int len = 0, buf_len = 2000;
+	char* buf;
+	ssize_t ret_cnt;
+	int phydata = 0;
+	int i = 0;
+
+	if (!pdata || !pdata->phydev) {
+		EMACERR(" %s NULL Pointer \n",__func__);
+		return -EINVAL;
+	}
+
+	buf = kzalloc(buf_len, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	len += scnprintf(buf + len, buf_len - len,
+					 "\n************* PHY Reg dump *************\n");
+
+	for (i = 0; i < 32; i++) {
+		DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr, i, &phydata);
+		len += scnprintf(buf + len, buf_len - len,
+					 "MII Register (%#x) = %#x\n",
+					 i, phydata);
+	}
+
+	if (len > buf_len) {
+		EMACERR(" %s (len > buf_len) buffer not sufficient\n",__func__);
+		len = buf_len;
+	}
+
+	ret_cnt = simple_read_from_buffer(user_buf, count, ppos, buf, len);
+	kfree(buf);
+	return ret_cnt;
+}
+
+static const struct file_operations fops_phy_reg_dump = {
+	.read = read_phy_reg_dump,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
+int DWC_ETH_QOS_create_debugfs(struct DWC_ETH_QOS_prv_data *pdata)
+{
+	static struct dentry *phy_reg_dump = NULL;
+
+	if(!pdata) {
+		EMACERR( "Null Param %s \n", __func__);
+		return -1;
+	}
+
+	pdata->debugfs_dir = debugfs_create_dir("eth", NULL);
+
+	if (!pdata->debugfs_dir) {
+		EMACERR( "Cannot create debugfs dir %d \n", (int)pdata->debugfs_dir);
+		return -ENOMEM;
+	}
+
+	phy_reg_dump = debugfs_create_file("phy_reg_dump", S_IRUSR, pdata->debugfs_dir,
+				pdata, &fops_phy_reg_dump);
+	if (!phy_reg_dump || IS_ERR(phy_reg_dump)) {
+		EMACERR( "Cannot create debugfs phy_reg_dump %d \n", (int)phy_reg_dump);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	debugfs_remove_recursive(pdata->debugfs_dir);
+	return -ENOMEM;
+}
+
+int DWC_ETH_QOS_cleanup_debugfs(struct DWC_ETH_QOS_prv_data *pdata)
+{
+	if(!pdata) {
+		EMACERR("Null Param %s \n", __func__);
+		return -1;
+	}
+
+	if (pdata->debugfs_dir) {
+		debugfs_remove_recursive(pdata->debugfs_dir);
+		pdata->debugfs_dir = NULL;
+	}
+
+	EMACDBG("EMAC debugfs Deleted Successfully \n");
+	return 0;
+}
 
 void DWC_ETH_QOS_init_all_fptrs(struct DWC_ETH_QOS_prv_data *pdata)
 {
@@ -268,6 +367,8 @@ static int DWC_ETH_QOS_get_phy_intr_config(struct platform_device *pdev)
 
 	dwc_eth_qos_res_data.phy_intr = platform_get_irq_byname(pdev, "phy-intr");
 
+	EMACDBG("Received IRQ number:%d\n",dwc_eth_qos_res_data.phy_intr);
+
 	EMACDBG("Exit\n");
 	return ret;
 }
@@ -291,205 +392,252 @@ static void DWC_ETH_QOS_configure_gpio_pins(struct platform_device *pdev)
 	struct pinctrl_state *rgmii_rxd3_state;
 	struct pinctrl_state *rgmii_rxc_state;
 	struct pinctrl_state *rgmii_rx_ctl_state;
+	struct pinctrl_state *emac_phy_reset_state;
+	struct pinctrl_state *emac_phy_intr_state;
+	struct pinctrl_state *emac_pps_0;
 
 	int ret = 0;
 
 	EMACDBG("Enter\n");
 
-	pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR_OR_NULL(pinctrl)) {
-		ret = PTR_ERR(pinctrl);
-		EMACERR("Failed to get pinctrl, err = %d\n", ret);
-		return;
+	if (dwc_eth_qos_res_data.is_pinctrl_names) {
+
+		pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR_OR_NULL(pinctrl)) {
+			ret = PTR_ERR(pinctrl);
+			EMACERR("Failed to get pinctrl, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("get pinctrl succeed\n");
+
+		if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_2_0) {
+			/* PPS0 pin */
+			emac_pps_0 = pinctrl_lookup_state(pinctrl, EMAC_PIN_PPS0);
+			if (IS_ERR_OR_NULL(emac_pps_0)) {
+				ret = PTR_ERR(emac_pps_0);
+				EMACERR("Failed to get emac_pps_0, err = %d\n", ret);
+				return;
+			}
+			EMACDBG("Get emac_pps_0 succeed\n");
+			ret = pinctrl_select_state(pinctrl, emac_pps_0);
+			if (ret) EMACERR("Unable to set emac_pps_0 state, err = %d\n", ret);
+			else EMACDBG("Set emac_pps_0 succeed\n");
+
+			return;
+		}
+
+		/* MDIO Pin ctlrs*/
+		mdc_state = pinctrl_lookup_state(pinctrl, EMAC_MDC);
+		if (IS_ERR_OR_NULL(mdc_state)) {
+			ret = PTR_ERR(mdc_state);
+			EMACERR("Failed to get mdc_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get mdc_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, mdc_state);
+		if (ret)
+			EMACERR("Unable to set mdc_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set mdc_state succeed\n");
+
+		mdio_state = pinctrl_lookup_state(pinctrl, EMAC_MDIO);
+		if (IS_ERR_OR_NULL(mdc_state)) {
+			ret = PTR_ERR(mdc_state);
+			EMACERR("Failed to get mdio_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get mdio_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, mdio_state);
+		if (ret)
+			EMACERR("Unable to set mdio_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set mdio_state succeed\n");
+
+
+		/* RGMII Tx Pin ctlrs */
+		rgmii_txd0_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD0);
+		if (IS_ERR_OR_NULL(rgmii_txd0_state)) {
+			ret = PTR_ERR(rgmii_txd0_state);
+			EMACERR("Failed to get rgmii_txd0_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_txd0_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_txd0_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_txd0_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_txd0_state succeed\n");
+
+		rgmii_txd1_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD1);
+		if (IS_ERR_OR_NULL(rgmii_txd1_state)) {
+			ret = PTR_ERR(rgmii_txd1_state);
+			EMACERR("Failed to get rgmii_txd1_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_txd1_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_txd1_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_txd1_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_txd1_state succeed\n");
+
+		rgmii_txd2_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD2);
+		if (IS_ERR_OR_NULL(rgmii_txd2_state)) {
+			ret = PTR_ERR(rgmii_txd2_state);
+			EMACERR("Failed to get rgmii_txd2_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_txd2_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_txd2_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_txd2_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_txd2_state succeed\n");
+
+		rgmii_txd3_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD3);
+		if (IS_ERR_OR_NULL(rgmii_txd3_state)) {
+			ret = PTR_ERR(rgmii_txd3_state);
+			EMACERR("Failed to get rgmii_txd3_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_txd3_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_txd3_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_txd3_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_txd3_state succeed\n");
+
+		rgmii_txc_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXC);
+		if (IS_ERR_OR_NULL(rgmii_txc_state)) {
+			ret = PTR_ERR(rgmii_txc_state);
+			EMACERR("Failed to get rgmii_txc_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_txc_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_txc_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_txc_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_txc_state succeed\n");
+
+		rgmii_tx_ctl_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TX_CTL);
+		if (IS_ERR_OR_NULL(rgmii_tx_ctl_state)) {
+			ret = PTR_ERR(rgmii_tx_ctl_state);
+			EMACERR("Failed to get rgmii_tx_ctl_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_tx_ctl_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_tx_ctl_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_tx_ctl_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_tx_ctl_state succeed\n");
+
+		/* RGMII Rx Pin ctlrs */
+		rgmii_rxd0_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD0);
+		if (IS_ERR_OR_NULL(rgmii_rxd0_state)) {
+			ret = PTR_ERR(rgmii_rxd0_state);
+			EMACERR("Failed to get rgmii_rxd0_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rxd0_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rxd0_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rxd0_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rxd0_state succeed\n");
+
+		rgmii_rxd1_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD1);
+		if (IS_ERR_OR_NULL(rgmii_rxd1_state)) {
+			ret = PTR_ERR(rgmii_rxd1_state);
+			EMACERR("Failed to get rgmii_rxd1_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rxd1_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rxd1_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rxd1_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rxd1_state succeed\n");
+
+		rgmii_rxd2_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD2);
+		if (IS_ERR_OR_NULL(rgmii_rxd2_state)) {
+			ret = PTR_ERR(rgmii_rxd2_state);
+			EMACERR("Failed to get rgmii_rxd2_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rxd2_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rxd2_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rxd2_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rxd2_state succeed\n");
+
+		rgmii_rxd3_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD3);
+		if (IS_ERR_OR_NULL(rgmii_rxd3_state)) {
+			ret = PTR_ERR(rgmii_rxd3_state);
+			EMACERR("Failed to get rgmii_rxd3_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rxd3_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rxd3_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rxd3_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rxd3_state succeed\n");
+
+		rgmii_rxc_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXC);
+		if (IS_ERR_OR_NULL(rgmii_rxc_state)) {
+			ret = PTR_ERR(rgmii_rxc_state);
+			EMACERR("Failed to get rgmii_rxc_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rxc_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rxc_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rxc_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rxc_state succeed\n");
+
+		rgmii_rx_ctl_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RX_CTL);
+		if (IS_ERR_OR_NULL(rgmii_rx_ctl_state)) {
+			ret = PTR_ERR(rgmii_rx_ctl_state);
+			EMACERR("Failed to get rgmii_rx_ctl_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get rgmii_rx_ctl_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, rgmii_rx_ctl_state);
+		if (ret)
+			EMACERR("Unable to set rgmii_rx_ctl_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set rgmii_rx_ctl_state succeed\n");
+
+		emac_phy_intr_state = pinctrl_lookup_state(pinctrl, EMAC_PHY_INTR);
+		if (IS_ERR_OR_NULL(emac_phy_intr_state)) {
+			ret = PTR_ERR(emac_phy_intr_state);
+			EMACERR("Failed to get emac_phy_intr_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get emac_phy_intr_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, emac_phy_intr_state);
+		if (ret)
+			EMACERR("Unable to set emac_phy_intr_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set emac_phy_intr_state succeed\n");
+
+		emac_phy_reset_state = pinctrl_lookup_state(pinctrl, EMAC_PHY_RESET);
+		if (IS_ERR_OR_NULL(emac_phy_reset_state)) {
+			ret = PTR_ERR(emac_phy_reset_state);
+			EMACERR("Failed to get emac_phy_reset_state, err = %d\n", ret);
+			return;
+		}
+		EMACDBG("Get emac_phy_reset_state succeed\n");
+		ret = pinctrl_select_state(pinctrl, emac_phy_reset_state);
+		if (ret)
+			EMACERR("Unable to set emac_phy_reset_state state, err = %d\n", ret);
+		else
+			EMACDBG("Set emac_phy_reset_state succeed\n");
 	}
-	EMACDBG("get pinctrl succeed\n");
-
-	/* MDIO Pin ctlrs*/
-	mdc_state = pinctrl_lookup_state(pinctrl, EMAC_MDC);
-	if (IS_ERR_OR_NULL(mdc_state)) {
-		ret = PTR_ERR(mdc_state);
-		EMACERR("Failed to get mdc_state, err = %d\n", ret);
-		return;
-	}
-
-	EMACDBG("Get mdc_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, mdc_state);
-	if (ret)
-		EMACERR("Unable to set mdc_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set mdc_state succeed\n");
-
-	mdio_state = pinctrl_lookup_state(pinctrl, EMAC_MDIO);
-	if (IS_ERR_OR_NULL(mdc_state)) {
-		ret = PTR_ERR(mdc_state);
-		EMACERR("Failed to get mdio_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get mdio_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, mdio_state);
-	if (ret)
-		EMACERR("Unable to set mdio_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set mdio_state succeed\n");
-
-
-	/* RGMII Tx Pin ctlrs */
-	rgmii_txd0_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD0);
-	if (IS_ERR_OR_NULL(rgmii_txd0_state)) {
-		ret = PTR_ERR(rgmii_txd0_state);
-		EMACERR("Failed to get rgmii_txd0_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_txd0_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_txd0_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_txd0_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_txd0_state succeed\n");
-
-	rgmii_txd1_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD1);
-	if (IS_ERR_OR_NULL(rgmii_txd1_state)) {
-		ret = PTR_ERR(rgmii_txd1_state);
-		EMACERR("Failed to get rgmii_txd1_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_txd1_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_txd1_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_txd1_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_txd1_state succeed\n");
-
-	rgmii_txd2_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD2);
-	if (IS_ERR_OR_NULL(rgmii_txd2_state)) {
-		ret = PTR_ERR(rgmii_txd2_state);
-		EMACERR("Failed to get rgmii_txd2_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_txd2_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_txd2_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_txd2_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_txd2_state succeed\n");
-
-	rgmii_txd3_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXD3);
-	if (IS_ERR_OR_NULL(rgmii_txd3_state)) {
-		ret = PTR_ERR(rgmii_txd3_state);
-		EMACERR("Failed to get rgmii_txd3_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_txd3_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_txd3_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_txd3_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_txd3_state succeed\n");
-
-	rgmii_txc_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TXC);
-	if (IS_ERR_OR_NULL(rgmii_txc_state)) {
-		ret = PTR_ERR(rgmii_txc_state);
-		EMACERR("Failed to get rgmii_txc_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_txc_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_txc_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_txc_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_txc_state succeed\n");
-
-	rgmii_tx_ctl_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_TX_CTL);
-	if (IS_ERR_OR_NULL(rgmii_tx_ctl_state)) {
-		ret = PTR_ERR(rgmii_tx_ctl_state);
-		EMACERR("Failed to get rgmii_tx_ctl_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_tx_ctl_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_tx_ctl_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_tx_ctl_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_tx_ctl_state succeed\n");
-
-	/* RGMII Rx Pin ctlrs */
-	rgmii_rxd0_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD0);
-	if (IS_ERR_OR_NULL(rgmii_rxd0_state)) {
-		ret = PTR_ERR(rgmii_rxd0_state);
-		EMACERR("Failed to get rgmii_rxd0_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rxd0_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rxd0_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rxd0_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rxd0_state succeed\n");
-
-	rgmii_rxd1_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD1);
-	if (IS_ERR_OR_NULL(rgmii_rxd1_state)) {
-		ret = PTR_ERR(rgmii_rxd1_state);
-		EMACERR("Failed to get rgmii_rxd1_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rxd1_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rxd1_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rxd1_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rxd1_state succeed\n");
-
-	rgmii_rxd2_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD2);
-	if (IS_ERR_OR_NULL(rgmii_rxd2_state)) {
-		ret = PTR_ERR(rgmii_rxd2_state);
-		EMACERR("Failed to get rgmii_rxd2_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rxd2_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rxd2_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rxd2_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rxd2_state succeed\n");
-
-	rgmii_rxd3_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXD3);
-	if (IS_ERR_OR_NULL(rgmii_rxd3_state)) {
-		ret = PTR_ERR(rgmii_rxd3_state);
-		EMACERR("Failed to get rgmii_rxd3_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rxd3_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rxd3_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rxd3_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rxd3_state succeed\n");
-
-	rgmii_rxc_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RXC);
-	if (IS_ERR_OR_NULL(rgmii_rxc_state)) {
-		ret = PTR_ERR(rgmii_rxc_state);
-		EMACERR("Failed to get rgmii_rxc_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rxc_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rxc_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rxc_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rxc_state succeed\n");
-
-	rgmii_rx_ctl_state = pinctrl_lookup_state(pinctrl, EMAC_RGMII_RX_CTL);
-	if (IS_ERR_OR_NULL(rgmii_rx_ctl_state)) {
-		ret = PTR_ERR(rgmii_rx_ctl_state);
-		EMACERR("Failed to get rgmii_rx_ctl_state, err = %d\n", ret);
-		return;
-	}
-	EMACDBG("Get rgmii_rx_ctl_state succeed\n");
-	ret = pinctrl_select_state(pinctrl, rgmii_rx_ctl_state);
-	if (ret)
-		EMACERR("Unable to set rgmii_rx_ctl_state state, err = %d\n", ret);
-	else
-		EMACDBG("Set rgmii_rx_ctl_state succeed\n");
 
 	EMACDBG("Exit\n");
 
@@ -632,19 +780,93 @@ err_out_map_failed:
 	return ret;
 }
 
+int DWC_ETH_QOS_qmp_mailbox_init(struct DWC_ETH_QOS_prv_data *pdata)
+{
+	pdata->qmp_mbox_client = devm_kzalloc(
+	   &pdata->pdev->dev, sizeof(*pdata->qmp_mbox_client), GFP_KERNEL);
+
+	if (IS_ERR(pdata->qmp_mbox_client)){
+		EMACERR("qmp alloc client failed\n");
+		return -1;
+	}
+
+	pdata->qmp_mbox_client->dev = &pdata->pdev->dev;
+	pdata->qmp_mbox_client->tx_block = true;
+	pdata->qmp_mbox_client->tx_tout = 1000;
+	pdata->qmp_mbox_client->knows_txdone = false;
+
+	pdata->qmp_mbox_chan = mbox_request_channel(pdata->qmp_mbox_client, 0);
+
+	if (IS_ERR(pdata->qmp_mbox_chan)) {
+		EMACERR("qmp reuest channel failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int DWC_ETH_QOS_qmp_mailbox_send_message(struct DWC_ETH_QOS_prv_data *pdata)
+{
+	int ret = 0;
+
+	memset(&qmp_buf[0], 0, MAX_QMP_MSG_SIZE + 1);
+
+	snprintf(qmp_buf, MAX_QMP_MSG_SIZE, "{class:ctile, pc:0}");
+
+	pkt.size = ((size_t)strlen(qmp_buf) + 0x3) & ~0x3;
+	pkt.data = qmp_buf;
+
+	ret = mbox_send_message(pdata->qmp_mbox_chan, (void*)&pkt);
+
+	EMACDBG("qmp mbox_send_message ret = %d \n", ret);
+
+	if (ret < 0) {
+		EMACERR("Disabling c-tile power collapse failed\n");
+		return ret;
+	}
+
+	EMACINFO("Disabling c-tile power collapse succeded");
+
+	return 0;
+}
+
+/**
+ *  DWC_ETH_QOS_qmp_mailbox_work - Scheduled from probe
+ *  @work: work_struct
+ */
+void DWC_ETH_QOS_qmp_mailbox_work(struct work_struct *work)
+{
+	struct DWC_ETH_QOS_prv_data *pdata =
+		container_of(work, struct DWC_ETH_QOS_prv_data, qmp_mailbox_work);
+
+	EMACDBG("Enter\n");
+
+	/* Send QMP message to disable c-tile power collapse */
+	DWC_ETH_QOS_qmp_mailbox_send_message(pdata);
+
+	EMACDBG("Exit\n");
+}
+
+
 int DWC_ETH_QOS_enable_ptp_clk(struct device *dev)
 {
 	int ret;
+	const char* ptp_clock_name;
+
+	if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_1_0)
+		ptp_clock_name = "emac_ptp_clk";
+	else
+		ptp_clock_name = "eth_ptp_clk";
 
 	/* valid value of dwc_eth_qos_res_data.ptp_clk indicates that clock is enabled */
 	if (!dwc_eth_qos_res_data.ptp_clk) {
 
-		dwc_eth_qos_res_data.ptp_clk = devm_clk_get(dev, "eth_ptp_clk");
+		dwc_eth_qos_res_data.ptp_clk = devm_clk_get(dev, ptp_clock_name);
 
 		if (IS_ERR(dwc_eth_qos_res_data.ptp_clk)) {
 			dwc_eth_qos_res_data.ptp_clk = NULL;
 			if (dwc_eth_qos_res_data.ptp_clk != ERR_PTR(-EPROBE_DEFER)) {
-				EMACERR("unable to get ptp_clk\n");
+				EMACERR("unable to get %s\n", ptp_clock_name);
 				return -EIO;
 			}
 		}
@@ -652,14 +874,14 @@ int DWC_ETH_QOS_enable_ptp_clk(struct device *dev)
 		ret = clk_prepare_enable(dwc_eth_qos_res_data.ptp_clk);
 
 		if (ret) {
-			EMACERR("Failed to enable ptp_clk\n");
+			EMACERR("Failed to enable %s\n", ptp_clock_name);
 			goto ptp_clk_fail;
 		}
 
 		ret = clk_set_rate(dwc_eth_qos_res_data.ptp_clk, DWC_ETH_QOS_SYSCLOCK);
 
 		if (ret) {
-			EMACERR("Failed to set rate for ptp_clk\n");
+			EMACERR("Failed to set rate for %s\n", ptp_clock_name);
 			goto ptp_clk_fail;
 		}
 	}
@@ -675,6 +897,7 @@ ptp_clk_fail:
 void DWC_ETH_QOS_disable_ptp_clk(struct device* dev)
 {
 	if (dwc_eth_qos_res_data.ptp_clk){
+		clk_set_rate(dwc_eth_qos_res_data.ptp_clk, 0);
 		clk_disable_unprepare(dwc_eth_qos_res_data.ptp_clk);
 		devm_clk_put(dev, dwc_eth_qos_res_data.ptp_clk);
 	}
@@ -758,25 +981,23 @@ static int DWC_ETH_QOS_get_clks(struct device *dev)
 	const char* axi_clock_name;
 	const char* ahb_clock_name;
 	const char* rgmii_clock_name;
-	const char* ptp_clock_name;
 
 	dwc_eth_qos_res_data.axi_clk = NULL;
 	dwc_eth_qos_res_data.ahb_clk = NULL;
 	dwc_eth_qos_res_data.rgmii_clk = NULL;
 	dwc_eth_qos_res_data.ptp_clk = NULL;
 
-	if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_1_0) {
+	if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_1_0
+		|| dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_1_2) {
 		/* EMAC core version 2.1.0 clocks */
 		axi_clock_name = "emac_axi_clk";
 		ahb_clock_name = "emac_slv_ahb_clk";
 		rgmii_clock_name = "emac_rgmii_clk";
-		ptp_clock_name = "emac_ptp_clk";
 	} else {
 		/* Default values are for EMAC core version 2.0.0 clocks */
 		axi_clock_name = "eth_axi_clk";
 		ahb_clock_name = "eth_slave_ahb_clk";
 		rgmii_clock_name = "eth_rgmii_clk";
-		ptp_clock_name = "eth_ptp_clk";
 	}
 
 	dwc_eth_qos_res_data.axi_clk = devm_clk_get(dev, axi_clock_name);
@@ -802,7 +1023,6 @@ static int DWC_ETH_QOS_get_clks(struct device *dev)
 			return -EIO;
 		}
 	}
-
 
 	ret = clk_prepare_enable(dwc_eth_qos_res_data.axi_clk);
 
@@ -1065,12 +1285,11 @@ static int DWC_ETH_QOS_init_gpios(struct device *dev)
 					EMAC_GPIO_PHY_RESET_NAME);
 			goto gpio_error;
 		}
+		mdelay(1);
+
+		gpio_set_value(dwc_eth_qos_res_data.gpio_phy_reset, PHY_RESET_GPIO_HIGH);
 		EMACDBG("PHY is out of reset successfully\n");
 	}
-
-	mdelay(1);
-
-	gpio_set_value(dwc_eth_qos_res_data.gpio_phy_reset, PHY_RESET_GPIO_HIGH);
 
 	return ret;
 
@@ -1194,7 +1413,9 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 
 	dev->netdev_ops = DWC_ETH_QOS_get_netdev_ops();
 
-	pdata->interface = DWC_ETH_QOS_get_phy_interface(pdata);
+	pdata->interface = DWC_ETH_QOS_get_io_macro_phy_interface(pdata);
+
+	pdata->enable_phy_intr = phy_interrupt_en;
 
 	/* Bypass PHYLIB for TBI, RTBI and SGMII interface */
 	if (pdata->hw_feat.sma_sel == 1) {
@@ -1231,6 +1452,7 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 
 	if (pdata->hw_feat.tso_en) {
 		dev->hw_features = NETIF_F_TSO;
+		dev->hw_features |= NETIF_F_TSO6;
 #ifdef DWC_ETH_QOS_CONFIG_UFO
 		dev->hw_features |= NETIF_F_UFO;
 #endif
@@ -1268,6 +1490,8 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 
 #ifdef DWC_ETH_QOS_CONFIG_PTP
 	DWC_ETH_QOS_ptp_init(pdata);
+	/*default ptp clock frequency set to 50Mhz*/
+	pdata->ptpclk_freq = DWC_ETH_QOS_DEFAULT_PTP_CLOCK;
 #endif /* end of DWC_ETH_QOS_CONFIG_PTP */
 
 #endif /* end of DWC_ETH_QOS_CONFIG_PGTEST */
@@ -1308,6 +1532,16 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 
 	if (!pdata->always_on_phy)
 		DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
+
+	DWC_ETH_QOS_create_debugfs(pdata);
+
+	if (EMAC_HW_v2_0_0 == pdata->emac_hw_version_type)
+		pdata->disable_ctile_pc = 1;
+
+	if (pdata->disable_ctile_pc && !DWC_ETH_QOS_qmp_mailbox_init(pdata)){
+		INIT_WORK(&pdata->qmp_mailbox_work, DWC_ETH_QOS_qmp_mailbox_work);
+		queue_work(system_wq, &pdata->qmp_mailbox_work);
+	}
 
 	EMACDBG("<-- DWC_ETH_QOS_configure_netdevice\n");
 
@@ -1603,6 +1837,9 @@ int DWC_ETH_QOS_remove(struct platform_device *pdev)
 		EMACERR("<-- DWC_ETH_QOS_remove\n");
 		return -1;
 	}
+
+	DWC_ETH_QOS_cleanup_debugfs(pdata);
+
 #ifdef PER_CH_INT
 	DWC_ETH_QOS_deregister_per_ch_intr(pdata);
 #endif
@@ -1648,6 +1885,11 @@ int DWC_ETH_QOS_remove(struct platform_device *pdev)
 	emac_emb_smmu_exit();
 
 	DWC_ETH_QOS_set_clk_and_bus_config(pdata, 0);
+
+	if (pdata->bus_hdl){
+		msm_bus_scale_unregister_client(pdata->bus_hdl);
+		pdata->bus_hdl = 0;
+	}
 
 	free_netdev(dev);
 

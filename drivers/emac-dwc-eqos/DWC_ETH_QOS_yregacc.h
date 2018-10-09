@@ -14595,6 +14595,18 @@
 		MMC_RXIPV4_GD_PKTS_RGRD(data);\
 } while (0)
 
+#define MMC_EMAC_RX_LPI_TRAN_CNTR_RGOFFADDR ((volatile ULONG *)(BASE_ADDRESS + 0x000007F8))
+
+#define MMC_EMAC_RX_LPI_TRAN_CNTR_RGRD(data) do {\
+		(data) = ioread32((void *)MMC_EMAC_RX_LPI_TRAN_CNTR_RGOFFADDR);\
+} while (0)
+
+#define MMC_EMAC_TX_LPI_TRAN_CNTR_RGOFFADDR ((volatile ULONG *)(BASE_ADDRESS + 0x000007F0))
+
+#define MMC_EMAC_TX_LPI_TRAN_CNTR_RGRD(data) do {\
+		(data) = ioread32((void *)MMC_EMAC_TX_LPI_TRAN_CNTR_RGOFFADDR);\
+} while (0)
+
 #define MMC_RXCTRLPACKETS_G_RGOFFADDR ((volatile ULONG *)(BASE_ADDRESS + 0x7e4))
 
 #define MMC_RXCTRLPACKETS_G_RGRD(data) do {\
@@ -36851,11 +36863,11 @@
 
 /*#define  DMA_RCR_Mask_28 (ULONG)(~(~0<<(4)))*/
 
-#define  DMA_RCR_MASK_28 (ULONG)(0xf)
+#define  DMA_RCR_MASK_28 (ULONG)(0x7)
 
 /*#define DMA_RCR_RES_Wr_Mask_28 (ULONG)(~((~(~0<<(4)))<<(28)))*/
 
-#define DMA_RCR_RES_WR_MASK_28 (ULONG)(0xfffffff)
+#define DMA_RCR_RES_WR_MASK_28 (ULONG)(0x8fffffff)
 
 /*#define  DMA_RCR_Mask_22 (ULONG)(~(~0<<(3)))*/
 

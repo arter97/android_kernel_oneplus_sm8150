@@ -696,7 +696,9 @@ static void ntn_ipa_notify_cb(void *priv, enum ipa_dp_evt_type evt,
 
 		/* Update Statistics */
 		pdata->ipa_stats.ipa_ul_exception++;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 		pdata->dev->last_rx = jiffies;
+#endif
 		pdata->dev->stats.rx_packets++;
 		pdata->dev->stats.rx_bytes += skb->len;
 	} else {
@@ -1215,6 +1217,9 @@ void DWC_ETH_QOS_ipa_stats_read(struct DWC_ETH_QOS_prv_data *pdata)
 	struct DWC_ETH_QOS_ipa_stats *dma_stats = &pdata->ipa_stats;
 	UINT data;
 
+	if (!pdata->rx_queue || !pdata->tx_queue)
+		return;
+
 	dma_stats->ipa_rx_Desc_Ring_Base = GET_RX_DESC_DMA_ADDR(IPA_DMA_RX_CH, 0);
 	dma_stats->ipa_rx_Desc_Ring_Size = pdata->rx_queue[IPA_DMA_RX_CH].desc_cnt;
 	dma_stats->ipa_rx_Buff_Ring_Base = GET_RX_BUFF_POOL_BASE_PADRR(IPA_DMA_RX_CH);
@@ -1510,43 +1515,43 @@ static const struct file_operations fops_ntn_ipa_offload_en = {
 int DWC_ETH_QOS_ipa_create_debugfs(struct DWC_ETH_QOS_prv_data *pdata)
 {
 	struct DWC_ETH_QOS_prv_ipa_data *ntn_ipa = &pdata->prv_ipa;
-	static struct dentry *stats = NULL;
 
-	if(!pdata) {
+	if(!pdata || !pdata->debugfs_dir) {
 		EMACERR( "Null Param %s \n", __func__);
 		return -1;
 	}
 
-	ntn_ipa->debugfs_dir = debugfs_create_dir("eth", NULL);
-	if (!ntn_ipa->debugfs_dir) {
-		EMACERR( "Cannot create debugfs dir %d \n", (int)ntn_ipa->debugfs_dir);
-		return -ENOMEM;
-	}
-
-	stats = debugfs_create_file("ipa_stats", S_IRUSR, ntn_ipa->debugfs_dir,
+	ntn_ipa->debugfs_ipa_stats =
+		debugfs_create_file("ipa_stats", S_IRUSR, pdata->debugfs_dir,
 				pdata, &fops_ipa_stats);
-	if (!stats || IS_ERR(stats)) {
-		EMACERR( "Cannot create debugfs ipa_stats %d \n", (int)stats);
+	if (!ntn_ipa->debugfs_ipa_stats || IS_ERR(ntn_ipa->debugfs_ipa_stats)) {
+		EMACERR( "Cannot create debugfs ipa_stats %d \n",
+				 (int)ntn_ipa->debugfs_ipa_stats);
 		goto fail;
 	}
 
-	stats = debugfs_create_file("dma_stats", S_IRUSR, ntn_ipa->debugfs_dir,
+	ntn_ipa->debugfs_dma_stats =
+		debugfs_create_file("dma_stats", S_IRUSR, pdata->debugfs_dir,
 				pdata, &fops_ntn_dma_stats);
-	if (!stats || IS_ERR(stats)) {
-		EMACERR( "Cannot create debugfs dma_stats %d \n", (int)stats);
+	if (!ntn_ipa->debugfs_dma_stats || IS_ERR(ntn_ipa->debugfs_dma_stats)) {
+		EMACERR( "Cannot create debugfs dma_stats %d \n",
+				 (int)ntn_ipa->debugfs_dma_stats);
 		goto fail;
 	}
 
-	stats = debugfs_create_file("suspend_ipa_offload", (S_IRUSR|S_IWUSR),
-				ntn_ipa->debugfs_dir, pdata, &fops_ntn_ipa_offload_en);
-	if (!stats || IS_ERR(stats)) {
-		EMACERR( "Cannot create debugfs ipa_offload_en %d \n", (int)stats);
+	ntn_ipa->debugfs_suspend_ipa_offload =
+		debugfs_create_file("suspend_ipa_offload", (S_IRUSR|S_IWUSR),
+				pdata->debugfs_dir, pdata, &fops_ntn_ipa_offload_en);
+	if (!ntn_ipa->debugfs_suspend_ipa_offload
+		|| IS_ERR(ntn_ipa->debugfs_suspend_ipa_offload)) {
+		EMACERR( "Cannot create debugfs ipa_offload_en %d \n",
+				 (int)ntn_ipa->debugfs_suspend_ipa_offload);
 		goto fail;
 	}
 	return 0;
 
 fail:
-	debugfs_remove_recursive(ntn_ipa->debugfs_dir);
+	DWC_ETH_QOS_ipa_cleanup_debugfs(pdata);
 	return -ENOMEM;
 }
 
@@ -1559,16 +1564,30 @@ fail:
  */
 int DWC_ETH_QOS_ipa_cleanup_debugfs(struct DWC_ETH_QOS_prv_data *pdata)
 {
-	struct DWC_ETH_QOS_prv_ipa_data *ntn_ipa;
+	struct DWC_ETH_QOS_prv_ipa_data *ntn_ipa= &pdata->prv_ipa;
 
-	if(!pdata) {
+	if(!pdata || !ntn_ipa) {
 		EMACERR("Null Param %s \n", __func__);
 		return -1;
 	}
 
-	ntn_ipa = &pdata->prv_ipa;
-	if (ntn_ipa->debugfs_dir)
-		debugfs_remove_recursive(ntn_ipa->debugfs_dir);
+	if (pdata->debugfs_dir) {
+		if (ntn_ipa->debugfs_ipa_stats) {
+			debugfs_remove(ntn_ipa->debugfs_ipa_stats);
+			ntn_ipa->debugfs_ipa_stats = NULL;
+		}
+
+		if (ntn_ipa->debugfs_dma_stats) {
+			debugfs_remove(ntn_ipa->debugfs_dma_stats);
+			ntn_ipa->debugfs_dma_stats = NULL;
+
+		}
+
+		if (ntn_ipa->debugfs_suspend_ipa_offload) {
+			debugfs_remove(ntn_ipa->debugfs_suspend_ipa_offload);
+			ntn_ipa->debugfs_suspend_ipa_offload = NULL;
+		}
+	}
 
 	EMACDBG("IPA debugfs Deleted Successfully \n");
 	return 0;

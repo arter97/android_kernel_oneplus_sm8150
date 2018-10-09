@@ -121,6 +121,9 @@
 #include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/err.h>
+#include <linux/mailbox_client.h>
+#include <linux/mailbox/qmp.h>
+#include <linux/mailbox_controller.h>
 
 /* QOS Version Control Macros */
 /* #define DWC_ETH_QOS_VER_4_0 */
@@ -168,7 +171,7 @@
 #define DWC_ETH_QOS_QUEUE_SELECT_ALGO
 /* #define DWC_ETH_QOS_CERTIFICATION_PKTBURSTCNT */
 /* #define DWC_ETH_QOS_CERTIFICATION_PKTBURSTCNT_HALFDUPLEX */
-#define DWC_ETH_QOS_TXPOLLING_MODE_ENABLE
+/* #define DWC_ETH_QOS_TXPOLLING_MODE_ENABLE */
 /* #define DWC_ETH_QOS_COPYBREAK_ENABLED */
 
 #ifdef DWC_ETH_QOS_CONFIG_PTP
@@ -319,6 +322,13 @@
 #define LINK_STATE_MASK 0x4
 #define AUTONEG_STATE_MASK 0x20
 
+/* Hibernation mode in AR8035 */
+#define DWC_ETH_QOS_PHY_HIB_CTRL 0x0B
+#define DWC_ETH_QOS_PHY_HIB_CTRL_PS_HIB_EN_WR_MASK  0xFFFF7FFF
+#define DWC_ETH_QOS_PHY_HIB_CTRL_PS_HIB_EN_MASK  0x1
+
+
+
 #define LINK_DOWN_STATE 0x800
 #define LINK_UP_STATE 0x400
 #define PHY_WOL 0x1
@@ -399,6 +409,8 @@
 #define DWC_ETH_QOS_COPYBREAK_DEFAULT 256
 #define DWC_ETH_QOS_SYSCLOCK	250000000 /* System clock is 250MHz */
 #define DWC_ETH_QOS_SYSTIMEPERIOD	4 /* System time period is 4ns */
+
+#define DWC_ETH_QOS_DEFAULT_PTP_CLOCK 250000000
 
 #define DWC_ETH_QOS_TX_QUEUE_CNT (pdata->tx_queue_cnt)
 #define DWC_ETH_QOS_RX_QUEUE_CNT (pdata->rx_queue_cnt)
@@ -577,6 +589,8 @@
 #define QTAG_VLAN_ETH_TYPE_OFFSET 16
 #define QTAG_UCP_FIELD_OFFSET 14
 #define QTAG_ETH_TYPE_OFFSET 12
+#define PTP_UDP_EV_PORT 0x013F
+#define PTP_UDP_GEN_PORT 0x0140
 
 #define GET_ETH_TYPE(buf) \
                ((((u16)buf[QTAG_ETH_TYPE_OFFSET]<<8) | \
@@ -598,12 +612,19 @@
 #define CLASS_B_TRAFFIC_TX_CHANNEL 2
 
 #define NON_TAGGED_IP_TRAFFIC_TX_CHANNEL 1
+#ifdef DWC_ETH_QOS_ENABLE_IPA
+/* TX channel assigned to IPA is 0 hence all other traffic is
+   assigned to 1 */
 #define ALL_OTHER_TRAFFIC_TX_CHANNEL 1
+#else
+#define ALL_OTHER_TRAFFIC_TX_CHANNEL 0
+#endif
 #define TX_IOC_MODEATION_IP_TRAFFIC 16
 
 #define DEFAULT_INT_MOD 1
 #define AVB_INT_MOD 8
-#define IP_PKT_INT_MOD 16
+#define IP_PKT_INT_MOD 32
+#define PTP_INT_MOD 1
 
 #define DMA_TX_CH0 0
 #define DMA_TX_CH1 1
@@ -654,6 +675,7 @@
 #define MII_100_LOW_SVS_CLK_FREQ  (25 * 1000 * 1000UL)
 #define MII_10_LOW_SVS_CLK_FREQ  (2.5 * 1000 * 1000UL)
 
+#define MAX_QMP_MSG_SIZE 96
 #define NAPI_PER_QUEUE_POLL_BUDGET 64
 
 /**
@@ -679,7 +701,6 @@
 #define EMAC_HW_v2_3_1 7
 #define EMAC_HW_v2_3_2 8
 #define EMAC_HW_vMAX 9
-
 
 /* C data types typedefs */
 typedef unsigned short BOOL;
@@ -1344,7 +1365,7 @@ struct DWC_ETH_QOS_mmc_counters {
 	unsigned long mmc_rx_ipv4_hderr;
 	unsigned long mmc_rx_ipv4_nopay;
 	unsigned long mmc_rx_ipv4_frag;
-	unsigned long mmc_rx_ipv4_udsbl;
+	unsigned long mmc_rx_ipv4_udp_csum_disable;
 
 	/* IPV6 */
 	unsigned long mmc_rx_ipv6_gd_octets;
@@ -1353,18 +1374,18 @@ struct DWC_ETH_QOS_mmc_counters {
 
 	/* Protocols */
 	unsigned long mmc_rx_udp_gd;
-	unsigned long mmc_rx_udp_err;
+	unsigned long mmc_rx_udp_csum_err;
 	unsigned long mmc_rx_tcp_gd;
-	unsigned long mmc_rx_tcp_err;
+	unsigned long mmc_rx_tcp_csum_err;
 	unsigned long mmc_rx_icmp_gd;
-	unsigned long mmc_rx_icmp_err;
+	unsigned long mmc_rx_icmp_csum_err;
 
 	/* IPv4 */
 	unsigned long mmc_rx_ipv4_gd_octets;
 	unsigned long mmc_rx_ipv4_hderr_octets;
 	unsigned long mmc_rx_ipv4_nopay_octets;
 	unsigned long mmc_rx_ipv4_frag_octets;
-	unsigned long mmc_rx_ipv4_udsbl_octets;
+	unsigned long mmc_rx_ipv4_udp_csum_dis_octets;
 
 	/* IPV6 */
 	unsigned long mmc_rx_ipv6_gd;
@@ -1373,11 +1394,16 @@ struct DWC_ETH_QOS_mmc_counters {
 
 	/* Protocols */
 	unsigned long mmc_rx_udp_gd_octets;
-	unsigned long mmc_rx_udp_err_octets;
+	unsigned long mmc_rx_udp_csum_err_octets;
 	unsigned long mmc_rx_tcp_gd_octets;
-	unsigned long mmc_rx_tcp_err_octets;
+	unsigned long mmc_rx_tcp_csum_err_octets;
 	unsigned long mmc_rx_icmp_gd_octets;
-	unsigned long mmc_rx_icmp_err_octets;
+	unsigned long mmc_rx_icmp_csum_err_octets;
+
+	/* LPI Rx and Tx Transition counters */
+	unsigned long mmc_emac_rx_lpi_tran_cntr;
+	unsigned long mmc_emac_tx_lpi_tran_cntr;
+
 };
 
 struct DWC_ETH_QOS_extra_stats {
@@ -1532,7 +1558,6 @@ struct DWC_ETH_QOS_prv_ipa_data {
 	phys_addr_t uc_db_rx_addr;
 	phys_addr_t uc_db_tx_addr;
 	u32 ipa_client_hndl;
-	struct dentry *debugfs_dir;
 
 	/* IPA state variables */
 	/* State of EMAC HW initilization */
@@ -1559,6 +1584,10 @@ struct DWC_ETH_QOS_prv_ipa_data {
 	unsigned short vlan_id;
 
 	struct mutex ipa_lock;
+
+	struct dentry *debugfs_ipa_stats;
+	struct dentry *debugfs_dma_stats;
+	struct dentry *debugfs_suspend_ipa_offload;
 };
 
 struct DWC_ETH_QOS_prv_data {
@@ -1569,6 +1598,9 @@ struct DWC_ETH_QOS_prv_data {
 	struct DWC_ETH_QOS_res_data *res_data;
 	bool phy_intr_en;
 	bool always_on_phy;
+	/* Module parameter to check if PHY interrupt should be
+	enabled. Default value is true. */
+	bool enable_phy_intr;
 
 	struct msm_bus_scale_pdata *bus_scale_vec;
 	uint32_t bus_hdl;
@@ -1777,7 +1809,14 @@ struct DWC_ETH_QOS_prv_data {
 	unsigned int io_macro_tx_mode_non_id;
 	unsigned int io_macro_phy_intf;
 	int phy_irq;
+
 	unsigned int emac_hw_version_type;
+
+	/* QMP message for disabling ctile power collapse while XO shutdown */
+	struct mbox_chan *qmp_mbox_chan;
+	struct mbox_client *qmp_mbox_client;
+	struct work_struct qmp_mailbox_work;
+	int disable_ctile_pc;
 
 	/* Work struct for handling phy interrupt */
 	struct work_struct emac_phy_work;
@@ -1786,6 +1825,11 @@ struct DWC_ETH_QOS_prv_data {
 	struct iommu_domain *iommu_domain;
 	unsigned int *emac_reg_base_address;
 	unsigned int *rgmii_reg_base_address;
+
+	/* Debugfs base dir */
+	struct dentry *debugfs_dir;
+	/* ptp clock frequency set by PTPCLK_Config ioctl default value is 250MHz */
+	unsigned int ptpclk_freq;
 };
 
 typedef enum {
@@ -1876,6 +1920,7 @@ UINT DWC_ETH_QOS_get_total_desc_cnt(struct DWC_ETH_QOS_prv_data *pdata,
 int DWC_ETH_QOS_ptp_init(struct DWC_ETH_QOS_prv_data *pdata);
 void DWC_ETH_QOS_ptp_remove(struct DWC_ETH_QOS_prv_data *pdata);
 phy_interface_t DWC_ETH_QOS_get_phy_interface(struct DWC_ETH_QOS_prv_data *pdata);
+phy_interface_t DWC_ETH_QOS_get_io_macro_phy_interface(struct DWC_ETH_QOS_prv_data *pdata);
 int DWC_ETH_QOS_enable_ptp_clk(struct device *dev);
 void DWC_ETH_QOS_disable_ptp_clk(struct device *dev);
 
@@ -1909,7 +1954,7 @@ irqreturn_t DWC_ETH_QOS_ISR_SW_DWC_ETH_QOS(int irq, void *dev_id);
 void DWC_ETH_QOS_handle_phy_interrupt(struct DWC_ETH_QOS_prv_data *pdata);
 int DWC_ETH_QOS_rgmii_io_macro_sdcdc_init(struct DWC_ETH_QOS_prv_data *);
 int DWC_ETH_QOS_rgmii_io_macro_sdcdc_enable_lp_mode(void);
-int DWC_ETH_QOS_rgmii_io_macro_sdcdc_config(void);
+int DWC_ETH_QOS_rgmii_io_macro_sdcdc_config(struct DWC_ETH_QOS_prv_data *pdata);
 int DWC_ETH_QOS_rgmii_io_macro_init(struct DWC_ETH_QOS_prv_data *);
 int DWC_ETH_QOS_sdcc_set_bypass_mode(void);
 int DWC_ETH_QOS_rgmii_io_macro_dll_reset(struct DWC_ETH_QOS_prv_data *pdata);
@@ -1933,6 +1978,9 @@ void DWC_ETH_QOS_set_clk_and_bus_config(struct DWC_ETH_QOS_prv_data *pdata, int 
 #define EMAC_RGMII_RXD3 "dev-emac-rgmii_rxd3_state"
 #define EMAC_RGMII_RXC "dev-emac-rgmii_rxc_state"
 #define EMAC_RGMII_RX_CTL "dev-emac-rgmii_rx_ctl_state"
+#define EMAC_PHY_RESET "dev-emac-phy_reset_state"
+#define EMAC_PHY_INTR "dev-emac-phy_intr"
+#define EMAC_PIN_PPS0 "dev-emac_pin_pps_0"
 
 #ifdef PER_CH_INT
 void DWC_ETH_QOS_handle_DMA_Int(struct DWC_ETH_QOS_prv_data *pdata, int chinx, bool);

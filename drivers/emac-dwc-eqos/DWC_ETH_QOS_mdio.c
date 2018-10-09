@@ -443,6 +443,49 @@ void dump_phy_registers(struct DWC_ETH_QOS_prv_data *pdata)
 }
 
 /*!
+ * \brief API to enable or disable PHY hibernation mode
+ *
+ * \details Write to PHY debug registers at 0x0B bit[15]
+ *
+ * \param[in] pdata - pointer to platform data, mode
+ * enable or disable values.
+ *
+ * \return void
+ *
+ * \retval none
+ */
+static void DWC_ETH_QOS_set_phy_hibernation_mode(struct DWC_ETH_QOS_prv_data *pdata,
+								uint mode)
+{
+	u32 phydata = 0;
+	EMACINFO("Enter\n");
+
+	DWC_ETH_QOS_mdio_write_direct(pdata, pdata->phyaddr,
+				DWC_ETH_QOS_PHY_DEBUG_PORT_ADDR_OFFSET,
+				DWC_ETH_QOS_PHY_HIB_CTRL);
+	DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr,
+				DWC_ETH_QOS_PHY_DEBUG_PORT_DATAPORT,
+				&phydata);
+
+	EMACINFO("value read 0x%x\n", phydata);
+
+	phydata = ((phydata & DWC_ETH_QOS_PHY_HIB_CTRL_PS_HIB_EN_WR_MASK)
+			   | ((DWC_ETH_QOS_PHY_HIB_CTRL_PS_HIB_EN_MASK & mode) << 15));
+	DWC_ETH_QOS_mdio_write_direct(pdata, pdata->phyaddr,
+				DWC_ETH_QOS_PHY_DEBUG_PORT_DATAPORT,
+				phydata);
+
+	DWC_ETH_QOS_mdio_write_direct(pdata, pdata->phyaddr,
+				DWC_ETH_QOS_PHY_DEBUG_PORT_ADDR_OFFSET,
+				DWC_ETH_QOS_PHY_HIB_CTRL);
+	DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr,
+				DWC_ETH_QOS_PHY_DEBUG_PORT_DATAPORT,
+				&phydata);
+
+	EMACINFO("Exit value written 0x%x\n", phydata);
+}
+
+/*!
  * \brief API to enable or disable RX/TX delay in PHY.
  *
  * \details Write to PHY debug registers at 0x0 and 0x5
@@ -465,11 +508,6 @@ static void set_phy_rx_tx_delay(struct DWC_ETH_QOS_prv_data *pdata,
 		u16 phydata = 0;
 		u16 rx_clk = 0;
 
-		if(!pdata->io_macro_tx_mode_non_id){
-			EMACDBG("No PHY delay settings required for ID mode for "
-					"EMAC core version 2.1.0\n");
-			return;
-		}
 		rx_clk = 0x1F;
 		/* RX_CLK to 0*/
 		DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
@@ -484,11 +522,30 @@ static void set_phy_rx_tx_delay(struct DWC_ETH_QOS_prv_data *pdata,
 		EMACDBG("Read 0x%x from offset 0x8\n",phydata);
 		phydata = 0;
 
+		if (pdata->emac_hw_version_type == EMAC_HW_v2_1_2) {
+			u16 tx_clk = 0xE;
+			/* Provide TX_CLK  delay of -0.06nsec */
+			DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
+						DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR, 0x8, &phydata);
+			phydata |= (tx_clk << 5);
+			DWC_ETH_QOS_mdio_mmd_register_write_direct(pdata, pdata->phyaddr,
+						DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR, 0x8, phydata);
+
+			DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
+						DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR, 0x8, &phydata);
+			EMACDBG("Read 0x%x from offset 0x8\n",phydata);
+			phydata = 0;
+		}
+
 		/*RXD0 = 15,RXD1 = 15,RXD2 = 0,RXD3 = 2*/
 		DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
 					DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR,0x5,&phydata);
 		phydata &= ~(0xFF);
-		phydata |= ((0x0 << 12) | (0x0 << 8) | (0x0 << 4) | 0x0);
+		if (pdata->emac_hw_version_type == EMAC_HW_v2_1_2)
+			phydata |= ((0x2 << 12) | (0x2 << 8) | (0x2 << 4) | 0x2);
+		else
+			/* Default settings for EMAC_HW_v2_1_0 */
+			phydata |= ((0x0 << 12) | (0x0 << 8) | (0x0 << 4) | 0x0);
 
 		DWC_ETH_QOS_mdio_mmd_register_write_direct(pdata, pdata->phyaddr,
 					DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR,0x5,phydata);
@@ -501,7 +558,11 @@ static void set_phy_rx_tx_delay(struct DWC_ETH_QOS_prv_data *pdata,
 		DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
 					DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR,0x4,&phydata);
 		phydata &= ~(0xF << 4);
-		phydata |= (0x0 << 4);
+		if (pdata->emac_hw_version_type == EMAC_HW_v2_1_2)
+			phydata |= (0x2 << 4);
+		else
+			/* Default settings for EMAC_HW_v2_1_0 */
+			phydata |= (0x0 << 4);
 		DWC_ETH_QOS_mdio_mmd_register_write_direct(pdata, pdata->phyaddr,
 					DWC_ETH_QOS_MICREL_PHY_DEBUG_MMD_DEV_ADDR,0x4,phydata);
 		DWC_ETH_QOS_mdio_mmd_register_read_direct(pdata, pdata->phyaddr,
@@ -566,28 +627,26 @@ static void configure_phy_rx_tx_delay(struct DWC_ETH_QOS_prv_data *pdata)
 			set_phy_rx_tx_delay(pdata, ENABLE_RX_DELAY, ENABLE_TX_DELAY);
 		} else {
 			/* Settings for RGMII ID mode.
-			Not applicable for EMAC core version 2.1.0 */
-			if (pdata->emac_hw_version_type != EMAC_HW_v2_1_0)
+			Not applicable for EMAC core version 2.1.0 and 2.1.2 */
+			if (pdata->emac_hw_version_type != EMAC_HW_v2_1_0 &&
+				pdata->emac_hw_version_type != EMAC_HW_v2_1_2)
 				set_phy_rx_tx_delay(pdata, DISABLE_RX_DELAY, DISABLE_TX_DELAY);
 		}
 		break;
 
 	case SPEED_100:
 	case SPEED_10:
-		if (pdata->emac_hw_version_type == EMAC_HW_v2_1_0) {
-			if (pdata->io_macro_tx_mode_non_id)
-				set_phy_rx_tx_delay(pdata, DISABLE_RX_DELAY, ENABLE_TX_DELAY);
-		} else {
-
-			if (pdata->io_macro_tx_mode_non_id ||
+		if (pdata->io_macro_tx_mode_non_id ||
 				pdata->io_macro_phy_intf == MII_MODE) {
 				/* Settings for Non-ID mode or MII mode */
 				set_phy_rx_tx_delay(pdata, DISABLE_RX_DELAY, ENABLE_TX_DELAY);
 			} else {
 				/* Settings for RGMII ID mode */
-				set_phy_rx_tx_delay(pdata, DISABLE_RX_DELAY, DISABLE_TX_DELAY);
+				/* Not applicable for EMAC core version 2.1.0 and 2.1.2 */
+				if (pdata->emac_hw_version_type != EMAC_HW_v2_1_0 &&
+					pdata->emac_hw_version_type != EMAC_HW_v2_1_2)
+					set_phy_rx_tx_delay(pdata, DISABLE_RX_DELAY, DISABLE_TX_DELAY);
 			}
-		}
 		break;
 	}
 	EMACDBG("Exit\n");
@@ -718,7 +777,7 @@ static inline int DWC_ETH_QOS_configure_io_macro_dll_settings(
 			return ret;
 		}
 		if (pdata->speed == SPEED_1000) {
-			ret = DWC_ETH_QOS_rgmii_io_macro_sdcdc_config();
+			ret = DWC_ETH_QOS_rgmii_io_macro_sdcdc_config(pdata);
 			if (ret < 0) {
 				EMACERR("DLL config failed \n");
 				return ret;
@@ -1011,12 +1070,17 @@ static int DWC_ETH_QOS_init_phy(struct net_device *dev)
 	}
 
 #ifndef DWC_ETH_QOS_EMULATION_PLATFORM
-	if ((phydev->phy_id == ATH8031_PHY_ID) || (phydev->phy_id == ATH8035_PHY_ID)
-		|| (phydev->phy_id & phydev->drv->phy_id_mask) == MICREL_PHY_ID)
+	if ((pdata->enable_phy_intr && ((phydev->phy_id == ATH8031_PHY_ID)
+		|| (phydev->phy_id == ATH8035_PHY_ID)
+		|| ((phydev->phy_id & phydev->drv->phy_id_mask) == MICREL_PHY_ID)))) {
 		pdata->phy_intr_en = true;
+		EMACDBG("Phy interrupt enabled\n");
+	} else
+		EMACDBG("Phy polling enabled\n");
 #endif
 
-	if (pdata->interface == PHY_INTERFACE_MODE_GMII) {
+	if (pdata->interface == PHY_INTERFACE_MODE_GMII ||
+		pdata->interface == PHY_INTERFACE_MODE_RGMII) {
 		phydev->supported = PHY_DEFAULT_FEATURES;
 		phydev->supported |= SUPPORTED_10baseT_Full | SUPPORTED_100baseT_Full | SUPPORTED_1000baseT_Full;
 
@@ -1025,7 +1089,8 @@ static int DWC_ETH_QOS_init_phy(struct net_device *dev)
 #endif
 	} else if ((pdata->interface == PHY_INTERFACE_MODE_MII) ||
 		(pdata->interface == PHY_INTERFACE_MODE_RMII)) {
-		phydev->supported = PHY_BASIC_FEATURES;
+		phydev->supported = PHY_DEFAULT_FEATURES;
+		phydev->supported |= SUPPORTED_10baseT_Full | SUPPORTED_100baseT_Full;
 	}
 
 #ifndef DWC_ETH_QOS_CONFIG_PGTEST
@@ -1059,6 +1124,8 @@ static int DWC_ETH_QOS_init_phy(struct net_device *dev)
 
 		DWC_ETH_QOS_mdio_read_direct(pdata, pdata->phyaddr, DWC_ETH_QOS_PHY_SMART_SPEED, &phydata);
 		DBGPR_MDIO( "Smart Speed Reg (%#x) = %#x\n", DWC_ETH_QOS_PHY_SMART_SPEED, phydata);
+
+		DWC_ETH_QOS_set_phy_hibernation_mode(pdata, 0);
 	}
 
 	if (pdata->phy_intr_en && pdata->phy_irq) {

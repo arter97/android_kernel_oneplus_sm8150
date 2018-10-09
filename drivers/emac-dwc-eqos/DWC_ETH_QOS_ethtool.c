@@ -329,7 +329,7 @@ static const struct DWC_ETH_QOS_stats DWC_ETH_QOS_mmc[] = {
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_hderr),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_nopay),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_frag),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_udsbl),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_udp_csum_disable),
 
 	/* IPV6 */
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv6_gd_octets),
@@ -338,18 +338,18 @@ static const struct DWC_ETH_QOS_stats DWC_ETH_QOS_mmc[] = {
 
 	/* Protocols */
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_gd),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_err),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_csum_err),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_gd),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_err),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_csum_err),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_gd),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_err),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_csum_err),
 
 	/* IPv4 */
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_gd_octets),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_hderr_octets),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_nopay_octets),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_frag_octets),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_udsbl_octets),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv4_udp_csum_dis_octets),
 
 	/* IPV6 */
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_ipv6_gd),
@@ -358,11 +358,16 @@ static const struct DWC_ETH_QOS_stats DWC_ETH_QOS_mmc[] = {
 
 	/* Protocols */
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_gd_octets),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_err_octets),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_udp_csum_err_octets),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_gd_octets),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_err_octets),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_tcp_csum_err_octets),
 	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_gd_octets),
-	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_err_octets),
+	DWC_ETH_QOS_MMC_STAT(mmc_rx_icmp_csum_err_octets),
+
+	/* LPI Rx and Tx Transition counters */
+	DWC_ETH_QOS_MMC_STAT(mmc_emac_rx_lpi_tran_cntr),
+	DWC_ETH_QOS_MMC_STAT(mmc_emac_tx_lpi_tran_cntr),
+
 };
 
 #define DWC_ETH_QOS_MMC_STATS_LEN ARRAY_SIZE(DWC_ETH_QOS_mmc)
@@ -736,12 +741,17 @@ static int DWC_ETH_QOS_setsettings(struct net_device *dev,
 		if (cmd->duplex != DUPLEX_FULL) {
 			ret = -EINVAL;
 		} else {
+			if (cmd->autoneg == AUTONEG_ENABLE &&
+				pdata->phydev->autoneg == AUTONEG_ENABLE)
+				goto no_change;
+
 			/* Advertise all supported speeds when autoneg is enabled */
 			if (cmd->autoneg == AUTONEG_ENABLE)
 				cmd->advertising = pdata->phydev->supported;
 
 			ret = phy_ethtool_sset(pdata->phydev, cmd);
 		}
+ no_change:
 		mutex_unlock(&pdata->mlock);
 	}
 
