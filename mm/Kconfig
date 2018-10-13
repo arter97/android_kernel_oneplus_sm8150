@@ -833,6 +833,10 @@ config PROCESS_RECLAIM
 
 	 Any other value is ignored.
 
+config VMSTAT_INTERVAL
+	int "Default interval in seconds to update vmstat"
+	default 1
+
 config ONEPLUS_MEM_MONITOR
 	bool "memory monitor "
 	default n
