@@ -963,15 +963,6 @@ enum hrtimer_restart tcp_pace_kick(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
-static void tcp_internal_pacing(struct sock *sk)
-{
-	if (!tcp_needs_internal_pacing(sk))
-		return;
-	hrtimer_start(&tcp_sk(sk)->pacing_timer,
-		      ns_to_ktime(tcp_sk(sk)->tcp_wstamp_ns),
-		      HRTIMER_MODE_ABS_PINNED);
-}
-
 static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 				      u64 prior_wstamp)
 {
@@ -992,8 +983,6 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 			/* take into account OS jitter */
 			len_ns -= min_t(u64, len_ns / 2, credit);
 			tp->tcp_wstamp_ns += len_ns;
-
-			tcp_internal_pacing(sk);
 		}
 	}
 	list_move_tail(&skb->tcp_tsorted_anchor, &tp->tsorted_sent_queue);
@@ -2191,10 +2180,22 @@ static int tcp_mtu_probe(struct sock *sk)
 	return -1;
 }
 
-static bool tcp_pacing_check(const struct sock *sk)
+static bool tcp_pacing_check(struct sock *sk)
 {
-	return tcp_needs_internal_pacing(sk) &&
-	       hrtimer_active(&tcp_sk(sk)->pacing_timer);
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (!tcp_needs_internal_pacing(sk))
+		return false;
+
+	if (tp->tcp_wstamp_ns <= tp->tcp_clock_cache)
+		return false;
+
+	if (!hrtimer_active(&tp->pacing_timer)) {
+		hrtimer_start(&tp->pacing_timer,
+			      ns_to_ktime(tp->tcp_wstamp_ns),
+			      HRTIMER_MODE_ABS_PINNED);
+	}
+	return true;
 }
 
 /* TCP Small Queues :
