@@ -15,6 +15,8 @@
 
 #include <linux/skbuff.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_config.h>
+#include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_handlers.h>
+#include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_map.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_trace.h>
 #include "rmnet_perf_core.h"
 
@@ -47,6 +49,7 @@ extern struct rmnet_port *rmnet_get_port(struct net_device *real_dev);
 extern void rmnet_map_cmd_init(struct rmnet_port *port);
 extern void rmnet_map_cmd_exit(struct rmnet_port *port);
 
+/* Function declarations */
 struct rmnet_perf *rmnet_perf_config_get_perf(void);
 
 #endif /* _RMNET_PERF_CONFIG_H_ */
