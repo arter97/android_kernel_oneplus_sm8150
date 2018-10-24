@@ -524,6 +524,41 @@ static QDF_STATUS tdls_send_mgmt_frame_flush_callback(struct scheduler_msg *msg)
 	return QDF_STATUS_SUCCESS;
 }
 
+static QDF_STATUS ucfg_tdls_post_msg_flush_cb(struct scheduler_msg *msg)
+{
+	void *ptr = msg->bodyptr;
+	struct wlan_objmgr_vdev *vdev = NULL;
+
+	switch (msg->type) {
+	case TDLS_CMD_TEARDOWN_LINKS:
+	case TDLS_NOTIFY_RESET_ADAPTERS:
+		ptr = NULL;
+		break;
+	case TDLS_NOTIFY_STA_CONNECTION:
+		vdev = ((struct tdls_sta_notify_params *)ptr)->vdev;
+		break;
+	case TDLS_NOTIFY_STA_DISCONNECTION:
+		vdev = ((struct tdls_sta_notify_params *)ptr)->vdev;
+		break;
+	case TDLS_CMD_SET_TDLS_MODE:
+		vdev = ((struct tdls_set_mode_params *)ptr)->vdev;
+		break;
+	case TDLS_CMD_TX_ACTION:
+	case TDLS_CMD_SET_RESPONDER:
+		break;
+	}
+
+	if (vdev)
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_TDLS_NB_ID);
+
+	if (ptr)
+		qdf_mem_free(ptr);
+
+	msg->bodyptr = NULL;
+
+	return QDF_STATUS_SUCCESS;
+}
+
 QDF_STATUS ucfg_tdls_send_mgmt_frame(
 				struct tdls_action_frame_request *req)
 {
@@ -604,8 +639,13 @@ QDF_STATUS ucfg_tdls_responder(struct tdls_set_responder_req *req)
 
 	msg.bodyptr = msg_req;
 	msg.callback = tdls_process_cmd;
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_CMD_SET_RESPONDER;
 	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		tdls_err("failed to post msg, status %d", status);
+		qdf_mem_free(msg_req);
+	}
 
 	return status;
 }
@@ -623,6 +663,7 @@ QDF_STATUS ucfg_tdls_teardown_links(struct wlan_objmgr_vdev *vdev)
 
 	msg.bodyptr = vdev;
 	msg.callback = tdls_process_cmd;
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_CMD_TEARDOWN_LINKS;
 	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
 
@@ -642,16 +683,18 @@ QDF_STATUS ucfg_tdls_notify_reset_adapter(struct wlan_objmgr_vdev *vdev)
 	tdls_debug("Enter ");
 	msg.bodyptr = vdev;
 	msg.callback = tdls_process_cmd;
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_NOTIFY_RESET_ADAPTERS;
 	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
 	return status;
 }
 
 QDF_STATUS ucfg_tdls_notify_sta_connect(
-			struct tdls_sta_notify_params *notify_info)
+	struct tdls_sta_notify_params *notify_info)
 {
 	struct scheduler_msg msg = {0, };
 	struct tdls_sta_notify_params *notify;
+	QDF_STATUS status;
 
 	if (!notify_info || !notify_info->vdev) {
 		tdls_err("notify_info %pK", notify_info);
@@ -660,18 +703,26 @@ QDF_STATUS ucfg_tdls_notify_sta_connect(
 	tdls_debug("Enter ");
 
 	notify = qdf_mem_malloc(sizeof(*notify));
-	if (!notify)
+	if (!notify) {
+		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_NB_ID);
 		return QDF_STATUS_E_NULL_VALUE;
+	}
 
 	*notify = *notify_info;
 
 	msg.bodyptr = notify;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_NOTIFY_STA_CONNECTION;
-	scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
+	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		tdls_err("failed to post message, status %d", status);
+		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_NB_ID);
+		qdf_mem_free(notify);
+	}
 
 	tdls_debug("Exit ");
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 QDF_STATUS ucfg_tdls_notify_sta_disconnect(
@@ -679,6 +730,7 @@ QDF_STATUS ucfg_tdls_notify_sta_disconnect(
 {
 	struct scheduler_msg msg = {0, };
 	struct tdls_sta_notify_params *notify;
+	QDF_STATUS status;
 
 	if (!notify_info || !notify_info->vdev) {
 		tdls_err("notify_info %pK", notify_info);
@@ -696,7 +748,13 @@ QDF_STATUS ucfg_tdls_notify_sta_disconnect(
 	msg.bodyptr = notify;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_NOTIFY_STA_DISCONNECTION;
-	scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
+	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		tdls_err("failed to post message, status %d", status);
+		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_NB_ID);
+		qdf_mem_free(notify);
+	}
 
 	tdls_debug("Exit ");
 
@@ -708,6 +766,7 @@ QDF_STATUS ucfg_tdls_set_operating_mode(
 {
 	struct scheduler_msg msg = {0, };
 	struct tdls_set_mode_params *set_mode;
+	QDF_STATUS status;
 
 	if (!set_mode_params || !set_mode_params->vdev) {
 		tdls_err("set_mode_params %pK", set_mode_params);
@@ -717,8 +776,17 @@ QDF_STATUS ucfg_tdls_set_operating_mode(
 	tdls_debug("Enter ");
 
 	set_mode = qdf_mem_malloc(sizeof(*set_mode));
-	if (!set_mode)
+	if (!set_mode) {
+		tdls_err("memory allocate fail");
 		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	status = wlan_objmgr_vdev_try_get_ref(set_mode->vdev, WLAN_TDLS_NB_ID);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		tdls_err("failed to get vdev ref");
+		qdf_mem_free(set_mode);
+		return status;
+	}
 
 	set_mode->source = set_mode_params->source;
 	set_mode->tdls_mode = set_mode_params->tdls_mode;
@@ -728,7 +796,12 @@ QDF_STATUS ucfg_tdls_set_operating_mode(
 	msg.bodyptr = set_mode;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_CMD_SET_TDLS_MODE;
-	scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
+	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		wlan_objmgr_vdev_release_ref(set_mode->vdev, WLAN_TDLS_NB_ID);
+		qdf_mem_free(set_mode);
+	}
 
 	tdls_debug("Exit ");
 
