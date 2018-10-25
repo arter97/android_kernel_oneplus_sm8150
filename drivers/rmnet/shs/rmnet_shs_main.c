@@ -35,7 +35,7 @@
 #define GET_QHEAD(SD, CPU) (per_cpu(SD, CPU).input_queue_head)
 
 /* Local Definitions and Declarations */
-spinlock_t rmnet_shs_ht_splock;
+DEFINE_SPINLOCK(rmnet_shs_ht_splock);
 DEFINE_HASHTABLE(RMNET_SHS_HT, RMNET_SHS_HT_SIZE);
 
 static struct rmnet_shs_cpu_node_s rmnet_shs_cpu_node_tbl[MAX_CPUS];
@@ -686,9 +686,20 @@ void rmnet_shs_aggregate_init(void)
 	rmnet_shs_cfg.hrtimer_shs.function = rmnet_shs_map_flush_queue;
 }
 
+void rmnet_shs_ps_on_hdlr(void *port)
+{
+	rmnet_shs_flush_table(1);
+	rmnet_shs_wq_pause();
+}
+
+void rmnet_shs_ps_off_hdlr(void *port)
+{
+	rmnet_shs_wq_restart();
+
+}
+
 void rmnet_shs_dl_hdr_handler(struct rmnet_map_dl_ind_hdr *dlhdr)
 {
-
 	trace_rmnet_shs_low(RMNET_SHS_DL_MRK, RMNET_SHS_DL_MRK_HDR_HDLR_START,
 			    dlhdr->le.seq, dlhdr->le.pkts,
 			    0xDEF, 0xDEF, NULL, NULL);
@@ -721,13 +732,11 @@ void rmnet_shs_init(struct net_device *dev)
 		return;
 
 	rmnet_shs_cfg.port = rmnet_get_port(dev);
-	spin_lock_init(&rmnet_shs_ht_splock);
 
 	for (num_cpu = 0; num_cpu < MAX_CPUS; num_cpu++)
 		INIT_LIST_HEAD(&rmnet_shs_cpu_node_tbl[num_cpu].node_list_id);
 
 	rmnet_shs_init_complete = 1;
-
 }
 
 /* Invoked during SHS module exit to gracefully consume all
@@ -760,6 +769,7 @@ void rmnet_shs_cancel_table(void)
 	rmnet_shs_cfg.num_pkts_parked = 0;
 	rmnet_shs_cfg.is_pkt_parked = 0;
 	rmnet_shs_cfg.force_flush_state = RMNET_SHS_FLUSH_DONE;
+
 	spin_unlock_irqrestore(&rmnet_shs_ht_splock, ht_flags);
 
 }
@@ -804,11 +814,12 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 
 	/*deliver non TCP/UDP packets right away*/
 
-	if (unlikely(!map)) {
+	if ((unlikely(!map))|| !rmnet_shs_init_complete) {
+		rmnet_shs_deliver_skb(skb);
 		trace_rmnet_shs_err(RMNET_SHS_ASSIGN,
-				    RMNET_SHS_ASSIGN_CRIT_ERROR_NO_MSK_SET,
+				    RMNET_SHS_ASSIGN_CRIT_ERROR_NO_SHS_REQD,
 				    0xDEF, 0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_crit_err[RMNET_SHS_MAIN_MAP_LEN_INVALID]++;
+		rmnet_shs_crit_err[RMNET_SHS_MAIN_SHS_NOT_REQD]++;
 		return;
 	}
 
@@ -911,6 +922,9 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 
 	if (!rmnet_shs_cfg.is_reg_dl_mrk_ind) {
 		rmnet_map_dl_ind_register(port, &rmnet_shs_cfg.dl_mrk_ind_cb);
+		qmi_rmnet_ps_ind_register(port,
+					  &rmnet_shs_cfg.rmnet_idl_ind_cb);
+
 		rmnet_shs_cfg.is_reg_dl_mrk_ind = 1;
 		INIT_WORK(&shs_delayed_work.work, rmnet_flush_buffered);
 		shs_delayed_work.port = port;
@@ -983,6 +997,8 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
  */
 void rmnet_shs_exit(void)
 {
+	qmi_rmnet_ps_ind_deregister(rmnet_shs_cfg.port,
+				    &rmnet_shs_cfg.rmnet_idl_ind_cb);
 
 	rmnet_shs_cfg.dl_mrk_ind_cb.dl_hdr_handler = NULL;
 	rmnet_shs_cfg.dl_mrk_ind_cb.dl_trl_handler = NULL;
@@ -993,5 +1009,6 @@ void rmnet_shs_exit(void)
 		hrtimer_cancel(&rmnet_shs_cfg.hrtimer_shs);
 
 	memset(&rmnet_shs_cfg, 0, sizeof(rmnet_shs_cfg));
+	rmnet_shs_init_complete = 0;
 
 }
