@@ -9332,8 +9332,8 @@ static int hdd_open_interfaces(struct hdd_context *hdd_ctx, bool rtnl_held)
 	int ret;
 
 	/* open monitor mode adapter if con_mode is monitor mode */
-	if (con_mode == QDF_GLOBAL_MONITOR_MODE ||
-	    con_mode == QDF_GLOBAL_FTM_MODE) {
+	if (hdd_get_conparam() == QDF_GLOBAL_MONITOR_MODE ||
+	    hdd_get_conparam() == QDF_GLOBAL_FTM_MODE) {
 		uint8_t session_type = (con_mode == QDF_GLOBAL_MONITOR_MODE) ?
 						QDF_MONITOR_MODE : QDF_FTM_MODE;
 
