@@ -46,7 +46,6 @@
 #include "msm-pcm-routing-v2.h"
 #include "msm-qti-pp-config.h"
 
-#define TIMEOUT_MS			1000
 #define DSP_PP_BUFFERING_IN_MSEC	25
 #define PARTIAL_DRAIN_ACK_EARLY_BY_MSEC	150
 #define MP3_OUTPUT_FRAME_SZ		1152
@@ -1801,8 +1800,7 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 	}
 	if (atomic_read(&prtd->eos)) {
 		ret = wait_event_timeout(prtd->eos_wait,
-					prtd->eos_ack,
-					msecs_to_jiffies(TIMEOUT_MS));
+					 prtd->eos_ack, 5 * HZ);
 		if (!ret)
 			pr_err("%s: CMD_EOS failed\n", __func__);
 	}
@@ -1810,8 +1808,7 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 		prtd->cmd_ack = 0;
 		atomic_set(&prtd->wait_on_close, 1);
 		ret = wait_event_timeout(prtd->close_wait,
-					prtd->cmd_ack,
-					msecs_to_jiffies(TIMEOUT_MS));
+					prtd->cmd_ack, 5 * HZ);
 		if (!ret)
 			pr_err("%s: CMD_CLOSE failed\n", __func__);
 	}
