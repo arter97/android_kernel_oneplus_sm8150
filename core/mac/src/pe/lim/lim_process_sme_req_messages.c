@@ -139,6 +139,7 @@ static QDF_STATUS lim_process_set_hw_mode(tpAniSirGlobal mac, uint32_t *msg)
 	buf = (struct s_sir_set_hw_mode *) msg;
 	if (!buf) {
 		pe_err("Set HW mode param is NULL");
+		status = QDF_STATUS_E_INVAL;
 		/* To free the active command list */
 		goto fail;
 	}
@@ -148,10 +149,11 @@ static QDF_STATUS lim_process_set_hw_mode(tpAniSirGlobal mac, uint32_t *msg)
 	req_msg = qdf_mem_malloc(len);
 	if (!req_msg) {
 		pe_err("qdf_mem_malloc failed");
+		status = QDF_STATUS_E_NOMEM;
 		/* Free the active command list
 		 * Probably the malloc is going to fail there as well?!
 		 */
-		return QDF_STATUS_E_NOMEM;
+		goto fail;
 	}
 
 	req_msg->hw_mode_index = buf->set_hw.hw_mode_index;
@@ -183,7 +185,7 @@ fail:
 	resp_msg.bodyptr = param;
 	resp_msg.bodyval = 0;
 	lim_sys_process_mmh_msg_api(mac, &resp_msg, ePROT);
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -209,6 +211,7 @@ static QDF_STATUS lim_process_set_dual_mac_cfg_req(tpAniSirGlobal mac,
 	buf = (struct sir_set_dual_mac_cfg *) msg;
 	if (!buf) {
 		pe_err("Set Dual mac config is NULL");
+		status = QDF_STATUS_E_INVAL;
 		/* To free the active command list */
 		goto fail;
 	}
@@ -217,11 +220,12 @@ static QDF_STATUS lim_process_set_dual_mac_cfg_req(tpAniSirGlobal mac,
 
 	req_msg = qdf_mem_malloc(len);
 	if (!req_msg) {
-		pe_err("qdf_mem_malloc failed");
+		pe_err("failed to allocate memory");
+		status = QDF_STATUS_E_NOMEM;
 		/* Free the active command list
 		 * Probably the malloc is going to fail there as well?!
 		 */
-		return QDF_STATUS_E_NOMEM;
+		goto fail;
 	}
 
 	req_msg->scan_config = buf->set_dual_mac.scan_config;
@@ -252,7 +256,7 @@ fail:
 	resp_msg.bodyptr = param;
 	resp_msg.bodyval = 0;
 	lim_sys_process_mmh_msg_api(mac, &resp_msg, ePROT);
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -278,14 +282,16 @@ static QDF_STATUS lim_process_set_antenna_mode_req(tpAniSirGlobal mac,
 	buf = (struct sir_set_antenna_mode *) msg;
 	if (!buf) {
 		pe_err("Set antenna mode is NULL");
+		status = QDF_STATUS_E_INVAL;
 		/* To free the active command list */
 		goto fail;
 	}
 
 	req_msg = qdf_mem_malloc(sizeof(*req_msg));
 	if (!req_msg) {
-		pe_err("qdf_mem_malloc failed");
-		return QDF_STATUS_E_NOMEM;
+		pe_err("failed to allocate memory");
+		status = QDF_STATUS_E_NOMEM;
+		goto fail;
 	}
 
 	req_msg->num_rx_chains = buf->set_antenna_mode.num_rx_chains;
@@ -316,7 +322,7 @@ fail:
 	resp_msg.bodyptr = param;
 	resp_msg.bodyval = 0;
 	lim_sys_process_mmh_msg_api(mac, &resp_msg, ePROT);
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -3680,7 +3686,7 @@ static void lim_process_sme_update_config(tpAniSirGlobal mac_ctx,
 
 	if (LIM_IS_AP_ROLE(pe_session)) {
 		sch_set_fixed_beacon_fields(mac_ctx, pe_session);
-		lim_send_beacon_ind(mac_ctx, pe_session);
+		lim_send_beacon_ind(mac_ctx, pe_session, REASON_CONFIG_UPDATE);
 	}
 }
 
@@ -3967,7 +3973,7 @@ static void __lim_process_sme_set_ht2040_mode(tpAniSirGlobal pMac,
 
 	/* Update beacon */
 	sch_set_fixed_beacon_fields(pMac, psessionEntry);
-	lim_send_beacon_ind(pMac, psessionEntry);
+	lim_send_beacon_ind(pMac, psessionEntry, REASON_SET_HT2040);
 
 	/* update OP Mode for each associated peer */
 	for (staId = 0; staId < psessionEntry->dph.dphHashTable.size; staId++) {
@@ -4852,7 +4858,7 @@ static void lim_process_sme_start_beacon_req(tpAniSirGlobal pMac, uint32_t *pMsg
 			  FL("Start Beacon with ssid %s Ch %d"),
 			  psessionEntry->ssId.ssId,
 			  psessionEntry->currentOperChannel);
-		lim_send_beacon_ind(pMac, psessionEntry);
+		lim_send_beacon_ind(pMac, psessionEntry, REASON_DEFAULT);
 		lim_enable_obss_detection_config(pMac, psessionEntry);
 		lim_send_obss_color_collision_cfg(pMac, psessionEntry,
 					OBSS_COLOR_COLLISION_DETECTION);
@@ -5650,6 +5656,55 @@ static void lim_process_ext_change_channel(tpAniSirGlobal mac_ctx,
 }
 
 /**
+ * lim_nss_update_rsp() - send NSS update response to SME
+ * @mac_ctx Pointer to Global MAC structure
+ * @vdev_id: vdev id
+ * @status: nss update status
+ *
+ * Return: None
+ */
+static void lim_nss_update_rsp(tpAniSirGlobal mac_ctx,
+			       uint8_t vdev_id, QDF_STATUS status)
+{
+	struct scheduler_msg msg = {0};
+	struct sir_bcn_update_rsp *nss_rsp;
+	QDF_STATUS qdf_status;
+
+	nss_rsp = qdf_mem_malloc(sizeof(*nss_rsp));
+	if (!nss_rsp) {
+		pe_err("AllocateMemory failed for nss_rsp");
+		return;
+	}
+
+	nss_rsp->vdev_id = vdev_id;
+	nss_rsp->status = status;
+	nss_rsp->reason = REASON_NSS_UPDATE;
+
+	msg.type = eWNI_SME_NSS_UPDATE_RSP;
+	msg.bodyptr = nss_rsp;
+	msg.bodyval = 0;
+	qdf_status = scheduler_post_msg(QDF_MODULE_ID_SME, &msg);
+	if (QDF_IS_STATUS_ERROR(qdf_status)) {
+		pe_err("Failed to post eWNI_SME_NSS_UPDATE_RSP");
+		qdf_mem_free(nss_rsp);
+	}
+}
+
+void lim_send_bcn_rsp(tpAniSirGlobal mac_ctx, tpSendbeaconParams rsp)
+{
+	if (!rsp) {
+		pe_err("rsp is NULL");
+		return;
+	}
+
+	pe_debug("Send beacon resp status %d for reason %d",
+		 rsp->status, rsp->reason);
+
+	if (rsp->reason == REASON_NSS_UPDATE)
+		lim_nss_update_rsp(mac_ctx, rsp->vdev_id, rsp->status);
+}
+
+/**
  * lim_process_nss_update_request() - process sme nss update req
  *
  * @mac_ctx: Pointer to Global MAC structure
@@ -5665,25 +5720,28 @@ static void lim_process_nss_update_request(tpAniSirGlobal mac_ctx,
 {
 	struct sir_nss_update_request *nss_update_req_ptr;
 	tpPESession session_entry = NULL;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	uint8_t vdev_id;
 
-	if (msg_buf == NULL) {
+	if (!msg_buf) {
 		pe_err("Buffer is Pointing to NULL");
 		return;
 	}
 
 	nss_update_req_ptr = (struct sir_nss_update_request *)msg_buf;
+	vdev_id = nss_update_req_ptr->vdev_id;
 	session_entry = pe_find_session_by_sme_session_id(mac_ctx,
 				nss_update_req_ptr->vdev_id);
-	if (session_entry == NULL) {
+	if (!session_entry) {
 		pe_err("Session not found for given session_id %d",
 			nss_update_req_ptr->vdev_id);
-		return;
+		goto end;
 	}
 
 	if (session_entry->valid && !LIM_IS_AP_ROLE(session_entry)) {
 		pe_err("Invalid SystemRole %d",
 			GET_LIM_SYSTEM_ROLE(session_entry));
-		return;
+		goto end;
 	}
 
 	/* populate nss field in the beacon */
@@ -5695,16 +5753,28 @@ static void lim_process_nss_update_request(tpAniSirGlobal mac_ctx,
 			(session_entry->ch_width > CH_WIDTH_80MHZ))
 		session_entry->gLimOperatingMode.chanWidth = CH_WIDTH_80MHZ;
 
-	pe_debug("ch width %hu", session_entry->gLimOperatingMode.chanWidth);
+	pe_debug("ch width %d Rx NSS %d",
+		 session_entry->gLimOperatingMode.chanWidth,
+		 session_entry->gLimOperatingMode.rxNSS);
 
 	/* Send nss update request from here */
-	if (sch_set_fixed_beacon_fields(mac_ctx, session_entry) !=
-			QDF_STATUS_SUCCESS) {
+	status = sch_set_fixed_beacon_fields(mac_ctx, session_entry);
+	if (QDF_IS_STATUS_ERROR(status)) {
 		pe_err("Unable to set op mode IE in beacon");
-		return;
+		goto end;
 	}
 
-	lim_send_beacon_ind(mac_ctx, session_entry);
+	status = lim_send_beacon_ind(mac_ctx, session_entry, REASON_NSS_UPDATE);
+	if (QDF_IS_STATUS_SUCCESS(status))
+		return;
+
+	pe_err("Unable to send beacon");
+end:
+	/*
+	 * send resp only in case of failure,
+	 * success case response will be from wma.
+	 */
+	lim_nss_update_rsp(mac_ctx, vdev_id, status);
 }
 
 /**

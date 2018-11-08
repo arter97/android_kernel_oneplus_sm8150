@@ -3173,7 +3173,7 @@ static int __hdd_stop(struct net_device *dev)
 			 adapter->session_id, adapter->device_mode));
 
 	ret = wlan_hdd_validate_context(hdd_ctx);
-	if (0 != ret) {
+	if (ret) {
 		set_bit(DOWN_DURING_SSR, &adapter->event_flags);
 		return ret;
 	}
@@ -3917,7 +3917,7 @@ int hdd_vdev_destroy(struct hdd_adapter *adapter)
 	/* block on a completion variable until sme session is closed */
 	status = qdf_wait_for_event_completion(
 			&adapter->qdf_session_close_event,
-			WLAN_WAIT_TIME_SESSIONOPENCLOSE);
+			SME_CMD_VDEV_CREATE_DELETE_TIMEOUT);
 
 	if (QDF_IS_STATUS_ERROR(status)) {
 		clear_bit(SME_SESSION_OPENED, &adapter->event_flags);
@@ -3935,7 +3935,6 @@ int hdd_vdev_destroy(struct hdd_adapter *adapter)
 	}
 
 release_vdev:
-	ucfg_scan_clear_vdev_del_in_progress(adapter->vdev);
 
 	/* do vdev logical destroy via objmgr */
 	errno = hdd_objmgr_release_and_destroy_vdev(adapter);
@@ -4016,7 +4015,7 @@ int hdd_vdev_create(struct hdd_adapter *adapter,
 
 	/* block on a completion variable until sme session is opened */
 	status = qdf_wait_for_event_completion(&adapter->qdf_session_open_event,
-			WLAN_WAIT_TIME_SESSIONOPENCLOSE);
+			SME_CMD_VDEV_CREATE_DELETE_TIMEOUT);
 	if (QDF_STATUS_SUCCESS != status) {
 		if (adapter->qdf_session_open_event.force_set) {
 			/*
@@ -9329,13 +9328,15 @@ static int hdd_open_concurrent_interface(struct hdd_context *hdd_ctx,
 static int hdd_open_interfaces(struct hdd_context *hdd_ctx, bool rtnl_held)
 {
 	struct hdd_adapter *adapter;
+	enum QDF_GLOBAL_MODE curr_mode;
 	int ret;
 
+	curr_mode = hdd_get_conparam();
 	/* open monitor mode adapter if con_mode is monitor mode */
-	if (con_mode == QDF_GLOBAL_MONITOR_MODE ||
-	    con_mode == QDF_GLOBAL_FTM_MODE) {
-		uint8_t session_type = (con_mode == QDF_GLOBAL_MONITOR_MODE) ?
-						QDF_MONITOR_MODE : QDF_FTM_MODE;
+	if (curr_mode == QDF_GLOBAL_MONITOR_MODE ||
+	    curr_mode == QDF_GLOBAL_FTM_MODE) {
+		uint8_t session_type = (curr_mode == QDF_GLOBAL_MONITOR_MODE) ?
+					QDF_MONITOR_MODE : QDF_FTM_MODE;
 
 		adapter = hdd_open_adapter(hdd_ctx, session_type, "wlan%d",
 					   wlan_hdd_get_intf_addr(hdd_ctx),

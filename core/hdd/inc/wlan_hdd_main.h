@@ -185,7 +185,7 @@ static inline bool in_compat_syscall(void) { return is_compat_task(); }
  * @ACS_PENDING: Auto Channel Selection (ACS) is pending
  * @SOFTAP_INIT_DONE: Software Access Point (SAP) is initialized
  * @VENDOR_ACS_RESPONSE_PENDING: Waiting for event for vendor acs
- * DOWN_DURING_SSR: Interface went down during SSR
+ * @DOWN_DURING_SSR: Mark interface is down during SSR
  */
 enum hdd_adapter_flags {
 	NET_DEVICE_REGISTERED,
@@ -197,7 +197,7 @@ enum hdd_adapter_flags {
 	ACS_PENDING,
 	SOFTAP_INIT_DONE,
 	VENDOR_ACS_RESPONSE_PENDING,
-	DOWN_DURING_SSR
+	DOWN_DURING_SSR,
 };
 
 /**
@@ -224,11 +224,7 @@ enum hdd_driver_flags {
 #define WLAN_WAIT_TIME_COUNTRY     1000
 #define WLAN_WAIT_TIME_LINK_STATUS 800
 #define WLAN_WAIT_TIME_POWER_STATS 800
-/* Amount of time to wait for sme close session callback.
- * This value should be larger than the timeout used by WDI to wait for
- * a response from WCNSS
- */
-#define WLAN_WAIT_TIME_SESSIONOPENCLOSE  15000
+
 #define WLAN_WAIT_TIME_ABORTSCAN         2000
 
 /** Maximum time(ms) to wait for mc thread suspend **/
@@ -1027,6 +1023,7 @@ struct hdd_station_info {
 	uint64_t rx_bytes;
 	qdf_time_t last_tx_rx_ts;
 	qdf_time_t assoc_ts;
+	qdf_time_t disassoc_ts;
 	uint32_t tx_rate;
 	uint32_t rx_rate;
 	bool ampdu;
