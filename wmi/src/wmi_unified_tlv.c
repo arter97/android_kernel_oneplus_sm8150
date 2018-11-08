@@ -19238,7 +19238,9 @@ static QDF_STATUS extract_chainmask_tables_tlv(wmi_unified_t wmi_handle,
 		return QDF_STATUS_E_INVAL;
 
 	if ((!hw_caps->num_chainmask_tables) ||
-	    (hw_caps->num_chainmask_tables > PSOC_MAX_CHAINMASK_TABLES))
+	    (hw_caps->num_chainmask_tables > PSOC_MAX_CHAINMASK_TABLES) ||
+	    (hw_caps->num_chainmask_tables >
+	     param_buf->num_mac_phy_chainmask_combo))
 		return QDF_STATUS_E_INVAL;
 
 	chainmask_caps = param_buf->mac_phy_chainmask_caps;
@@ -19351,6 +19353,13 @@ static QDF_STATUS extract_service_ready_ext_tlv(wmi_unified_t wmi_handle,
 	} else
 		param->num_chainmask_tables = 0;
 
+	if (param->num_chainmask_tables > PSOC_MAX_CHAINMASK_TABLES ||
+	    param->num_chainmask_tables >
+		param_buf->num_mac_phy_chainmask_combo) {
+		wmi_err_rl("num_chainmask_tables is OOB: %u",
+			   param->num_chainmask_tables);
+		return QDF_STATUS_E_INVAL;
+	}
 	chain_mask_combo = param_buf->mac_phy_chainmask_combo;
 
 	if (chain_mask_combo == NULL)
@@ -21538,13 +21547,14 @@ extract_roam_scan_stats_res_evt_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 	num_scans = fixed_param->num_roam_scans;
 	scan_param_size = sizeof(struct wmi_roam_scan_stats_params);
-	if ((num_scans > ((UINT_MAX - sizeof(*res)) / scan_param_size))) {
-		wmi_err_rl("Invalid num_roam_scans %d", num_scans);
+	*vdev_id = fixed_param->vdev_id;
+	if (num_scans > WMI_ROAM_SCAN_STATS_MAX) {
+		wmi_err_rl("%u exceeded maximum roam scan stats: %u",
+			   num_scans, WMI_ROAM_SCAN_STATS_MAX);
 		return QDF_STATUS_E_INVAL;
 	}
 
 	total_len = sizeof(*res) + num_scans * scan_param_size;
-	*vdev_id = fixed_param->vdev_id;
 
 	res = qdf_mem_malloc(total_len);
 	if (!res) {
@@ -21586,8 +21596,16 @@ extract_roam_scan_stats_res_evt_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 		uint32_t count, chan_info_sum = 0;
 
 		num_channels = param_buf->num_channels;
-		for (count = 0; count < param_buf->num_num_channels; count++)
+		for (count = 0; count < param_buf->num_num_channels; count++) {
+			if (param_buf->num_channels[count] >
+			    WMI_ROAM_SCAN_STATS_CHANNELS_MAX) {
+				wmi_err_rl("%u exceeded max scan channels %u",
+					   param_buf->num_channels[count],
+					   WMI_ROAM_SCAN_STATS_CHANNELS_MAX);
+				goto error;
+			}
 			chan_info_sum += param_buf->num_channels[count];
+		}
 
 		if (param_buf->chan_info &&
 		    param_buf->num_chan_info == chan_info_sum)
@@ -21596,12 +21614,19 @@ extract_roam_scan_stats_res_evt_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 	if (param_buf->num_roam_candidates &&
 	    param_buf->num_num_roam_candidates == num_scans) {
-		uint32_t count, roam_cand_sum = 0;
+		uint32_t cnt, roam_cand_sum = 0;
 
 		num_roam_candidates = param_buf->num_roam_candidates;
-		for (count = 0; count < param_buf->num_num_roam_candidates;
-		     count++)
-			roam_cand_sum += param_buf->num_roam_candidates[count];
+		for (cnt = 0; cnt < param_buf->num_num_roam_candidates; cnt++) {
+			if (param_buf->num_roam_candidates[cnt] >
+			    WMI_ROAM_SCAN_STATS_CANDIDATES_MAX) {
+				wmi_err_rl("%u exceeded max scan cand %u",
+					   param_buf->num_roam_candidates[cnt],
+					   WMI_ROAM_SCAN_STATS_CANDIDATES_MAX);
+				goto error;
+			}
+			roam_cand_sum += param_buf->num_roam_candidates[cnt];
+		}
 
 		if (param_buf->bssid &&
 		    param_buf->num_bssid == roam_cand_sum)
@@ -21681,6 +21706,9 @@ extract_roam_scan_stats_res_evt_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 	*res_param = res;
 
 	return QDF_STATUS_SUCCESS;
+error:
+	qdf_mem_free(res);
+	return QDF_STATUS_E_FAILURE;
 }
 
 /**

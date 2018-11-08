@@ -803,6 +803,7 @@ ucfg_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 		req->scan_req.scan_f_add_tpc_ie_in_probe = true;
 	} else {
 		req->scan_req.adaptive_dwell_time_mode = SCAN_DWELL_MODE_STATIC;
+		req->scan_req.dwell_time_active_2g = 0;
 		if (req->scan_req.p2p_scan_type == SCAN_P2P_LISTEN) {
 			req->scan_req.repeat_probe_time = 0;
 		} else {
@@ -1197,12 +1198,19 @@ void
 ucfg_scan_unregister_requester(struct wlan_objmgr_psoc *psoc,
 	wlan_scan_requester requester)
 {
-	int idx = requester & WLAN_SCAN_REQUESTER_ID_MASK;
+	int idx;
 	struct wlan_scan_obj *scan;
 	struct scan_requester_info *requesters;
 
+	idx = requester & WLAN_SCAN_REQUESTER_ID_PREFIX;
+	if (idx != WLAN_SCAN_REQUESTER_ID_PREFIX) {
+		scm_err("prefix didn't match for requester id %d", requester);
+		return;
+	}
+
+	idx = requester & WLAN_SCAN_REQUESTER_ID_MASK;
 	if (idx >= WLAN_MAX_REQUESTORS) {
-		scm_err("requester id invalid");
+		scm_err("requester id %d greater than max value", requester);
 		return;
 	}
 
