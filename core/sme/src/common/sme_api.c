@@ -15121,12 +15121,12 @@ QDF_STATUS sme_fast_reassoc(tHalHandle hal, struct csr_roam_profile *profile,
 		}
 	}
 
-	msg.type = SIR_HAL_ROAM_INVOKE;
+	msg.type = eWNI_SME_ROAM_INVOKE;
 	msg.reserved = 0;
 	msg.bodyptr = fastreassoc;
-	status = scheduler_post_msg(QDF_MODULE_ID_WMA, &msg);
+	status = scheduler_post_msg(QDF_MODULE_ID_PE, &msg);
 	if (QDF_STATUS_SUCCESS != status) {
-		sme_err("Not able to post ROAM_INVOKE_CMD message to WMA");
+		sme_err("Not able to post ROAM_INVOKE_CMD message to PE");
 		qdf_mem_free(fastreassoc);
 	}
 
