@@ -517,7 +517,6 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
 	} else {
-		pr_err("%s(): invalid packet\n", __func__);
 		return;
 	}
 
