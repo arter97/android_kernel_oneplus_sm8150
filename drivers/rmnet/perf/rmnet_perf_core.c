@@ -29,6 +29,10 @@
 #include "rmnet_perf_core.h"
 #include "rmnet_perf_config.h"
 
+#ifdef CONFIG_QCOM_QMI_POWER_COLLAPSE
+#include <soc/qcom/qmi_rmnet.h>
+#endif
+
 /* Each index tells us the number of iterations it took us to find a recycled
  * skb
  */
@@ -658,6 +662,13 @@ skip_frame:
 			if (!ep)
 				goto bad_data;
 			skb->dev = ep->egress_dev;
+
+#ifdef CONFIG_QCOM_QMI_POWER_COLLAPSE
+			/* Wakeup PS work on DL packets */
+			if ((port->data_format & RMNET_INGRESS_FORMAT_PS) &&
+					!RMNET_MAP_GET_CD_BIT(skb))
+				qmi_rmnet_work_maybe_restart(port);
+#endif
 
 			if (enable_packet_dropper) {
 				getnstimeofday(&curr_time);
