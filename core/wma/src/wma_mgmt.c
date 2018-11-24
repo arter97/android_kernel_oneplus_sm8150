@@ -99,7 +99,7 @@ static void wma_send_bcn_buf_ll(tp_wma_handle wma,
 	uint8_t i;
 
 	bcn = wma->interfaces[vdev_id].beacon;
-	if (!bcn->buf) {
+	if (!bcn || !bcn->buf) {
 		WMA_LOGE("%s: Invalid beacon buffer", __func__);
 		return;
 	}
@@ -1222,6 +1222,13 @@ QDF_STATUS wma_send_peer_assoc(tp_wma_handle wma,
 	qdf_mem_zero(cmd, sizeof(struct peer_assoc_params));
 
 	is_he = wma_is_peer_he_capable(params);
+	if ((params->ch_width > CH_WIDTH_40MHZ) &&
+	    ((nw_type == eSIR_11G_NW_TYPE) ||
+	     (nw_type == eSIR_11B_NW_TYPE))) {
+		WMA_LOGE("ch_width %d sent in 11G, configure to 40MHz",
+			 params->ch_width);
+		params->ch_width = CH_WIDTH_40MHZ;
+	}
 	phymode = wma_peer_phymode(nw_type, params->staType,
 				   params->htCapable, params->ch_width,
 				   params->vhtCapable, is_he);
