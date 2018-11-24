@@ -559,8 +559,9 @@ int ucfg_scan_get_burst_duration(int max_ch_time,
 		 * If miracast is not running, accommodate max
 		 * stations to make the scans faster
 		 */
-		burst_duration = SCAN_BURST_SCAN_MAX_NUM_OFFCHANNELS *
-						max_ch_time;
+		burst_duration = SCAN_GO_BURST_SCAN_MAX_NUM_OFFCHANNELS *
+							max_ch_time;
+
 		if (burst_duration > SCAN_GO_MAX_ACTIVE_SCAN_BURST_DURATION) {
 			uint8_t channels = SCAN_P2P_SCAN_MAX_BURST_DURATION /
 								 max_ch_time;
@@ -626,8 +627,10 @@ static void ucfg_scan_req_update_concurrency_params(
 	 * firmware spends more time on home channel which will increase the
 	 * probability of sending beacon at TBTT
 	 */
-	if (ap_present || go_present)
+	if (ap_present || go_present) {
+		req->scan_req.dwell_time_active_2g = 0;
 		req->scan_req.min_rest_time = req->scan_req.max_rest_time;
+	}
 
 	if (req->scan_req.p2p_scan_type == SCAN_NON_P2P_DEFAULT) {
 		/*
@@ -1918,9 +1921,10 @@ ucfg_scan_cancel_pdev_scan(struct wlan_objmgr_pdev *pdev)
 		return QDF_STATUS_E_NOMEM;
 	}
 
-	vdev = wlan_objmgr_get_vdev_by_id_from_pdev(pdev, 0, WLAN_OSIF_ID);
+	vdev = wlan_objmgr_pdev_get_first_vdev(pdev, WLAN_SCAN_ID);
 	if (!vdev) {
 		scm_err("Failed to get vdev");
+		qdf_mem_free(req);
 		return QDF_STATUS_E_INVAL;
 	}
 	req->vdev = vdev;
@@ -1931,7 +1935,7 @@ ucfg_scan_cancel_pdev_scan(struct wlan_objmgr_pdev *pdev)
 	status = ucfg_scan_cancel_sync(req);
 	if (QDF_IS_STATUS_ERROR(status))
 		scm_err("Cancel scan request failed");
-	wlan_objmgr_vdev_release_ref(vdev, WLAN_OSIF_ID);
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_SCAN_ID);
 
 	return status;
 }
