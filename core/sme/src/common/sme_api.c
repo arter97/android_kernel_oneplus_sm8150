@@ -256,6 +256,19 @@ static QDF_STATUS sme_process_hw_mode_trans_ind(tpAniSirGlobal mac,
 	return QDF_STATUS_SUCCESS;
 }
 
+void sme_purge_pdev_all_ser_cmd_list(mac_handle_t mac_handle)
+{
+	QDF_STATUS status;
+	tpAniSirGlobal mac_ctx = PMAC_STRUCT(mac_handle);
+
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status))
+		return;
+
+	csr_purge_pdev_all_ser_cmd_list(mac_ctx);
+	sme_release_global_lock(&mac_ctx->sme);
+}
+
 /**
  * free_sme_cmds() - This function frees memory allocated for SME commands
  * @mac_ctx:      Pointer to Global MAC structure
@@ -15121,12 +15134,12 @@ QDF_STATUS sme_fast_reassoc(tHalHandle hal, struct csr_roam_profile *profile,
 		}
 	}
 
-	msg.type = SIR_HAL_ROAM_INVOKE;
+	msg.type = eWNI_SME_ROAM_INVOKE;
 	msg.reserved = 0;
 	msg.bodyptr = fastreassoc;
-	status = scheduler_post_msg(QDF_MODULE_ID_WMA, &msg);
+	status = scheduler_post_msg(QDF_MODULE_ID_PE, &msg);
 	if (QDF_STATUS_SUCCESS != status) {
-		sme_err("Not able to post ROAM_INVOKE_CMD message to WMA");
+		sme_err("Not able to post ROAM_INVOKE_CMD message to PE");
 		qdf_mem_free(fastreassoc);
 	}
 
