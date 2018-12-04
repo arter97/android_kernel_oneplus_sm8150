@@ -43,6 +43,7 @@ enum {
 	RMNET_PERF_OPT_MODE_TCP,
 	RMNET_PERF_OPT_MODE_UDP,
 	RMNET_PERF_OPT_MODE_ALL,
+	RMNET_PERF_OPT_MODE_NON,
 };
 
 /* What protocols we optimize */
@@ -83,6 +84,8 @@ static int rmnet_perf_set_opt_mode(const char *val,
 		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_UDP;
 	else if (!strcmp(value, "all"))
 		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_ALL;
+	else if (!strcmp(value, "non"))
+		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_NON;
 	else
 		goto out;
 
@@ -104,6 +107,10 @@ static int rmnet_perf_set_opt_mode(const char *val,
 	case RMNET_PERF_OPT_MODE_UDP:
 		flush_flow_nodes_by_protocol(perf, IPPROTO_TCP);
 		break;
+	case RMNET_PERF_OPT_MODE_NON:
+		flush_flow_nodes_by_protocol(perf, IPPROTO_TCP);
+		flush_flow_nodes_by_protocol(perf, IPPROTO_UDP);
+		break;
 	}
 
 out:
@@ -123,6 +130,9 @@ static int rmnet_perf_get_opt_mode(char *buf,
 		break;
 	case RMNET_PERF_OPT_MODE_ALL:
 		strlcpy(buf, "all\n", 5);
+		break;
+	case RMNET_PERF_OPT_MODE_NON:
+		strlcpy(buf, "non\n", 5);
 		break;
 	}
 
