@@ -17,10 +17,9 @@
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include "rmnet_perf_core.h"
-#include "rmnet_perf_tcp_opt.h"
+#include "rmnet_perf_opt.h"
 #include "rmnet_perf_config.h"
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_map.h>
-#include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_private.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_handlers.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_config.h>
 
@@ -113,8 +112,8 @@ rmnet_perf_config_free_resources(struct rmnet_perf *perf,
 	if (!perf)
 		return RMNET_PERF_RESOURCE_MGMT_FAIL;
 
-	/* Free everything tcp_opt currently holds */
-	rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+	/* Free everything flow nodes currently hold */
+	rmnet_perf_opt_flush_all_flow_nodes(perf);
 	/* Get rid of 64k sk_buff cache */
 	rmnet_perf_config_free_64k_buffs(perf);
 	/* Before we free tcp_opt's structures, make sure we arent holding
@@ -124,7 +123,7 @@ rmnet_perf_config_free_resources(struct rmnet_perf *perf,
 
 	//rmnet_perf_core_timer_exit(perf->core_meta);
 	/* Since we allocated in one chunk, we will also free in one chunk */
-	kfree(perf->tcp_opt_meta);
+	kfree(perf);
 
 	return RMNET_PERF_RESOURCE_MGMT_SUCCESS;
 }
@@ -144,21 +143,21 @@ static int rmnet_perf_config_allocate_resources(struct rmnet_perf **perf)
 {
 	int i;
 	void *buffer_head;
-	struct rmnet_perf_tcp_opt_meta *tcp_opt_meta;
+	struct rmnet_perf_opt_meta *opt_meta;
 	struct rmnet_perf_core_meta *core_meta;
 	struct rmnet_perf *local_perf;
 
 	int perf_size = sizeof(**perf);
-	int tcp_opt_meta_size = sizeof(struct rmnet_perf_tcp_opt_meta);
+	int opt_meta_size = sizeof(struct rmnet_perf_opt_meta);
 	int flow_node_pool_size =
-			sizeof(struct rmnet_perf_tcp_opt_flow_node_pool);
+			sizeof(struct rmnet_perf_opt_flow_node_pool);
 	int bm_state_size = sizeof(struct rmnet_perf_core_burst_marker_state);
-	int flow_node_size = sizeof(struct rmnet_perf_tcp_opt_flow_node);
+	int flow_node_size = sizeof(struct rmnet_perf_opt_flow_node);
 	int core_meta_size = sizeof(struct rmnet_perf_core_meta);
 	int skb_list_size = sizeof(struct rmnet_perf_core_skb_list);
 	int skb_buff_pool_size = sizeof(struct rmnet_perf_core_64k_buff_pool);
 
-	int total_size = perf_size + tcp_opt_meta_size + flow_node_pool_size +
+	int total_size = perf_size + opt_meta_size + flow_node_pool_size +
 			(flow_node_size * RMNET_PERF_NUM_FLOW_NODES) +
 			core_meta_size + skb_list_size + skb_buff_pool_size;
 
@@ -171,21 +170,21 @@ static int rmnet_perf_config_allocate_resources(struct rmnet_perf **perf)
 	local_perf = *perf;
 	buffer_head += perf_size;
 
-	local_perf->tcp_opt_meta = buffer_head;
-	tcp_opt_meta = local_perf->tcp_opt_meta;
-	buffer_head += tcp_opt_meta_size;
+	local_perf->opt_meta = buffer_head;
+	opt_meta = local_perf->opt_meta;
+	buffer_head += opt_meta_size;
 
 	/* assign the node pool */
-	tcp_opt_meta->node_pool = buffer_head;
-	tcp_opt_meta->node_pool->num_flows_in_use = 0;
-	tcp_opt_meta->node_pool->flow_recycle_counter = 0;
+	opt_meta->node_pool = buffer_head;
+	opt_meta->node_pool->num_flows_in_use = 0;
+	opt_meta->node_pool->flow_recycle_counter = 0;
 	buffer_head += flow_node_pool_size;
 
 	/* assign the individual flow nodes themselves */
 	for (i = 0; i < RMNET_PERF_NUM_FLOW_NODES; i++) {
-		struct rmnet_perf_tcp_opt_flow_node **flow_node;
+		struct rmnet_perf_opt_flow_node **flow_node;
 
-		flow_node = &tcp_opt_meta->node_pool->node_list[i];
+		flow_node = &opt_meta->node_pool->node_list[i];
 		*flow_node = buffer_head;
 		buffer_head += flow_node_size;
 		(*flow_node)->num_pkts_held = 0;
@@ -196,12 +195,12 @@ static int rmnet_perf_config_allocate_resources(struct rmnet_perf **perf)
 	//rmnet_perf_core_timer_init(core_meta);
 	buffer_head += core_meta_size;
 
-	/* Assign common (not specific to something like tcp_opt) structures */
+	/* Assign common (not specific to something like opt) structures */
 	core_meta->skb_needs_free_list = buffer_head;
 	core_meta->skb_needs_free_list->num_skbs_held = 0;
 	buffer_head += skb_list_size;
 
-	/* allocate buffer pool struct (also not specific to tcp_opt) */
+	/* allocate buffer pool struct (also not specific to opt) */
 	core_meta->buff_pool = buffer_head;
 	buffer_head += skb_buff_pool_size;
 

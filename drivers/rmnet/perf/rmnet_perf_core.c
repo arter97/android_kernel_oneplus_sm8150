@@ -25,9 +25,13 @@
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_private.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_handlers.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_config.h>
-#include "rmnet_perf_tcp_opt.h"
+#include "rmnet_perf_opt.h"
 #include "rmnet_perf_core.h"
 #include "rmnet_perf_config.h"
+
+#ifdef CONFIG_QCOM_QMI_POWER_COLLAPSE
+#include <soc/qcom/qmi_rmnet.h>
+#endif
 
 /* Each index tells us the number of iterations it took us to find a recycled
  * skb
@@ -360,18 +364,16 @@ void rmnet_perf_core_send_skb(struct sk_buff *skb, struct rmnet_endpoint *ep,
 		 * failed checksum validation, so we don't want to touch
 		 * the headers.
 		 */
-		if (ip4hn->protocol == IPPROTO_TCP &&
-		    skb->ip_summed == CHECKSUM_UNNECESSARY) {
+		if (skb_csum_unnecessary(skb)) {
 			ip4hn->tot_len = htons(skb->len);
 			ip4hn->check = 0;
 			ip4hn->check = ip_fast_csum(ip4hn, (int)ip4hn->ihl);
 		}
 		rmnet_deliver_skb(skb, perf->rmnet_port);
-	} else  if (ip_version == 0x06) {
+	} else if (ip_version == 0x06) {
 		ip6hn = (struct ipv6hdr *)data;
 		rmnet_set_skb_proto(skb);
-		if (ip6hn->nexthdr == IPPROTO_TCP &&
-		    skb->ip_summed == CHECKSUM_UNNECESSARY) {
+		if (skb_csum_unnecessary(skb)) {
 			ip6hn->payload_len = htons(skb->len -
 						   sizeof(struct ipv6hdr));
 		}
@@ -407,26 +409,15 @@ void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 		return;
 	}
 
-	if (pkt_info->trans_proto != IPPROTO_UDP || packet_len < 64) {
-		/* allocate the sk_buff of proper size for this packet */
-		skbn = alloc_skb(packet_len + RMNET_MAP_DEAGGR_SPACING,
-				 GFP_ATOMIC);
-		if (!skbn)
-			return;
+	/* allocate the sk_buff of proper size for this packet */
+	skbn = alloc_skb(packet_len + RMNET_MAP_DEAGGR_SPACING,
+			 GFP_ATOMIC);
+	if (!skbn)
+		return;
 
-		skb_reserve(skbn, RMNET_MAP_DEAGGR_HEADROOM);
-		skb_put(skbn, packet_len);
-		memcpy(skbn->data, pkt_info->iphdr.v4hdr, packet_len);
-	} else {
-		skbn = skb_clone(skb, GFP_ATOMIC);
-		if (!skbn)
-			return;
-
-		skb_pull(skbn, sizeof(struct rmnet_map_header));
-		skb_trim(skbn, packet_len);
-		skbn->truesize = SKB_TRUESIZE(packet_len);
-		__skb_set_hash(skbn, 0, 0, 0);
-	}
+	skb_reserve(skbn, RMNET_MAP_DEAGGR_HEADROOM);
+	skb_put(skbn, packet_len);
+	memcpy(skbn->data, pkt_info->iphdr.v4hdr, packet_len);
 
 	/* If the packet passed checksum validation, tell the stack */
 	if (pkt_info->csum_valid)
@@ -449,7 +440,7 @@ rmnet_perf_core_handle_map_control_start(struct rmnet_map_dl_ind_hdr *dlhdr)
 	 */
 	if (!bm_state->wait_for_start) {
 		/* flush everything, we got a 2nd start */
-		rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+		rmnet_perf_opt_flush_all_flow_nodes(perf);
 		rmnet_perf_core_flush_reason_cnt[
 					RMNET_PERF_CORE_DL_MARKER_FLUSHES]++;
 	} else {
@@ -469,7 +460,7 @@ void rmnet_perf_core_handle_map_control_end(struct rmnet_map_dl_ind_trl *dltrl)
 	struct rmnet_perf_core_burst_marker_state *bm_state;
 
 	bm_state = perf->core_meta->bm_state;
-	rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+	rmnet_perf_opt_flush_all_flow_nodes(perf);
 	rmnet_perf_core_flush_reason_cnt[RMNET_PERF_CORE_DL_MARKER_FLUSHES]++;
 	bm_state->wait_for_start = true;
 	bm_state->curr_seq = 0;
@@ -526,7 +517,6 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
 	} else {
-		pr_err("%s(): invalid packet\n", __func__);
 		return;
 	}
 
@@ -545,7 +535,8 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
 
-		rmnet_perf_tcp_opt_ingress(perf, skb, pkt_info);
+		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
+			goto flush;
 	} else if (pkt_info->trans_proto == IPPROTO_UDP) {
 		struct udphdr *up = (struct udphdr *)
 				    (payload + pkt_info->header_len);
@@ -556,11 +547,11 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->hash_key =
 			rmnet_perf_core_compute_flow_hash(pkt_info);
 
-		/* We flush anyway, so the result of the validation
-		 * does not need to be checked.
-		 */
-		rmnet_perf_core_validate_pkt_csum(skb, pkt_info);
-		goto flush;
+		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
+			goto flush;
+
+		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
+			goto flush;
 	} else {
 		pkt_info->payload_len = pkt_len - pkt_info->header_len;
 		pkt_info->hash_key =
@@ -659,6 +650,13 @@ skip_frame:
 				goto bad_data;
 			skb->dev = ep->egress_dev;
 
+#ifdef CONFIG_QCOM_QMI_POWER_COLLAPSE
+			/* Wakeup PS work on DL packets */
+			if ((port->data_format & RMNET_INGRESS_FORMAT_PS) &&
+					!RMNET_MAP_GET_CD_BIT(skb))
+				qmi_rmnet_work_maybe_restart(port);
+#endif
+
 			if (enable_packet_dropper) {
 				getnstimeofday(&curr_time);
 				if (last_drop_time.tv_sec == 0 &&
@@ -694,13 +692,13 @@ next_chain:
 	 */
 	if (!rmnet_perf_core_bm_flush_on ||
 	    (int) perf->core_meta->bm_state->expect_packets <= 0) {
-		rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+		rmnet_perf_opt_flush_all_flow_nodes(perf);
 		rmnet_perf_core_free_held_skbs(perf);
 		rmnet_perf_core_flush_reason_cnt[
 					RMNET_PERF_CORE_IPA_ZERO_FLUSH]++;
 	} else if (perf->core_meta->skb_needs_free_list->num_skbs_held >=
 		   rmnet_perf_core_num_skbs_max) {
-		rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+		rmnet_perf_opt_flush_all_flow_nodes(perf);
 		rmnet_perf_core_free_held_skbs(perf);
 		rmnet_perf_core_flush_reason_cnt[
 					RMNET_PERF_CORE_SK_BUFF_HELD_LIMIT]++;
@@ -708,7 +706,7 @@ next_chain:
 
 	goto update_stats;
 drop_packets:
-	rmnet_perf_tcp_opt_flush_all_flow_nodes(perf);
+	rmnet_perf_opt_flush_all_flow_nodes(perf);
 	rmnet_perf_core_free_held_skbs(perf);
 update_stats:
 	rmnet_perf_core_pre_ip_count += co;

@@ -20,7 +20,7 @@
 #define RMNET_PERF_CORE_RECYCLE_SKB_SIZE    65600//33000//32768//65600
 
 struct rmnet_perf {
-	struct rmnet_perf_tcp_opt_meta *tcp_opt_meta;
+	struct rmnet_perf_opt_meta *opt_meta;
 	struct rmnet_perf_core_meta *core_meta;
 	struct rmnet_port *rmnet_port;
 };
