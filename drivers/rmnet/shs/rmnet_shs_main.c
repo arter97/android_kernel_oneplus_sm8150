@@ -1132,10 +1132,10 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
                         * coalesced packet. Use that instead for stats for wq
                         */
 
-			if ((skb->protocol==ETH_P_IP &&
+			if ((skb->protocol == htons(ETH_P_IP) &&
 			     ip_hdr(skb)->protocol == IPPROTO_UDP) ||
-			    (skb->protocol==ETH_P_IPV6 &&
-			     ip_hdr(skb)->protocol == IPPROTO_UDP)) {
+			    (skb->protocol == htons(ETH_P_IPV6) &&
+			    ipv6_hdr(skb)->nexthdr == IPPROTO_UDP)) {
 
 				if (skb_shinfo(skb)->gso_segs)
 					node_p->num_skb += skb_shinfo(skb)->gso_segs;
