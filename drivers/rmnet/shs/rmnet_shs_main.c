@@ -659,7 +659,7 @@ void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node)
 
 	map = rcu_dereference(node->dev->_rx->rps_map);
 
-	if (!map) {
+	if (map) {
 		hash2stamp = rmnet_shs_form_hash(node->map_index,
 					 map->len, node->skb_list.head->hash);
 	} else {
