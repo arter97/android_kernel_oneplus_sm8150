@@ -236,6 +236,17 @@ static void rmnet_shs_deliver_skb(struct sk_buff *skb)
 	}
 }
 
+static void rmnet_shs_deliver_skb_wq(struct sk_buff *skb)
+{
+	struct rmnet_priv *priv;
+
+	SHS_TRACE_LOW(RMNET_SHS_DELIVER_SKB, RMNET_SHS_DELIVER_SKB_START,
+			    0xDEF, 0xDEF, 0xDEF, 0xDEF, skb, NULL);
+
+	priv = netdev_priv(skb->dev);
+	gro_cells_receive(&priv->gro_cells, skb);
+}
+
 /* Returns the number of low power cores configured and available
  * for packet processing
  */
@@ -610,7 +621,8 @@ void rmnet_shs_flush_core(u8 cpu_num)
 				num_pkts_flush = n->skb_list.num_parked_skbs;
 				num_bytes_flush = n->skb_list.num_parked_bytes;
 
-				rmnet_shs_chk_and_flush_node(n, 1);
+				rmnet_shs_chk_and_flush_node(n, 1,
+							RMNET_WQ_CTXT);
 
 				total_pkts_flush += num_pkts_flush;
 				total_bytes_flush += num_bytes_flush;
@@ -642,10 +654,11 @@ static void rmnet_shs_flush_core_work(struct work_struct *work)
 				 struct core_flush_s, work);
 
 	rmnet_shs_flush_core(core_work->core);
+	rmnet_shs_flush_reason[RMNET_SHS_FLUSH_WQ_CORE_FLUSH]++;
 }
 
 /* Flushes all the packets parked in order for this flow */
-void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node)
+void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node, u8 ctext)
 {
 	struct sk_buff *skb;
 	struct sk_buff *nxt_skb = NULL;
@@ -681,8 +694,10 @@ void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node)
 		skb->next = NULL;
 		skbs_delivered += 1;
 		skb_bytes_delivered += skb->len;
-
-		rmnet_shs_deliver_skb(skb);
+		if (RMNET_RX_CTXT)
+			rmnet_shs_deliver_skb(skb);
+		else
+			rmnet_shs_deliver_skb_wq(skb);
 
 	}
 
@@ -699,7 +714,8 @@ void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node)
 /* Evaluates if all the packets corresponding to a particular flow can
  * be flushed.
  */
-int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node, u8 force_flush)
+int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s
+				 *node, u8 force_flush, u8 ctxt)
 {
 	int ret_val = 0;
 
@@ -708,7 +724,7 @@ int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node, u8 force_flush)
 			     force_flush, 0xDEF, 0xDEF, 0xDEF,
 			     node, NULL);
 	if (rmnet_shs_node_can_flush_pkts(node, force_flush)) {
-		rmnet_shs_flush_node(node);
+		rmnet_shs_flush_node(node, ctxt);
 		ret_val = 1;
 	}
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
@@ -728,7 +744,7 @@ int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node, u8 force_flush)
  * Each time a flushing is invoked we also keep track of the number of
  * packets waiting & have been processed by the next layers.
  */
-void rmnet_shs_flush_table(u8 flsh)
+void rmnet_shs_flush_table(u8 flsh, u8 ctxt)
 {
 	struct rmnet_shs_skbn_s *n;
 	struct list_head *ptr, *next;
@@ -788,7 +804,8 @@ void rmnet_shs_flush_table(u8 flsh)
 				num_pkts_flush = n->skb_list.num_parked_skbs;
 				num_bytes_flush = n->skb_list.num_parked_bytes;
 				is_flushed = rmnet_shs_chk_and_flush_node(n,
-									  flsh);
+									  flsh,
+									  ctxt);
 
 				if (is_flushed) {
 					total_pkts_flush += num_pkts_flush;
@@ -876,8 +893,10 @@ static void rmnet_flush_buffered(struct work_struct *work)
 	if (rmnet_shs_cfg.is_pkt_parked &&
 	   rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_ON) {
 
-		rmnet_shs_flush_table(is_force_flush);
-		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_TIMER_EXPIRY]++;
+		rmnet_shs_flush_table(is_force_flush,
+				      RMNET_WQ_CTXT);
+
+		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_WQ_FB_FLUSH]++;
 	}
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 			     RMNET_SHS_FLUSH_DELAY_WQ_END,
@@ -932,6 +951,7 @@ enum hrtimer_restart rmnet_shs_queue_core(struct hrtimer *t)
 				 struct core_flush_s, core_timer);
 
 	schedule_work(&core_work->work);
+
 	return ret;
 }
 
@@ -987,7 +1007,8 @@ void rmnet_shs_dl_trl_handler(struct rmnet_map_dl_ind_trl *dltrl)
 
 	if (rmnet_shs_cfg.num_pkts_parked > 0) {
 		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_RX_DL_TRAILER]++;
-		rmnet_shs_flush_table(is_force_flush);
+		rmnet_shs_flush_table(is_force_flush,
+				      RMNET_RX_CTXT);
 	}
 }
 
@@ -1247,7 +1268,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 				     RMNET_SHS_FLUSH_PKT_LIMIT_TRIGGER, 0,
 				     0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_flush_table(1);
+		rmnet_shs_flush_table(1, RMNET_RX_CTXT);
 
 	} else if (rmnet_shs_cfg.num_bytes_parked >
 						rmnet_shs_byte_store_limit) {
@@ -1258,7 +1279,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 				     RMNET_SHS_FLUSH_BYTE_LIMIT_TRIGGER, 0,
 				     0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_flush_table(1);
+		rmnet_shs_flush_table(1, RMNET_RX_CTXT);
 
 	}
 	/* Flushing timer that was armed previously has successfully fired.
@@ -1277,7 +1298,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 				     RMNET_SHS_FLUSH_FORCE_TRIGGER, 1,
 				     rmnet_shs_cfg.num_pkts_parked,
 				     0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_flush_table(0);
+		rmnet_shs_flush_table(0, RMNET_RX_CTXT);
 
 	}
 

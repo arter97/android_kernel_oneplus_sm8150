@@ -130,6 +130,8 @@ enum rmnet_shs_flush_reason_e {
 	RMNET_SHS_FLUSH_BYTE_LIMIT,
 	RMNET_SHS_FLUSH_TIMER_EXPIRY,
 	RMNET_SHS_FLUSH_RX_DL_TRAILER,
+	RMNET_SHS_FLUSH_WQ_FB_FLUSH,
+	RMNET_SHS_FLUSH_WQ_CORE_FLUSH,
 	RMNET_SHS_FLUSH_MAX_REASON
 };
 
@@ -165,6 +167,13 @@ enum rmnet_shs_trace_func {
 	RMNET_SHS_FLUSH,
 	RMNET_SHS_DL_MRK,
 };
+
+enum rmnet_shs_flush_context {
+	RMNET_RX_CTXT,
+	RMNET_WQ_CTXT,
+	RMNET_MAX_CTXT
+};
+
 
 /* Trace events and functions */
 enum rmnet_shs_trace_evt {
@@ -247,15 +256,18 @@ int rmnet_shs_is_lpwr_cpu(u16 cpu);
 void rmnet_shs_cancel_table(void);
 void rmnet_shs_aggregate_init(void);
 
-int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node, u8 force_flush);
+int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
+				 u8 force_flush, u8 ctxt);
 void rmnet_shs_dl_hdr_handler(struct rmnet_map_dl_ind_hdr *dlhdr);
 void rmnet_shs_dl_trl_handler(struct rmnet_map_dl_ind_trl *dltrl);
 void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port);
-void rmnet_shs_flush_table(u8 is_force_flush);
+void rmnet_shs_flush_table(u8 is_force_flush, u8 ctxt);
 void rmnet_shs_cpu_node_remove(struct rmnet_shs_skbn_s *node);
 void rmnet_shs_init(struct net_device *dev);
 void rmnet_shs_exit(void);
 void rmnet_shs_ps_on_hdlr(void *port);
 void rmnet_shs_ps_off_hdlr(void *port);
 void rmnet_shs_update_cpu_proc_q_all_cpus(void);
+
+u32 rmnet_shs_get_cpu_qhead(u8 cpu_num);
 #endif /* _RMNET_SHS_H_ */

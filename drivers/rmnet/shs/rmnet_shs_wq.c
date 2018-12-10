@@ -101,6 +101,14 @@ unsigned long long rmnet_shs_cpu_rx_pps[MAX_CPUS];
 module_param_array(rmnet_shs_cpu_rx_pps, ullong, 0, 0444);
 MODULE_PARM_DESC(rmnet_shs_cpu_rx_pps, "SHS stamp pkt enq rate per CPU");
 
+unsigned long long rmnet_shs_cpu_qhead_diff[MAX_CPUS];
+module_param_array(rmnet_shs_cpu_qhead_diff, ullong, 0, 0444);
+MODULE_PARM_DESC(rmnet_shs_cpu_qhead_diff, "SHS nw stack queue processed diff");
+
+unsigned long long rmnet_shs_cpu_qhead_total[MAX_CPUS];
+module_param_array(rmnet_shs_cpu_qhead_total, ullong, 0, 0444);
+MODULE_PARM_DESC(rmnet_shs_cpu_qhead_total, "SHS nw stack queue processed total");
+
 unsigned long rmnet_shs_flow_hash[MAX_SUPPORTED_FLOWS_DEBUG];
 module_param_array(rmnet_shs_flow_hash, ulong, 0, 0444);
 MODULE_PARM_DESC(rmnet_shs_flow_hash, "SHS stamp hash flow");
@@ -534,7 +542,8 @@ static void rmnet_shs_wq_refresh_cpu_rates_debug(u16 cpu,
 	rmnet_shs_cpu_rx_flows[cpu] = cpu_p->flows;
 	rmnet_shs_cpu_rx_bytes[cpu] = cpu_p->rx_bytes;
 	rmnet_shs_cpu_rx_pkts[cpu] = cpu_p->rx_skbs;
-
+	rmnet_shs_cpu_qhead_diff[cpu] = cpu_p->qhead_diff;
+	rmnet_shs_cpu_qhead_total[cpu] = cpu_p->qhead_total;
 }
 
 static void rmnet_shs_wq_refresh_dl_mrkr_stats(void)
@@ -596,9 +605,20 @@ static void rmnet_shs_wq_refresh_cpu_stats(u16 cpu)
 	struct rmnet_shs_wq_cpu_rx_pkt_q_s *cpu_p;
 	time_t tdiff;
 	u64 new_skbs, new_bytes;
+	u32 new_qhead;
 
 	cpu_p = &rmnet_shs_rx_flow_tbl.cpu_list[cpu];
 	new_skbs = cpu_p->rx_skbs - cpu_p->last_rx_skbs;
+
+	new_qhead = rmnet_shs_get_cpu_qhead(cpu);
+	if (cpu_p->qhead_start == 0) {
+		cpu_p->qhead_start = new_qhead;
+	}
+
+	cpu_p->last_qhead = cpu_p->qhead;
+	cpu_p->qhead = new_qhead;
+	cpu_p->qhead_diff = cpu_p->qhead - cpu_p->last_qhead;
+	cpu_p->qhead_total = cpu_p->qhead - cpu_p->qhead_start;
 
 	if (rmnet_shs_cpu_node_tbl[cpu].wqprio)
 		rmnet_shs_cpu_node_tbl[cpu].wqprio = (rmnet_shs_cpu_node_tbl[cpu].wqprio + 1)
