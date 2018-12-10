@@ -825,6 +825,7 @@ u16 rmnet_shs_wq_find_cpu_to_move_flows(u16 current_cpu,
 	u16 cpu_to_move = current_cpu;
 	u16 cpu_num;
 	u8 is_core_in_msk;
+	u32 cpu_to_move_util = 0;
 
 	if (!ep) {
 		rmnet_shs_crit_err[RMNET_SHS_WQ_EP_ACCESS_ERR]++;
@@ -874,10 +875,11 @@ u16 rmnet_shs_wq_find_cpu_to_move_flows(u16 current_cpu,
 				       current_cpu, cpu_num, reqd_pps,
 				       cpu_rx_pps, NULL, NULL);
 
-		/* Return the first available CPU */
-		if ((reqd_pps > pps_lthresh) && (reqd_pps < pps_uthresh)) {
+		/* Return the most available valid CPU */
+		if ((reqd_pps > pps_lthresh) && (reqd_pps < pps_uthresh) &&
+			cpu_rx_pps <= cpu_to_move_util) {
 			cpu_to_move = cpu_num;
-			break;
+			cpu_to_move_util = cpu_rx_pps;
 		}
 	}
 
@@ -886,7 +888,6 @@ u16 rmnet_shs_wq_find_cpu_to_move_flows(u16 current_cpu,
 			     current_cpu, cpu_to_move, cur_cpu_rx_pps,
 			     rx_flow_tbl_p->cpu_list[cpu_to_move].rx_pps,
 			     NULL, NULL);
-
 	return cpu_to_move;
 }
 
