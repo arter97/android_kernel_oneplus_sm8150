@@ -619,7 +619,7 @@ QDF_STATUS wma_form_unit_test_cmd_and_send(uint32_t vdev_id,
 	QDF_STATUS status;
 
 	WMA_LOGD(FL("enter"));
-	if (arg_count >= WMA_MAX_NUM_ARGS) {
+	if (arg_count > WMA_MAX_NUM_ARGS) {
 		WMA_LOGE(FL("arg_count is crossed the boundary"));
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -8439,10 +8439,6 @@ static QDF_STATUS wma_mc_process_msg(struct scheduler_msg *msg)
 		break;
 	case WDA_APF_GET_CAPABILITIES_REQ:
 		wma_get_apf_capabilities(wma_handle);
-		break;
-	case WDA_APF_SET_INSTRUCTIONS_REQ:
-		wma_set_apf_instructions(wma_handle, msg->bodyptr);
-		qdf_mem_free(msg->bodyptr);
 		break;
 	case SIR_HAL_POWER_DBG_CMD:
 		wma_process_hal_pwr_dbg_cmd(wma_handle,
