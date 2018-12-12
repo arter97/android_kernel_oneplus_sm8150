@@ -11,7 +11,7 @@ gensrcs {
 
     // move to out/ as root for header generation because of scripts/unifdef
     // storage - at the expense of extra ../ references
-    cmd: "pushd out && mkdir -p scripts && rm -f scripts/unifdef && ln -s ../../$(location unifdef) scripts/unifdef && ../$(location scripts/headers_install.sh) `dirname ../$(out)` ../ $(in) && popd",
+    cmd: "pushd out && mkdir -p scripts && rm -f scripts/unifdef && ([[ $(out) == /*  ]] && ln -s $(location unifdef) scripts/unifdef && ../$(location scripts/headers_install.sh) `dirname $(out)` ../ $(in)) || (ln -s ../../$(location unifdef) scripts/unifdef && ../$(location scripts/headers_install.sh) `dirname ../$(out)` ../ $(in)) && popd",
 
     tools: ["unifdef"],
     tool_files: ["scripts/headers_install.sh"],
