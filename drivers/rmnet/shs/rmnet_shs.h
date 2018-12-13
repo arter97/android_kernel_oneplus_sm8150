@@ -83,6 +83,7 @@ struct rmnet_shs_cfg_s {
 	u8 is_pkt_parked;
 	u8 is_timer_init;
 	u8 force_flush_state;
+	u8 rmnet_shs_init_complete;
 };
 
 struct rmnet_shs_skb_list {
