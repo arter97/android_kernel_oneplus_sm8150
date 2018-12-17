@@ -133,6 +133,7 @@ static int sap_start_dfs_cac_timer(struct sap_context *sapContext);
  *
  * Return: string for the @event.
  */
+#ifdef WLAN_DEBUG
 static uint8_t *sap_hdd_event_to_string(eSapHddEvent event)
 {
 	switch (event) {
@@ -167,6 +168,7 @@ static uint8_t *sap_hdd_event_to_string(eSapHddEvent event)
 		return "eSAP_HDD_EVENT_UNKNOWN";
 	}
 }
+#endif
 
 /*----------------------------------------------------------------------------
  * Externalized Function Definitions
@@ -1761,8 +1763,8 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 		sap_ap_event.sapHddEventCode = eSAP_CHANNEL_CHANGE_EVENT;
 
 		acs_selected = &sap_ap_event.sapevt.sap_ch_selected;
-		acs_selected->pri_ch = sap_ctx->acs_cfg->pri_ch;
-		acs_selected->ht_sec_ch = sap_ctx->acs_cfg->ht_sec_ch;
+		acs_selected->pri_ch = sap_ctx->channel;
+		acs_selected->ht_sec_ch = sap_ctx->secondary_ch;
 		acs_selected->ch_width =
 			sap_ctx->csr_roamProfile.ch_params.ch_width;
 		acs_selected->vht_seg0_center_ch =
@@ -2744,7 +2746,9 @@ QDF_STATUS sap_fsm(struct sap_context *sap_ctx, ptWLAN_SAPEvent sap_event)
 	 * state var that keeps track of state machine
 	 */
 	enum sap_fsm_state state_var = sap_ctx->fsm_state;
+#ifdef WLAN_DEBUG
 	uint32_t msg = sap_event->event; /* State machine input event message */
+#endif
 	QDF_STATUS qdf_status = QDF_STATUS_E_FAILURE;
 	tHalHandle hal = CDS_GET_HAL_CB();
 	tpAniSirGlobal mac_ctx;

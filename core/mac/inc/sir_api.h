@@ -882,6 +882,20 @@ typedef struct sAniTrafStrmMetrics {
 	uint16_t RoamingDly;
 } tAniTrafStrmMetrics, *tpAniTrafStrmMetrics;
 
+#define STA_NSS_CHAINS_SHIFT               0
+#define SAP_NSS_CHAINS_SHIFT               3
+#define P2P_GO_NSS_CHAINS_SHIFT            6
+#define P2P_CLI_CHAINS_SHIFT               9
+#define TDLS_NSS_CHAINS_SHIFT              12
+#define IBSS_NSS_CHAINS_SHIFT              15
+#define P2P_DEV_NSS_CHAINS_SHIFT           18
+#define OCB_NSS_CHAINS_SHIFT               21
+#define NAN_NSS_CHAIN_SHIFT                24
+#define NSS_CHAIN_MASK                     0x7
+#define GET_VDEV_NSS_CHAIN(x, y)         (((x) >> (y)) & NSS_CHAIN_MASK)
+#define MAX_VDEV_NSS                       2
+#define MAX_VDEV_CHAINS                    2
+
 typedef struct sAniGetTsmStatsReq {
 	/* Common for all types are requests */
 	uint16_t msgType;       /* message type is same as the request type */
@@ -2406,7 +2420,7 @@ typedef struct sSirUpdateAPWPARSNIEsReq {
 #define SIR_ROAM_SCAN_RESERVED_BYTES     61
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
-#define SIR_ROAM_SCAN_PSK_SIZE    32
+#define SIR_ROAM_SCAN_PSK_SIZE    48
 #define SIR_ROAM_R0KH_ID_MAX_LEN  48
 #endif
 /* SME -> HAL - This is the host offload request. */
@@ -6612,19 +6626,27 @@ struct sir_set_tx_rx_aggregation_size {
 };
 
 /**
- * struct sir_set_tx_aggr_sw_retry_threshold - set sw retry threshold
+ * struct sir_set_tx_sw_retry_threshold - set sw retry threshold
  * @vdev_id: vdev id of the session
  * @tx_aggr_sw_retry_threshold_be: sw retry threshold for BE
  * @tx_aggr_sw_retry_threshold_bk: sw retry threshold for BK
  * @tx_aggr_sw_retry_threshold_vi: sw retry threshold for VI
  * @tx_aggr_sw_retry_threshold_vo: sw retry threshold for VO
+ * @tx_non_aggr_sw_retry_threshold_be: non aggr sw retry threshold for BE
+ * @tx_non_aggr_sw_retry_threshold_bk: non aggr sw retry threshold for BK
+ * @tx_non_aggr_sw_retry_threshold_vi: non aggr sw retry threshold for VI
+ * @tx_non_aggr_sw_retry_threshold_vo: non aggr sw retry threshold for VO
  */
-struct sir_set_tx_aggr_sw_retry_threshold {
+struct sir_set_tx_sw_retry_threshold {
 	uint8_t vdev_id;
 	uint32_t tx_aggr_sw_retry_threshold_be;
 	uint32_t tx_aggr_sw_retry_threshold_bk;
 	uint32_t tx_aggr_sw_retry_threshold_vi;
 	uint32_t tx_aggr_sw_retry_threshold_vo;
+	uint32_t tx_non_aggr_sw_retry_threshold_be;
+	uint32_t tx_non_aggr_sw_retry_threshold_bk;
+	uint32_t tx_non_aggr_sw_retry_threshold_vi;
+	uint32_t tx_non_aggr_sw_retry_threshold_vo;
 };
 
 /**

@@ -258,6 +258,7 @@ static int hdd_set_reset_apf_offload(struct hdd_context *hdd_ctx,
 	apf_set_offload.program = qdf_mem_malloc(sizeof(uint8_t) * prog_len);
 
 	if (!apf_set_offload.program) {
+		hdd_err("qdf_mem_malloc failed for apf offload program");
 		ret = -ENOMEM;
 		goto fail;
 	}

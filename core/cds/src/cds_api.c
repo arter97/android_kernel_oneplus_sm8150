@@ -587,6 +587,7 @@ QDF_STATUS cds_open(struct wlan_objmgr_psoc *psoc)
 		hdd_ctx->config->maxNumberOfPeers = cds_cfg->max_station;
 
 	HTCHandle = cds_get_context(QDF_MODULE_ID_HTC);
+	gp_cds_context->cfg_ctx = NULL;
 	if (!HTCHandle) {
 		cds_alert("HTCHandle is null!");
 
@@ -2225,7 +2226,7 @@ bool cds_is_ptp_rx_opt_enabled(void)
 		return false;
 	}
 
-	return HDD_TSF_IS_RX_SET(hdd_ctx);
+	return hdd_tsf_is_rx_set(hdd_ctx);
 }
 
 bool cds_is_ptp_tx_opt_enabled(void)
@@ -2245,7 +2246,7 @@ bool cds_is_ptp_tx_opt_enabled(void)
 		return false;
 	}
 
-	return HDD_TSF_IS_TX_SET(hdd_ctx);
+	return hdd_tsf_is_tx_set(hdd_ctx);
 }
 #endif
 

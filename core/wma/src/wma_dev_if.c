@@ -74,6 +74,7 @@
 #include "wlan_ocb_ucfg_api.h"
 #include "init_deinit_lmac.h"
 #include <target_if.h>
+#include "wlan_mlme_main.h"
 
 /**
  * wma_find_vdev_by_addr() - find vdev_id from mac address
@@ -420,7 +421,9 @@ static inline void wma_send_del_sta_self_resp(struct del_sta_self_params *param)
 	sme_msg.type = eWNI_SME_DEL_STA_SELF_RSP;
 	sme_msg.bodyptr = param;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_SME, &sme_msg);
+	status = scheduler_post_message(QDF_MODULE_ID_WMA,
+					QDF_MODULE_ID_SME,
+					QDF_MODULE_ID_SME, &sme_msg);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		WMA_LOGE("Failed to post eWNI_SME_DEL_STA_SELF_RSP");
 		qdf_mem_free(param);
@@ -1395,7 +1398,7 @@ QDF_STATUS wma_remove_peer(tp_wma_handle wma, uint8_t *bssid,
 	if (!wma->interfaces[vdev_id].peer_count) {
 		WMA_LOGE("%s: Can't remove peer with peer_addr %pM vdevid %d peer_count %d",
 			 __func__, bssid, vdev_id,
-			wma->interfaces[vdev_id].peer_count);
+			 wma->interfaces[vdev_id].peer_count);
 		cds_trigger_recovery(QDF_REASON_UNSPECIFIED);
 		return QDF_STATUS_E_INVAL;
 	}
@@ -2214,7 +2217,7 @@ struct cdp_vdev *wma_vdev_attach(tp_wma_handle wma_handle,
 	struct vdev_create_params params = { 0 };
 	u_int8_t vdev_id;
 	struct sir_set_tx_rx_aggregation_size tx_rx_aggregation_size;
-	struct sir_set_tx_aggr_sw_retry_threshold tx_aggr_sw_retry_threshold;
+	struct sir_set_tx_sw_retry_threshold tx_sw_retry_threshold;
 	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
 	struct wlan_objmgr_peer *obj_peer;
 
@@ -2324,15 +2327,25 @@ struct cdp_vdev *wma_vdev_attach(tp_wma_handle wma_handle,
 	tx_rx_aggregation_size.tx_aggregation_size_vo =
 				self_sta_req->tx_aggregation_size_vo;
 
-	tx_aggr_sw_retry_threshold.tx_aggr_sw_retry_threshold_be =
+	tx_sw_retry_threshold.tx_aggr_sw_retry_threshold_be =
 				self_sta_req->tx_aggr_sw_retry_threshold_be;
-	tx_aggr_sw_retry_threshold.tx_aggr_sw_retry_threshold_bk =
+	tx_sw_retry_threshold.tx_aggr_sw_retry_threshold_bk =
 				self_sta_req->tx_aggr_sw_retry_threshold_bk;
-	tx_aggr_sw_retry_threshold.tx_aggr_sw_retry_threshold_vi =
+	tx_sw_retry_threshold.tx_aggr_sw_retry_threshold_vi =
 				self_sta_req->tx_aggr_sw_retry_threshold_vi;
-	tx_aggr_sw_retry_threshold.tx_aggr_sw_retry_threshold_vo =
+	tx_sw_retry_threshold.tx_aggr_sw_retry_threshold_vo =
 				self_sta_req->tx_aggr_sw_retry_threshold_vo;
-	tx_aggr_sw_retry_threshold.vdev_id = self_sta_req->session_id;
+
+	tx_sw_retry_threshold.tx_non_aggr_sw_retry_threshold_be =
+				self_sta_req->tx_non_aggr_sw_retry_threshold_be;
+	tx_sw_retry_threshold.tx_non_aggr_sw_retry_threshold_bk =
+				self_sta_req->tx_non_aggr_sw_retry_threshold_bk;
+	tx_sw_retry_threshold.tx_non_aggr_sw_retry_threshold_vi =
+				self_sta_req->tx_non_aggr_sw_retry_threshold_vi;
+	tx_sw_retry_threshold.tx_non_aggr_sw_retry_threshold_vo =
+				self_sta_req->tx_non_aggr_sw_retry_threshold_vo;
+
+	tx_sw_retry_threshold.vdev_id = self_sta_req->session_id;
 
 
 	switch (self_sta_req->type) {
@@ -2359,7 +2372,8 @@ struct cdp_vdev *wma_vdev_attach(tp_wma_handle wma_handle,
 			wma_set_sta_sa_query_param(wma_handle, vdev_id);
 		}
 
-		ret = wma_set_sw_retry_threshold(&tx_aggr_sw_retry_threshold);
+		ret = wma_set_sw_retry_threshold(wma_handle,
+						 &tx_sw_retry_threshold);
 		if (QDF_IS_STATUS_ERROR(ret))
 			WMA_LOGE("failed to set retry threshold(err=%d)", ret);
 		break;
@@ -2560,7 +2574,9 @@ end:
 		sme_msg.bodyptr = self_sta_req;
 		sme_msg.bodyval = 0;
 
-		status = scheduler_post_msg(QDF_MODULE_ID_SME, &sme_msg);
+		status = scheduler_post_message(QDF_MODULE_ID_WMA,
+						QDF_MODULE_ID_SME,
+						QDF_MODULE_ID_SME, &sme_msg);
 		if (!QDF_IS_STATUS_SUCCESS(status)) {
 			WMA_LOGE("Failed to post eWNI_SME_ADD_STA_SELF_RSP");
 			qdf_mem_free(self_sta_req);
@@ -2627,6 +2643,8 @@ QDF_STATUS wma_vdev_start(tp_wma_handle wma,
 	struct wma_target_req *req_msg;
 	uint32_t chan_mode;
 	enum phy_ch_width ch_width;
+	struct mlme_nss_chains *ini_cfg;
+	struct wlan_objmgr_vdev *vdev;
 
 	mac_ctx = cds_get_context(QDF_MODULE_ID_PE);
 	if (mac_ctx == NULL) {
@@ -2876,6 +2894,26 @@ QDF_STATUS wma_vdev_start(tp_wma_handle wma,
 		wma_vdev_update_pause_bitmap(params.vdev_id, 0);
 	}
 
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(wma->psoc, params.vdev_id,
+						    WLAN_LEGACY_WMA_ID);
+	if (!vdev) {
+		WMA_LOGE("%s, vdev_id: %d, failed to get vdev from psoc",
+			 __func__, params.vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	ini_cfg = mlme_get_ini_vdev_config(vdev);
+	if (!ini_cfg) {
+		wma_err("nss chain ini config NULL");
+		goto end;
+	}
+
+	/* Send self capability of nss chain params before vdev start to fw */
+	if (wma->dynamic_nss_chains_support)
+		wma_vdev_nss_chain_params_send(params.vdev_id, ini_cfg);
+
+end:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_WMA_ID);
 	return wma_send_vdev_start_to_fw(wma, &params);
 }
 

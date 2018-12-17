@@ -1169,7 +1169,9 @@ lim_send_sme_mgmt_tx_completion(tpAniSirGlobal pMac,
 
 	pSirMgmtTxCompletionInd->psoc = pMac->psoc;
 	mmhMsg.callback = tgt_tdls_send_mgmt_tx_completion;
-	scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &mmhMsg);
+	scheduler_post_message(QDF_MODULE_ID_PE,
+			       QDF_MODULE_ID_TDLS,
+			       QDF_MODULE_ID_TARGET_IF, &mmhMsg);
 	return;
 } /*** end lim_send_sme_tdls_delete_all_peer_ind() ***/
 

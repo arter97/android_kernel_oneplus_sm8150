@@ -516,10 +516,6 @@ static int __hdd_hostapd_stop(struct net_device *dev)
 	hdd_stop_adapter(hdd_ctx, adapter);
 	hdd_deinit_adapter(hdd_ctx, adapter, true);
 	clear_bit(DEVICE_IFACE_OPENED, &adapter->event_flags);
-
-	if (!hdd_is_cli_iface_up(hdd_ctx))
-		sme_scan_flush_result(hdd_ctx->mac_handle);
-
 	/* Stop all tx queues */
 	hdd_debug("Disabling queues");
 	wlan_hdd_netif_queue_control(adapter,
@@ -712,6 +708,8 @@ static int __hdd_hostapd_set_mac_address(struct net_device *dev, void *addr)
 	hdd_info("Changing MAC to " MAC_ADDRESS_STR " of interface %s ",
 		 MAC_ADDR_ARRAY(mac_addr.bytes),
 		 dev->name);
+	hdd_update_dynamic_mac(hdd_ctx, &adapter->mac_addr, &mac_addr);
+	memcpy(&adapter->mac_addr, psta_mac_addr->sa_data, ETH_ALEN);
 	memcpy(dev->dev_addr, psta_mac_addr->sa_data, ETH_ALEN);
 	hdd_exit();
 	return 0;
@@ -1692,6 +1690,9 @@ QDF_STATUS hdd_hostapd_sap_event_cb(tpSap_Event pSapEvent,
 		       pSapEvent->sapevt.sapStartBssCompleteEvent.
 		       operatingChannel,
 		       pSapEvent->sapevt.sapStartBssCompleteEvent.staId);
+		ap_ctx->operating_channel =
+			pSapEvent->sapevt.sapStartBssCompleteEvent
+			.operatingChannel;
 
 		adapter->session_id =
 			pSapEvent->sapevt.sapStartBssCompleteEvent.sessionId;
@@ -1699,13 +1700,11 @@ QDF_STATUS hdd_hostapd_sap_event_cb(tpSap_Event pSapEvent,
 		sap_config->channel =
 			pSapEvent->sapevt.sapStartBssCompleteEvent.
 			operatingChannel;
-
 		sap_config->ch_params.ch_width =
 			pSapEvent->sapevt.sapStartBssCompleteEvent.ch_width;
 
-		wlan_reg_set_channel_params(hdd_ctx->pdev,
-					    sap_config->channel, 0,
-					    &sap_config->ch_params);
+		sap_config->ch_params = ap_ctx->sap_context->ch_params;
+		sap_config->sec_ch = ap_ctx->sap_context->secondary_ch;
 
 		hostapd_state->qdf_status =
 			pSapEvent->sapevt.sapStartBssCompleteEvent.status;
@@ -1780,9 +1779,6 @@ QDF_STATUS hdd_hostapd_sap_event_cb(tpSap_Event pSapEvent,
 #ifdef FEATURE_WLAN_AUTO_SHUTDOWN
 		wlan_hdd_auto_shutdown_enable(hdd_ctx, true);
 #endif
-		ap_ctx->operating_channel =
-			pSapEvent->sapevt.sapStartBssCompleteEvent.operatingChannel;
-
 		hdd_hostapd_channel_prevent_suspend(adapter,
 						    ap_ctx->operating_channel);
 
@@ -2882,6 +2878,7 @@ QDF_STATUS wlan_hdd_get_channel_for_sap_restart(
 	struct hdd_context *hdd_ctx;
 	struct hdd_station_ctx *hdd_sta_ctx;
 	struct hdd_adapter *sta_adapter;
+	struct ch_params ch_params;
 	struct hdd_adapter *ap_adapter = wlan_hdd_get_adapter_from_vdev(
 					psoc, vdev_id);
 	if (!ap_adapter) {
@@ -2964,21 +2961,22 @@ sap_restart:
 
 	hdd_info("SAP restart orig chan: %d, new chan: %d",
 		 hdd_ap_ctx->sap_config.channel, intf_ch);
-	hdd_ap_ctx->sap_config.channel = intf_ch;
-	hdd_ap_ctx->sap_config.ch_params.ch_width = CH_WIDTH_MAX;
+	ch_params.ch_width = CH_WIDTH_MAX;
 	hdd_ap_ctx->bss_stop_reason = BSS_STOP_DUE_TO_MCC_SCC_SWITCH;
 
 	wlan_reg_set_channel_params(hdd_ctx->pdev,
-				    hdd_ap_ctx->sap_config.channel,
-				    hdd_ap_ctx->sap_config.sec_ch,
-				    &hdd_ap_ctx->sap_config.ch_params);
-	*channel = hdd_ap_ctx->sap_config.channel;
-	*sec_ch = hdd_ap_ctx->sap_config.sec_ch;
+				    intf_ch,
+				    0,
+				    &ch_params);
+
+	wlansap_get_sec_channel(ch_params.sec_ch_offset, intf_ch, sec_ch);
+
+	*channel = intf_ch;
 
 	hdd_info("SAP channel change with CSA/ECSA");
 	hdd_sap_restart_chan_switch_cb(psoc, vdev_id,
-		hdd_ap_ctx->sap_config.channel,
-		hdd_ap_ctx->sap_config.ch_params.ch_width, false);
+		intf_ch,
+		ch_params.ch_width, false);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -3889,6 +3887,7 @@ static __iw_softap_setparam(struct net_device *dev,
 	case QCASAP_NSS_CMD:
 	{
 		hdd_debug("QCASAP_NSS_CMD val %d", set_value);
+		hdd_update_nss(adapter, set_value);
 		ret = wma_cli_set_command(adapter->session_id,
 					  WMI_VDEV_PARAM_NSS,
 					  set_value, VDEV_CMD);
@@ -7613,6 +7612,7 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 	tsap_config_t *pConfig;
 	struct hdd_beacon_data *pBeacon = NULL;
 	struct ieee80211_mgmt *pMgmt_frame;
+	struct ieee80211_mgmt mgmt;
 	const uint8_t *pIe = NULL;
 	uint16_t capab_info;
 	eCsrAuthType RSNAuthType;
@@ -7633,6 +7633,7 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 	enum dfs_mode mode;
 	struct hdd_adapter *sta_adapter;
 	uint8_t ignore_cac = 0;
+	uint8_t beacon_fixed_len;
 
 	hdd_enter();
 
@@ -7731,6 +7732,21 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 	}
 
 	pBeacon = adapter->session.ap.beacon;
+
+	/*
+	 * beacon_fixed_len is the fixed length of beacon
+	 * frame which includes only mac header length and
+	 * beacon manadatory fields like timestamp,
+	 * beacon_int and capab_info.
+	 * (From the reference of struct ieee80211_mgmt)
+	 */
+	beacon_fixed_len = sizeof(mgmt) - sizeof(mgmt.u) +
+			   sizeof(mgmt.u.beacon);
+	if (pBeacon->head_len < beacon_fixed_len) {
+		hdd_err("Invalid beacon head len");
+		ret = -EINVAL;
+		goto error;
+	}
 	pMgmt_frame = (struct ieee80211_mgmt *)pBeacon->head;
 
 	pConfig->beacon_int = pMgmt_frame->u.beacon.beacon_int;
@@ -8041,9 +8057,13 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 
 	if (!(ssid && qdf_str_len(PRE_CAC_SSID) == ssid_len &&
 	      (0 == qdf_mem_cmp(ssid, PRE_CAC_SSID, ssid_len)))) {
+		uint16_t beacon_data_len;
+
+		beacon_data_len = pBeacon->head_len - beacon_fixed_len;
+
 		pIe = wlan_get_ie_ptr_from_eid(WLAN_EID_SUPP_RATES,
 					&pMgmt_frame->u.beacon.variable[0],
-					pBeacon->head_len);
+					beacon_data_len);
 
 		if (pIe != NULL) {
 			pIe++;
@@ -8461,6 +8481,7 @@ static int __wlan_hdd_cfg80211_stop_ap(struct wiphy *wiphy,
 			}
 		}
 		clear_bit(SOFTAP_BSS_STARTED, &adapter->event_flags);
+		hdd_stop_tsf_sync(adapter);
 
 		/* Clear the stop_bss_in_progress flag */
 		wlansap_set_stop_bss_inprogress(
@@ -8663,6 +8684,7 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 	uint8_t channel;
 	bool sta_sap_scc_on_dfs_chan;
 	uint16_t sta_cnt;
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
 
 	hdd_enter();
 
@@ -8914,6 +8936,11 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 			goto err_start_bss;
 		}
 
+		hdd_start_tsf_sync(adapter);
+
+		if (wdev->chandef.chan->center_freq !=
+				params->chandef.chan->center_freq)
+			params->chandef = wdev->chandef;
 		/*
 		 * If Do_Not_Break_Stream enabled send avoid channel list
 		 * to application.

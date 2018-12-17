@@ -1041,6 +1041,7 @@ static enum wlan_phymode wma_fw_to_host_phymode_11ac(WLAN_PHY_MODE phymode)
 	switch (phymode) {
 	default:
 		return WLAN_PHYMODE_AUTO;
+#if SUPPORT_11AX
 	case MODE_11AX_HE20:
 		return WLAN_PHYMODE_11AC_VHT20;
 	case MODE_11AX_HE40:
@@ -1057,6 +1058,7 @@ static enum wlan_phymode wma_fw_to_host_phymode_11ac(WLAN_PHY_MODE phymode)
 		return WLAN_PHYMODE_11AC_VHT40;
 	case MODE_11AX_HE80_2G:
 		return WLAN_PHYMODE_11AC_VHT80;
+#endif
 	}
 	return WLAN_PHYMODE_AUTO;
 }
@@ -2665,7 +2667,8 @@ static QDF_STATUS wma_store_bcn_tmpl(tp_wma_handle wma, uint8_t vdev_id,
 	len = *(u32 *) &bcn_info->beacon[0];
 	if (len > SIR_MAX_BEACON_SIZE - sizeof(uint32_t)) {
 		WMA_LOGE("%s: Received beacon len %u exceeding max limit %lu",
-			 __func__, len, SIR_MAX_BEACON_SIZE - sizeof(uint32_t));
+			 __func__, len, (unsigned long)(
+			 SIR_MAX_BEACON_SIZE - sizeof(uint32_t)));
 		return QDF_STATUS_E_INVAL;
 	}
 	WMA_LOGD("%s: Storing received beacon template buf to local buffer",
@@ -2993,6 +2996,7 @@ void wma_beacon_miss_handler(tp_wma_handle wma, uint32_t vdev_id, int32_t rssi)
  *
  * Return: converted string of tx status
  */
+#ifdef WLAN_DEBUG
 static const char *wma_get_status_str(uint32_t status)
 {
 	switch (status) {
@@ -3005,6 +3009,7 @@ static const char *wma_get_status_str(uint32_t status)
 	CASE_RETURN_STRING(WMI_MGMT_TX_COMP_TYPE_MAX);
 	}
 }
+#endif
 
 /**
  * wma_process_mgmt_tx_completion() - process mgmt completion

@@ -586,6 +586,36 @@ bool sme_is_wmm_supported(tHalHandle hHal);
 QDF_STATUS sme_generic_change_country_code(tHalHandle hHal,
 					   uint8_t *pCountry);
 
+/**
+ * sme_store_nss_chains_cfg_in_vdev() - fill vdev nss chain params from ini
+ * @vdev: Pointer to vdev obj
+ * @vdev_ini_cfg: pointer to the structure the values are to be filled from
+ *
+ * This API will copy the nss chain params for the particular vdev from ini
+ * configuration to the respective vdev's dynamic, and ini config.
+ *
+ * Return: none
+ */
+void
+sme_store_nss_chains_cfg_in_vdev(struct wlan_objmgr_vdev *vdev,
+				 struct mlme_nss_chains *vdev_ini_cfg);
+
+/**
+ * sme_nss_chains_update() - validate and send the user params to fw
+ * @mac_handle: The handle returned by mac_open.
+ * @user_cfg: pointer to the structure to be validated and sent to fw
+ * @vdev_id: vdev id
+ *
+ *
+ * This API will validate the config, and if found correct will update the
+ * config in dynamic config, and send to the fw.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+sme_nss_chains_update(mac_handle_t mac_handle,
+		      struct mlme_nss_chains *user_cfg,
+		      uint8_t vdev_id);
 
 /**
  * sme_update_channel_list() - Update configured channel list to fwr
@@ -1375,13 +1405,8 @@ QDF_STATUS sme_set_tsfcb(tHalHandle hHal,
 
 QDF_STATUS sme_reset_tsfcb(tHalHandle h_hal);
 
-#ifdef WLAN_FEATURE_TSF
+#if defined(WLAN_FEATURE_TSF) && !defined(WLAN_FEATURE_TSF_PLUS_NOIRQ)
 QDF_STATUS sme_set_tsf_gpio(tHalHandle h_hal, uint32_t pinvalue);
-#else
-static inline QDF_STATUS sme_set_tsf_gpio(tHalHandle h_hal, uint32_t pinvalue)
-{
-	return QDF_STATUS_E_FAILURE;
-}
 #endif
 
 QDF_STATUS sme_update_mimo_power_save(tHalHandle hHal,

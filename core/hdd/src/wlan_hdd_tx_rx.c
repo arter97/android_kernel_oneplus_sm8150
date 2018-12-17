@@ -1458,9 +1458,11 @@ static void hdd_resolve_rx_ol_mode(struct hdd_context *hdd_ctx)
 {
 	if (!(hdd_ctx->config->lro_enable ^
 	    hdd_ctx->config->gro_enable)) {
+#ifdef WLAN_DEBUG
 		hdd_ctx->config->lro_enable && hdd_ctx->config->gro_enable ?
 		hdd_err("Can't enable both LRO and GRO, disabling Rx offload") :
 		hdd_debug("LRO and GRO both are disabled");
+#endif
 		hdd_ctx->ol_enable = 0;
 	} else if (hdd_ctx->config->lro_enable) {
 		hdd_debug("Rx offload LRO is enabled");
@@ -1661,10 +1663,7 @@ void hdd_disable_rx_ol_in_concurrency(bool disable)
 			hdd_info("Enable TCP delack as LRO disabled in concurrency");
 			rx_tp_data.rx_tp_flags = TCP_DEL_ACK_IND;
 			rx_tp_data.level = GET_CUR_RX_LVL(hdd_ctx);
-			wlan_hdd_send_svc_nlink_msg(hdd_ctx->radio_index,
-						    WLAN_SVC_WLAN_TP_IND,
-						    &rx_tp_data,
-						    sizeof(rx_tp_data));
+			wlan_hdd_update_tcp_rx_param(hdd_ctx, &rx_tp_data);
 			hdd_ctx->en_tcp_delack_no_lro = 1;
 		}
 		qdf_atomic_set(&hdd_ctx->disable_lro_in_concurrency, 1);
@@ -1736,7 +1735,7 @@ static inline void hdd_tsf_timestamp_rx(struct hdd_context *hdd_ctx,
 					qdf_nbuf_t netbuf,
 					uint64_t target_time)
 {
-	if (!HDD_TSF_IS_RX_SET(hdd_ctx))
+	if (!hdd_tsf_is_rx_set(hdd_ctx))
 		return;
 
 	hdd_rx_timestamp(netbuf, target_time);
@@ -2517,7 +2516,6 @@ void hdd_reset_tcp_delack(struct hdd_context *hdd_ctx)
 	rx_tp_data.rx_tp_flags |= TCP_DEL_ACK_IND;
 	rx_tp_data.level = next_level;
 	hdd_ctx->rx_high_ind_cnt = 0;
-	wlan_hdd_send_svc_nlink_msg(hdd_ctx->radio_index, WLAN_SVC_WLAN_TP_IND,
-				    &rx_tp_data, sizeof(rx_tp_data));
+	wlan_hdd_update_tcp_rx_param(hdd_ctx, &rx_tp_data);
 }
 #endif /* MSM_PLATFORM */

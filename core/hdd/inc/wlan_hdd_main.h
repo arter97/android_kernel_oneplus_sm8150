@@ -1335,6 +1335,7 @@ struct hdd_adapter {
 	/* tsf value received from firmware */
 	uint64_t cur_target_time;
 	uint64_t tsf_sync_soc_timer;
+	qdf_mc_timer_t host_capture_req_timer;
 #ifdef WLAN_FEATURE_TSF_PLUS
 	/* spin lock for read/write timestamps */
 	qdf_spinlock_t host_target_sync_lock;
@@ -1708,10 +1709,27 @@ struct hdd_cache_channels {
 #endif
 
 /**
+ * struct hdd_dynamic_mac - hdd structure to handle dynamic mac address changes
+ * @dynamic_mac: Dynamicaly configured mac, this contains the mac on which
+ * current interface is up
+ * @is_provisioned_mac: is this mac from provisioned list
+ * @bit_position: holds the bit mask position from where this mac is assigned,
+ * if mac is assigned from provisioned this field contains the position from
+ * provisioned_intf_addr_mask else contains the position from
+ * derived_intf_addr_mask
+ */
+struct hdd_dynamic_mac {
+	struct qdf_mac_addr dynamic_mac;
+	bool is_provisioned_mac;
+	uint8_t bit_position;
+};
+
+/**
  * struct hdd_context - hdd shared driver and psoc/device context
  * @psoc: object manager psoc context
  * @pdev: object manager pdev context
  * @g_event_flags: a bitmap of hdd_driver_flags
+ * @dynamic_nss_chains_support: Per vdev dynamic nss chains update capability
  */
 struct hdd_context {
 	struct wlan_objmgr_psoc *psoc;
@@ -1915,7 +1933,6 @@ struct hdd_context {
 	bool napi_enable;
 	bool stop_modules_in_progress;
 	bool start_modules_in_progress;
-	bool update_mac_addr_to_fw;
 	struct acs_dfs_policy acs_policy;
 	uint16_t wmi_max_len;
 	struct suspend_resume_stats suspend_resume_stats;
@@ -1983,6 +2000,16 @@ struct hdd_context {
 	uint32_t apf_version;
 	bool apf_enabled_v2;
 #endif
+	struct hdd_dynamic_mac dynamic_mac_list[QDF_MAX_CONCURRENCY_PERSONA];
+	bool dynamic_nss_chains_support;
+
+	struct qdf_mac_addr hw_macaddr;
+	struct qdf_mac_addr provisioned_mac_addr[QDF_MAX_CONCURRENCY_PERSONA];
+	struct qdf_mac_addr derived_mac_addr[QDF_MAX_CONCURRENCY_PERSONA];
+	uint32_t num_provisioned_addr;
+	uint32_t num_derived_addr;
+	unsigned long provisioned_intf_addr_mask;
+	unsigned long derived_intf_addr_mask;
 };
 
 /**
@@ -2129,6 +2156,20 @@ struct hdd_adapter *hdd_get_adapter_by_vdev(struct hdd_context *hdd_ctx,
 struct hdd_adapter *hdd_get_adapter_by_macaddr(struct hdd_context *hdd_ctx,
 					  tSirMacAddr macAddr);
 
+/*
+ * hdd_get_adapter_by_rand_macaddr() - find Random mac adapter
+ * @hdd_ctx: hdd context
+ * @mac_addr: random mac addr
+ *
+ * Find the Adapter based on random mac addr. Adapter's vdev
+ * have active random mac list.
+ *
+ * Return: adapter ptr or null
+ */
+struct hdd_adapter *
+hdd_get_adapter_by_rand_macaddr(struct hdd_context *hdd_ctx,
+				tSirMacAddr mac_addr);
+
 int hdd_vdev_create(struct hdd_adapter *adapter,
 		    csr_roam_complete_cb callback, void *ctx);
 int hdd_vdev_destroy(struct hdd_adapter *adapter);
@@ -2159,7 +2200,20 @@ QDF_STATUS hdd_stop_adapter_ext(struct hdd_context *hdd_ctx,
 				enum hdd_adapter_stop_flag_t flag);
 
 void hdd_set_station_ops(struct net_device *dev);
-uint8_t *wlan_hdd_get_intf_addr(struct hdd_context *hdd_ctx);
+
+/**
+ * wlan_hdd_get_intf_addr() - Get address for the interface
+ * @hdd_ctx: Pointer to hdd context
+ * @interface_type: type of the interface for which address is queried
+ *
+ * This function is used to get mac address for every new interface
+ *
+ * Return: If addr is present then return pointer to MAC address
+ *         else NULL
+ */
+
+uint8_t *wlan_hdd_get_intf_addr(struct hdd_context *hdd_ctx,
+				enum QDF_OPMODE interface_type);
 void wlan_hdd_release_intf_addr(struct hdd_context *hdd_ctx,
 				uint8_t *releaseAddr);
 uint8_t hdd_get_operating_channel(struct hdd_context *hdd_ctx,
@@ -2369,6 +2423,32 @@ void wlan_hdd_send_svc_nlink_msg(int radio, int type, void *data, int len);
 void wlan_hdd_auto_shutdown_enable(struct hdd_context *hdd_ctx, bool enable);
 #endif
 
+/**
+ * hdd_fill_nss_chain_params() - Fill nss chains ini params
+ * @hdd_ctx: hdd context
+ * @vdev_ini_cfg: structure to be filled
+ * @device_mode: device mode for which the inis are to be filled
+ *
+ * This function fills nss chains ini params for the respective device mode.
+ *
+ * Return: none
+ */
+void hdd_fill_nss_chain_params(struct hdd_context *hdd_ctx,
+			       struct mlme_nss_chains *vdev_ini_cfg,
+			       uint8_t device_mode);
+
+/**
+ * hdd_is_vdev_in_conn_state() - Check whether the vdev is in
+ * connected/started state.
+ * @adapter: hdd adapter of the vdev
+ *
+ * This function will give whether the vdev in the adapter is in
+ * connected/started state.
+ *
+ * Return: True/false
+ */
+bool hdd_is_vdev_in_conn_state(struct hdd_adapter *adapter);
+
 struct hdd_adapter *
 hdd_get_con_sap_adapter(struct hdd_adapter *this_sap_adapter,
 			bool check_start_bss);
@@ -2509,8 +2589,37 @@ void hdd_ch_avoid_ind(struct hdd_context *hdd_ctxt,
 }
 #endif
 
-void hdd_update_macaddr(struct hdd_config *config,
-			struct qdf_mac_addr hw_macaddr);
+/**
+ * hdd_free_mac_address_lists() - Free both the MAC address lists
+ * @hdd_ctx: HDD context
+ *
+ * This API clears/memset provisioned address list and
+ * derived address list
+ *
+ */
+void hdd_free_mac_address_lists(struct hdd_context *hdd_ctx);
+
+/**
+ * hdd_update_macaddr() - update mac address
+ * @hdd_ctx:	hdd contxt
+ * @hw_macaddr:	mac address
+ * @generate_mac_auto: Indicates whether the first address is
+ * provisioned address or derived address.
+ *
+ * Mac address for multiple virtual interface is found as following
+ * i) The mac address of the first interface is just the actual hw mac address.
+ * ii) MSM 3 or 4 bits of byte5 of the actual mac address are used to
+ *     define the mac address for the remaining interfaces and locally
+ *     admistered bit is set. INTF_MACADDR_MASK is based on the number of
+ *     supported virtual interfaces, right now this is 0x07 (meaning 8
+ *     interface).
+ *     Byte[3] of second interface will be hw_macaddr[3](bit5..7) + 1,
+ *     for third interface it will be hw_macaddr[3](bit5..7) + 2, etc.
+ *
+ * Return: None
+ */
+void hdd_update_macaddr(struct hdd_context *hdd_ctx,
+			struct qdf_mac_addr hw_macaddr, bool generate_mac_auto);
 
 /**
  * wlan_hdd_disable_roaming() - disable roaming on all STAs except the input one
@@ -3293,15 +3402,6 @@ static inline void hdd_driver_memdump_deinit(void)
 }
 #endif /* WLAN_FEATURE_MEMDUMP_ENABLE */
 /**
- * hdd_is_cli_iface_up() - check if there is any cli iface up
- * @hdd_ctx: HDD context
- *
- * Return: return true if there is any cli iface(STA/P2P_CLI) is up
- *         else return false
- */
-bool hdd_is_cli_iface_up(struct hdd_context *hdd_ctx);
-
-/**
  * hdd_set_disconnect_status() - set adapter disconnection status
  * @hdd_adapter: Pointer to hdd adapter
  * @disconnecting: Disconnect status to set
@@ -3420,4 +3520,70 @@ struct hdd_context *hdd_handle_to_context(hdd_handle_t hdd_handle)
  */
 void wlan_hdd_free_cache_channels(struct hdd_context *hdd_ctx);
 
+/**
+ * hdd_update_dynamic_mac() - Updates the dynamic MAC list
+ * @hdd_ctx: Pointer to HDD context
+ * @curr_mac_addr: Current interface mac address
+ * @new_mac_addr: New mac address which needs to be updated
+ *
+ * This function updates newly configured MAC address to the
+ * dynamic MAC address list corresponding to the current
+ * adapter MAC address
+ *
+ * Return: None
+ */
+void hdd_update_dynamic_mac(struct hdd_context *hdd_ctx,
+			    struct qdf_mac_addr *curr_mac_addr,
+			    struct qdf_mac_addr *new_mac_addr);
+
+#ifdef MSM_PLATFORM
+/**
+ * wlan_hdd_send_tcp_param_update_event() - Send vendor event to update
+ * TCP parameter through Wi-Fi HAL
+ * @hdd_ctx: Pointer to HDD context
+ * @data: Parameters to update
+ * @dir: Direction(tx/rx) to update
+ *
+ * Return: None
+ */
+void wlan_hdd_send_tcp_param_update_event(struct hdd_context *hdd_ctx,
+					  void *data,
+					  uint8_t dir);
+
+/**
+ * wlan_hdd_update_tcp_rx_param() - update TCP param in RX dir
+ * @hdd_ctx: Pointer to HDD context
+ * @data: Parameters to update
+ *
+ * Return: None
+ */
+void wlan_hdd_update_tcp_rx_param(struct hdd_context *hdd_ctx, void *data);
+
+/**
+ * wlan_hdd_update_tcp_tx_param() - update TCP param in TX dir
+ * @hdd_ctx: Pointer to HDD context
+ * @data: Parameters to update
+ *
+ * Return: None
+ */
+void wlan_hdd_update_tcp_tx_param(struct hdd_context *hdd_ctx, void *data);
+#else
+static inline
+void wlan_hdd_update_tcp_rx_param(struct hdd_context *hdd_ctx, void *data)
+{
+}
+
+static inline
+void wlan_hdd_update_tcp_tx_param(struct hdd_context *hdd_ctx, void *data)
+{
+}
+
+static inline
+void wlan_hdd_send_tcp_param_update_event(struct hdd_context *hdd_ctx,
+					  void *data,
+					  uint8_t dir)
+{
+}
+
+#endif /* MSM_PLATFORM */
 #endif /* end #if !defined(WLAN_HDD_MAIN_H) */

@@ -1163,8 +1163,10 @@ QDF_STATUS csr_update_channel_list(tpAniSirGlobal pMac)
 	pChanList->numChan = num_channel;
 	MTRACE(qdf_trace(QDF_MODULE_ID_SME, TRACE_CODE_SME_TX_WMA_MSG,
 			 NO_SESSION, msg.type));
-	if (QDF_STATUS_SUCCESS != scheduler_post_msg(QDF_MODULE_ID_WMA,
-						      &msg)) {
+	if (QDF_STATUS_SUCCESS != scheduler_post_message(QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_WMA,
+							 QDF_MODULE_ID_WMA,
+							 &msg)) {
 		QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_FATAL,
 			  "%s: Failed to post msg to WMA", __func__);
 		qdf_mem_free(pChanList);
@@ -3249,6 +3251,14 @@ QDF_STATUS csr_change_default_config_param(tpAniSirGlobal pMac,
 			pParam->tx_aggr_sw_retry_threshold_vi;
 		pMac->roam.configParam.tx_aggr_sw_retry_threshold_vo =
 			pParam->tx_aggr_sw_retry_threshold_vo;
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_be =
+			pParam->tx_non_aggr_sw_retry_threshold_be;
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_bk =
+			pParam->tx_non_aggr_sw_retry_threshold_bk;
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_vi =
+			pParam->tx_non_aggr_sw_retry_threshold_vi;
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_vo =
+			pParam->tx_non_aggr_sw_retry_threshold_vo;
 		pMac->roam.configParam.enable_bcast_probe_rsp =
 			pParam->enable_bcast_probe_rsp;
 		pMac->roam.configParam.is_fils_enabled =
@@ -4186,6 +4196,7 @@ static void csr_roam_populate_channels(tDot11fBeaconIEs *beacon_ies,
 }
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_CSR
+#ifdef WLAN_DEBUG
 static const char *csr_get_ch_width_str(uint8_t ch_width)
 {
 	switch (ch_width) {
@@ -4252,6 +4263,7 @@ static const char *csr_get_encr_type_str(uint8_t encr_type)
 		return "Unknown";
 	}
 }
+#endif
 
 static void csr_dump_connection_stats(tpAniSirGlobal mac_ctx,
 		struct csr_roam_session *session,
@@ -7077,8 +7089,10 @@ static void csr_roam_synch_clean_up(tpAniSirGlobal mac, uint8_t session_id)
 	msg.type     = WMA_ROAM_OFFLOAD_SYNCH_FAIL;
 	msg.reserved = 0;
 	msg.bodyptr  = roam_offload_failed;
-	if (!QDF_IS_STATUS_SUCCESS(scheduler_post_msg(QDF_MODULE_ID_WMA,
-						       &msg))) {
+	if (!QDF_IS_STATUS_SUCCESS(scheduler_post_message(QDF_MODULE_ID_SME,
+							  QDF_MODULE_ID_WMA,
+							  QDF_MODULE_ID_WMA,
+							  &msg))) {
 		QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
 			"%s: Unable to post WMA_ROAM_OFFLOAD_SYNCH_FAIL to WMA",
 			__func__);
@@ -13124,9 +13138,11 @@ static QDF_STATUS csr_roam_start_wait_for_key_timer(
 		tpAniSirGlobal pMac, uint32_t interval)
 {
 	QDF_STATUS status;
+#ifdef WLAN_DEBUG
 	tpCsrNeighborRoamControlInfo pNeighborRoamInfo =
 		&pMac->roam.neighborRoamInfo[pMac->roam.WaitForKeyTimerInfo.
 					     sessionId];
+#endif
 	if (csr_neighbor_roam_is_handoff_in_progress(pMac,
 				     pMac->roam.WaitForKeyTimerInfo.
 				     sessionId)) {
@@ -13148,9 +13164,11 @@ static QDF_STATUS csr_roam_start_wait_for_key_timer(
 
 QDF_STATUS csr_roam_stop_wait_for_key_timer(tpAniSirGlobal pMac)
 {
+#ifdef WLAN_DEBUG
 	tpCsrNeighborRoamControlInfo pNeighborRoamInfo =
 		&pMac->roam.neighborRoamInfo[pMac->roam.WaitForKeyTimerInfo.
 					     sessionId];
+#endif
 
 	sme_debug("WaitForKey timer stopped in state: %s sub-state: %s",
 		mac_trace_get_neighbour_roam_state(pNeighborRoamInfo->
@@ -17041,7 +17059,9 @@ QDF_STATUS csr_send_mb_set_context_req_msg(tpAniSirGlobal pMac,
 
 		msg.type = eWNI_SME_SETCONTEXT_REQ;
 		msg.bodyptr = pMsg;
-		status = scheduler_post_msg(QDF_MODULE_ID_PE, &msg);
+		status = scheduler_post_message(QDF_MODULE_ID_SME,
+						QDF_MODULE_ID_PE,
+						QDF_MODULE_ID_PE, &msg);
 		if (QDF_IS_STATUS_ERROR(status))
 			qdf_mem_free(pMsg);
 	} while (0);
@@ -17386,33 +17406,42 @@ QDF_STATUS csr_issue_add_sta_for_session_req(tpAniSirGlobal pMac,
 	add_sta_self_req->nss_2g = nss_2g;
 	add_sta_self_req->nss_5g = nss_5g;
 	add_sta_self_req->tx_aggregation_size =
-			pMac->roam.configParam.tx_aggregation_size;
+		pMac->roam.configParam.tx_aggregation_size;
 	add_sta_self_req->tx_aggregation_size_be =
-			pMac->roam.configParam.tx_aggregation_size_be;
+		pMac->roam.configParam.tx_aggregation_size_be;
 	add_sta_self_req->tx_aggregation_size_bk =
-			pMac->roam.configParam.tx_aggregation_size_bk;
+		pMac->roam.configParam.tx_aggregation_size_bk;
 	add_sta_self_req->tx_aggregation_size_vi =
-			pMac->roam.configParam.tx_aggregation_size_vi;
+		pMac->roam.configParam.tx_aggregation_size_vi;
 	add_sta_self_req->tx_aggregation_size_vo =
-			pMac->roam.configParam.tx_aggregation_size_vo;
+		pMac->roam.configParam.tx_aggregation_size_vo;
 	add_sta_self_req->rx_aggregation_size =
-			pMac->roam.configParam.rx_aggregation_size;
+		pMac->roam.configParam.rx_aggregation_size;
 	add_sta_self_req->enable_bcast_probe_rsp =
-			pMac->roam.configParam.enable_bcast_probe_rsp;
+		pMac->roam.configParam.enable_bcast_probe_rsp;
 	add_sta_self_req->fils_max_chan_guard_time =
-			pMac->roam.configParam.fils_max_chan_guard_time;
+		pMac->roam.configParam.fils_max_chan_guard_time;
 	add_sta_self_req->pkt_err_disconn_th =
-			pMac->roam.configParam.pkt_err_disconn_th;
+		pMac->roam.configParam.pkt_err_disconn_th;
 	add_sta_self_req->oce_feature_bitmap =
-			pMac->roam.configParam.oce_feature_bitmap;
+		pMac->roam.configParam.oce_feature_bitmap;
 	add_sta_self_req->tx_aggr_sw_retry_threshold_be =
-			pMac->roam.configParam.tx_aggr_sw_retry_threshold_be;
+		pMac->roam.configParam.tx_aggr_sw_retry_threshold_be;
 	add_sta_self_req->tx_aggr_sw_retry_threshold_bk =
-			pMac->roam.configParam.tx_aggr_sw_retry_threshold_bk;
+		pMac->roam.configParam.tx_aggr_sw_retry_threshold_bk;
 	add_sta_self_req->tx_aggr_sw_retry_threshold_vi =
-			pMac->roam.configParam.tx_aggr_sw_retry_threshold_vi;
+		pMac->roam.configParam.tx_aggr_sw_retry_threshold_vi;
 	add_sta_self_req->tx_aggr_sw_retry_threshold_vo =
-			pMac->roam.configParam.tx_aggr_sw_retry_threshold_vo;
+		pMac->roam.configParam.tx_aggr_sw_retry_threshold_vo;
+	add_sta_self_req->tx_non_aggr_sw_retry_threshold_be =
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_be;
+	add_sta_self_req->tx_non_aggr_sw_retry_threshold_bk =
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_bk;
+	add_sta_self_req->tx_non_aggr_sw_retry_threshold_vi =
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_vi;
+	add_sta_self_req->tx_non_aggr_sw_retry_threshold_vo =
+		pMac->roam.configParam.tx_non_aggr_sw_retry_threshold_vo;
+
 	msg.type = WMA_ADD_STA_SELF_REQ;
 	msg.reserved = 0;
 	msg.bodyptr = add_sta_self_req;
@@ -17421,7 +17450,9 @@ QDF_STATUS csr_issue_add_sta_for_session_req(tpAniSirGlobal pMac,
 	sme_debug(
 		"Send WMA_ADD_STA_SELF_REQ for selfMac=" MAC_ADDRESS_STR,
 		 MAC_ADDR_ARRAY(add_sta_self_req->self_mac_addr));
-	status = scheduler_post_msg(QDF_MODULE_ID_WMA, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_SME,
+					QDF_MODULE_ID_WMA,
+					QDF_MODULE_ID_WMA, &msg);
 
 	if (status != QDF_STATUS_SUCCESS) {
 		sme_err("wma_post_ctrl_msg failed");
@@ -18258,8 +18289,10 @@ QDF_STATUS csr_get_rssi(tpAniSirGlobal pMac,
 	msg.type = eWNI_SME_GET_RSSI_REQ;
 	msg.bodyptr = pMsg;
 	msg.reserved = 0;
-	if (QDF_STATUS_SUCCESS != scheduler_post_msg(QDF_MODULE_ID_SME,
-						      &msg)) {
+	if (QDF_STATUS_SUCCESS != scheduler_post_message(QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 &msg)) {
 		sme_err("scheduler_post_msg failed to post msg to self");
 		qdf_mem_free((void *)pMsg);
 		status = QDF_STATUS_E_FAILURE;
@@ -18299,8 +18332,10 @@ QDF_STATUS csr_get_snr(tpAniSirGlobal pMac,
 	msg.bodyptr = pMsg;
 	msg.reserved = 0;
 
-	if (QDF_STATUS_SUCCESS != scheduler_post_msg(QDF_MODULE_ID_SME,
-						      &msg)) {
+	if (QDF_STATUS_SUCCESS != scheduler_post_message(QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 &msg)) {
 		sme_err("failed to post msg to self");
 		qdf_mem_free((void *)pMsg);
 		status = QDF_STATUS_E_FAILURE;
@@ -19294,7 +19329,10 @@ QDF_STATUS csr_invoke_neighbor_report_request(uint8_t session_id,
 	msg.reserved = 0;
 	msg.bodyptr = invoke_params;
 
-	if (QDF_STATUS_SUCCESS != scheduler_post_msg(QDF_MODULE_ID_WMA, &msg)) {
+	if (QDF_STATUS_SUCCESS != scheduler_post_message(QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_WMA,
+							 QDF_MODULE_ID_WMA,
+							 &msg)) {
 		sme_err("Not able to post message to WMA");
 		qdf_mem_free(invoke_params);
 		return QDF_STATUS_E_FAILURE;
@@ -19764,8 +19802,10 @@ csr_roam_offload_per_scan(tpAniSirGlobal mac_ctx, uint8_t session_id)
 	msg.type = WMA_SET_PER_ROAM_CONFIG_CMD;
 	msg.reserved = 0;
 	msg.bodyptr = req_buf;
-	if (!QDF_IS_STATUS_SUCCESS(scheduler_post_msg(QDF_MODULE_ID_WMA,
-						       &msg))) {
+	if (!QDF_IS_STATUS_SUCCESS(scheduler_post_message(QDF_MODULE_ID_SME,
+							  QDF_MODULE_ID_WMA,
+							  QDF_MODULE_ID_WMA,
+							  &msg))) {
 		QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
 			"%s: Unable to post WMA_SET_PER_ROAM_CONFIG_CMD to WMA",
 			__func__);
@@ -20938,8 +20978,10 @@ QDF_STATUS csr_handoff_request(tpAniSirGlobal pMac,
 	msg.type = eWNI_SME_HANDOFF_REQ;
 	msg.bodyptr = pMsg;
 	msg.reserved = 0;
-	if (QDF_STATUS_SUCCESS != scheduler_post_msg(QDF_MODULE_ID_SME,
-						      &msg)) {
+	if (QDF_STATUS_SUCCESS != scheduler_post_message(QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 QDF_MODULE_ID_SME,
+							 &msg)) {
 		sme_err("scheduler_post_msg failed to post msg to self");
 		qdf_mem_free((void *)pMsg);
 		status = QDF_STATUS_E_FAILURE;
