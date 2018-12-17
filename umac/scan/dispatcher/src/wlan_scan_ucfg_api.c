@@ -919,7 +919,9 @@ ucfg_scan_start(struct scan_start_request *req)
 	msg.callback = scm_scan_start_req;
 	msg.flush_callback = scm_scan_start_flush_callback;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_OS_IF,
+					QDF_MODULE_ID_SCAN,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		wlan_objmgr_vdev_release_ref(req->vdev, WLAN_SCAN_ID);
 		scm_err("failed to post to QDF_MODULE_ID_OS_IF");
@@ -1032,7 +1034,9 @@ ucfg_scan_cancel(struct scan_cancel_request *req)
 	msg.callback = scm_scan_cancel_req;
 	msg.flush_callback = scm_scan_cancel_flush_callback;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_OS_IF,
+					QDF_MODULE_ID_SCAN,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		scm_err("failed to post to QDF_MODULE_ID_OS_IF");
 		goto vdev_put;
@@ -1613,14 +1617,15 @@ ucfg_scan_init_chanlist_params(struct scan_start_request *req,
 	 * too much time to complete.
 	 */
 	if (pdev && !num_chans && ucfg_scan_get_wide_band_scan(pdev)) {
-		reg_chan_list = qdf_mem_malloc(NUM_CHANNELS *
+		reg_chan_list = qdf_mem_malloc_atomic(NUM_CHANNELS *
 				sizeof(struct regulatory_channel));
 		if (!reg_chan_list) {
 			scm_err("Couldn't allocate reg_chan_list memory");
 			status = QDF_STATUS_E_NOMEM;
 			goto end;
 		}
-		scan_freqs = qdf_mem_malloc(sizeof(uint32_t) * max_chans);
+		scan_freqs =
+			qdf_mem_malloc_atomic(sizeof(uint32_t) * max_chans);
 		if (!scan_freqs) {
 			scm_err("Couldn't allocate scan_freqs memory");
 			status = QDF_STATUS_E_NOMEM;
@@ -1876,7 +1881,7 @@ ucfg_scan_cancel_pdev_scan(struct wlan_objmgr_pdev *pdev)
 	QDF_STATUS status;
 	struct wlan_objmgr_vdev *vdev;
 
-	req = qdf_mem_malloc(sizeof(*req));
+	req = qdf_mem_malloc_atomic(sizeof(*req));
 	if (!req) {
 		scm_err("Failed to allocate memory");
 		return QDF_STATUS_E_NOMEM;

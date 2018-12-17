@@ -724,7 +724,9 @@ static void tdls_process_session_update(struct wlan_objmgr_psoc *psoc,
 	msg.flush_callback = tdls_post_msg_flush_cb;
 	msg.type = (uint16_t)cmd_type;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status))
 		tdls_alert("message post failed ");
 }
@@ -1167,7 +1169,9 @@ QDF_STATUS tdls_peers_deleted_notification(struct wlan_objmgr_psoc *psoc,
 	msg.flush_callback = tdls_post_msg_flush_cb;
 	msg.type = TDLS_NOTIFY_STA_DISCONNECTION;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		wlan_objmgr_vdev_release_ref(vdev, WLAN_TDLS_NB_ID);
 		qdf_mem_free(notify);
@@ -1404,7 +1408,10 @@ static QDF_STATUS tdls_post_scan_done_msg(struct tdls_soc_priv_obj *tdls_soc)
 	msg.callback = tdls_process_cmd;
 	msg.flush_callback = tdls_post_msg_flush_cb;
 	msg.type = TDLS_CMD_SCAN_DONE;
-	return scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+
+	return scheduler_post_message(QDF_MODULE_ID_TDLS,
+				      QDF_MODULE_ID_TDLS,
+				      QDF_MODULE_ID_OS_IF, &msg);
 }
 
 void tdls_scan_complete_event_handler(struct wlan_objmgr_vdev *vdev,

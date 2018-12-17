@@ -358,7 +358,9 @@ QDF_STATUS ucfg_tdls_add_peer(struct wlan_objmgr_vdev *vdev,
 	msg.bodyptr = req;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_CMD_ADD_STA;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("post add peer msg fail");
 		qdf_mem_free(req);
@@ -402,7 +404,9 @@ QDF_STATUS ucfg_tdls_update_peer(struct wlan_objmgr_vdev *vdev,
 	msg.bodyptr = req;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_CMD_CHANGE_STA;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("post update peer msg fail");
 		qdf_mem_free(req);
@@ -415,6 +419,7 @@ dec_ref:
 	return status;
 }
 
+#ifdef WLAN_DEBUG
 static char *tdls_get_oper_str(enum tdls_command_type cmd_type)
 {
 	switch (cmd_type) {
@@ -430,6 +435,7 @@ static char *tdls_get_oper_str(enum tdls_command_type cmd_type)
 		return "ERR:UNKNOWN OPER";
 	}
 }
+#endif
 
 QDF_STATUS ucfg_tdls_oper(struct wlan_objmgr_vdev *vdev,
 			  const uint8_t *macaddr, enum tdls_command_type cmd)
@@ -465,7 +471,9 @@ QDF_STATUS ucfg_tdls_oper(struct wlan_objmgr_vdev *vdev,
 	msg.bodyptr = req;
 	msg.callback = tdls_process_cmd;
 	msg.type = cmd;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("post msg for %s fail", tdls_get_oper_str(cmd));
 		goto dec_ref;
@@ -500,7 +508,9 @@ QDF_STATUS ucfg_tdls_get_all_peers(struct wlan_objmgr_vdev *vdev,
 	msg.bodyptr = tdls_peers;
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_CMD_GET_ALL_PEERS;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 
 	if (status != QDF_STATUS_SUCCESS)
 		qdf_mem_free(tdls_peers);
@@ -641,7 +651,9 @@ QDF_STATUS ucfg_tdls_responder(struct tdls_set_responder_req *req)
 	msg.callback = tdls_process_cmd;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_CMD_SET_RESPONDER;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("failed to post msg, status %d", status);
 		qdf_mem_free(msg_req);
@@ -665,7 +677,9 @@ QDF_STATUS ucfg_tdls_teardown_links(struct wlan_objmgr_vdev *vdev)
 	msg.callback = tdls_process_cmd;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_CMD_TEARDOWN_LINKS;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 
 	tdls_debug("Exit ");
 	return status;
@@ -685,7 +699,9 @@ QDF_STATUS ucfg_tdls_notify_reset_adapter(struct wlan_objmgr_vdev *vdev)
 	msg.callback = tdls_process_cmd;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
 	msg.type = TDLS_NOTIFY_RESET_ADAPTERS;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	return status;
 }
 
@@ -715,7 +731,9 @@ QDF_STATUS ucfg_tdls_notify_sta_connect(
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_NOTIFY_STA_CONNECTION;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TARGET_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("failed to post message, status %d", status);
 		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_NB_ID);
@@ -750,7 +768,9 @@ QDF_STATUS ucfg_tdls_notify_sta_disconnect(
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_NOTIFY_STA_DISCONNECTION;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TARGET_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("failed to post message, status %d", status);
 		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_NB_ID);
@@ -798,7 +818,9 @@ QDF_STATUS ucfg_tdls_set_operating_mode(
 	msg.callback = tdls_process_cmd;
 	msg.type = TDLS_CMD_SET_TDLS_MODE;
 	msg.flush_callback = ucfg_tdls_post_msg_flush_cb;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		wlan_objmgr_vdev_release_ref(set_mode->vdev, WLAN_TDLS_NB_ID);
 		qdf_mem_free(set_mode);
@@ -860,7 +882,9 @@ QDF_STATUS ucfg_tdls_antenna_switch(struct wlan_objmgr_vdev *vdev,
 	msg.callback = tdls_process_cmd;
 	msg.flush_callback = tdls_antenna_switch_flush_callback;
 	msg.type = TDLS_CMD_ANTENNA_SWITCH;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_HDD,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("post antenna switch msg fail");
 		goto dec_ref;

@@ -73,6 +73,67 @@ QDF_STATUS tgt_p2p_register_noa_ev_handler(
 	return status;
 }
 
+QDF_STATUS
+tgt_p2p_add_mac_addr_status_event_cb(struct wlan_objmgr_psoc *psoc,
+				     struct p2p_set_mac_filter_evt *event_info)
+{
+	struct p2p_mac_filter_rsp *mac_filter_rsp;
+	struct scheduler_msg msg = {0};
+	struct p2p_soc_priv_obj *p2p_soc_obj;
+	QDF_STATUS status;
+
+	if (!psoc) {
+		p2p_err("random_mac:psoc context passed is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+	if (!event_info) {
+		p2p_err("random_mac:invalid event_info");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	p2p_soc_obj = wlan_objmgr_psoc_get_comp_private_obj(
+				psoc, WLAN_UMAC_COMP_P2P);
+	if (!p2p_soc_obj) {
+		p2p_err("random_mac:p2p soc object is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	mac_filter_rsp = qdf_mem_malloc(sizeof(*mac_filter_rsp));
+	if (!mac_filter_rsp) {
+		p2p_err("random_mac:Failed to allocate mac_filter_rsp");
+		return QDF_STATUS_E_NOMEM;
+	}
+
+	mac_filter_rsp->p2p_soc_obj = p2p_soc_obj;
+	mac_filter_rsp->vdev_id = event_info->vdev_id;
+	mac_filter_rsp->status = event_info->status;
+
+	msg.type = P2P_EVENT_ADD_MAC_RSP;
+	msg.bodyptr = mac_filter_rsp;
+	msg.callback = p2p_process_evt;
+	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	if (status != QDF_STATUS_SUCCESS)
+		qdf_mem_free(mac_filter_rsp);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS tgt_p2p_register_macaddr_rx_filter_evt_handler(
+	struct wlan_objmgr_psoc *psoc, bool reg)
+{
+	struct wlan_lmac_if_p2p_tx_ops *p2p_ops;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+
+	p2p_ops = wlan_psoc_get_p2p_tx_ops(psoc);
+	if (p2p_ops && p2p_ops->reg_mac_addr_rx_filter_handler) {
+		status = p2p_ops->reg_mac_addr_rx_filter_handler(psoc, reg);
+		p2p_debug("register mac addr rx filter event,  register %d status:%d",
+			  reg, status);
+	}
+
+	return status;
+}
+
 QDF_STATUS tgt_p2p_unregister_lo_ev_handler(
 	struct wlan_objmgr_psoc *psoc)
 {
@@ -150,7 +211,10 @@ QDF_STATUS tgt_p2p_mgmt_ota_comp_cb(void *context, qdf_nbuf_t buf,
 	msg.bodyptr = tx_conf_event;
 	msg.callback = p2p_process_evt;
 	msg.flush_callback = p2p_event_flush_callback;
-	ret = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	ret = scheduler_post_message(QDF_MODULE_ID_P2P,
+				     QDF_MODULE_ID_P2P,
+				     QDF_MODULE_ID_TARGET_IF,
+				     &msg);
 	if (QDF_IS_STATUS_ERROR(ret)) {
 		qdf_mem_free(tx_conf_event);
 		qdf_nbuf_free(buf);
@@ -208,17 +272,17 @@ QDF_STATUS tgt_p2p_mgmt_frame_rx_cb(struct wlan_objmgr_psoc *psoc,
 		vdev_id = wlan_vdev_get_id(vdev);
 	}
 
-	rx_mgmt_event = qdf_mem_malloc(sizeof(*rx_mgmt_event));
+	rx_mgmt_event = qdf_mem_malloc_atomic(sizeof(*rx_mgmt_event));
 	if (!rx_mgmt_event) {
-		p2p_err("Failed to allocate rx mgmt event");
+		p2p_debug_rl("Failed to allocate rx mgmt event");
 		qdf_nbuf_free(buf);
 		return QDF_STATUS_E_NOMEM;
 	}
 
-	rx_mgmt = qdf_mem_malloc(sizeof(*rx_mgmt) +
+	rx_mgmt = qdf_mem_malloc_atomic(sizeof(*rx_mgmt) +
 			mgmt_rx_params->buf_len);
 	if (!rx_mgmt) {
-		p2p_err("Failed to allocate rx mgmt frame");
+		p2p_debug_rl("Failed to allocate rx mgmt frame");
 		qdf_nbuf_free(buf);
 		return QDF_STATUS_E_NOMEM;
 	}
@@ -237,7 +301,10 @@ QDF_STATUS tgt_p2p_mgmt_frame_rx_cb(struct wlan_objmgr_psoc *psoc,
 	msg.bodyptr = rx_mgmt_event;
 	msg.callback = p2p_process_evt;
 	msg.flush_callback = p2p_event_flush_callback;
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_TARGET_IF,
+					&msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		qdf_mem_free(rx_mgmt_event->rx_mgmt);
 		qdf_mem_free(rx_mgmt_event);
@@ -292,7 +359,10 @@ QDF_STATUS  tgt_p2p_noa_event_cb(struct wlan_objmgr_psoc *psoc,
 	msg.bodyptr = noa_event;
 	msg.callback = p2p_process_evt;
 	msg.flush_callback = p2p_event_flush_callback;
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_TARGET_IF,
+					&msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		qdf_mem_free(noa_event->noa_info);
 		qdf_mem_free(noa_event);

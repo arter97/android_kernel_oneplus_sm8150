@@ -219,7 +219,9 @@ tgt_tdls_event_handler(struct wlan_objmgr_psoc *psoc,
 	msg.callback = tdls_process_evt;
 	msg.flush_callback = tgt_tdls_event_flush_cb;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TARGET_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("can't post msg to handle tdls event");
 		wlan_objmgr_vdev_release_ref(notify->vdev, WLAN_TDLS_SB_ID);
@@ -287,16 +289,16 @@ QDF_STATUS tgt_tdls_mgmt_frame_process_rx_cb(
 		vdev_id = wlan_vdev_get_id(vdev);
 	}
 
-	rx_mgmt_event = qdf_mem_malloc(sizeof(*rx_mgmt_event));
+	rx_mgmt_event = qdf_mem_malloc_atomic(sizeof(*rx_mgmt_event));
 	if (!rx_mgmt_event) {
-		tdls_err("Failed to allocate rx mgmt event");
+		tdls_debug_rl("Failed to allocate rx mgmt event");
 		return QDF_STATUS_E_NOMEM;
 	}
 
-	rx_mgmt = qdf_mem_malloc(sizeof(*rx_mgmt) +
+	rx_mgmt = qdf_mem_malloc_atomic(sizeof(*rx_mgmt) +
 			mgmt_rx_params->buf_len);
 	if (!rx_mgmt) {
-		tdls_err("Failed to allocate rx mgmt frame");
+		tdls_debug_rl("Failed to allocate rx mgmt frame");
 		qdf_mem_free(rx_mgmt_event);
 		return QDF_STATUS_E_NOMEM;
 	}
@@ -315,7 +317,9 @@ QDF_STATUS tgt_tdls_mgmt_frame_process_rx_cb(
 	msg.bodyptr = rx_mgmt_event;
 	msg.callback = tdls_process_rx_frame;
 	msg.flush_callback = tgt_tdls_mgmt_frame_rx_flush_cb;
-	status = scheduler_post_msg(QDF_MODULE_ID_TARGET_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TARGET_IF, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		qdf_mem_free(rx_mgmt);
 		qdf_mem_free(rx_mgmt_event);

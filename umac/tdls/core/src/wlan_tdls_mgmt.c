@@ -313,7 +313,9 @@ static QDF_STATUS tdls_activate_send_mgmt_request(
 	msg.bodyptr = tdls_mgmt_req;
 	msg.flush_callback = tdls_activate_send_mgmt_request_flush_cb;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_PE, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_PE, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("failed to post msg, status %d", status);
 		qdf_mem_free(tdls_mgmt_req);

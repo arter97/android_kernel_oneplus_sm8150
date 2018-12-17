@@ -151,7 +151,7 @@ static void scm_scan_post_event(struct wlan_objmgr_vdev *vdev,
 		  event->vdev_id, event->type, event->reason, event->chan_freq,
 		  event->requester, event->scan_id);
 
-	listeners = qdf_mem_malloc(sizeof(*listeners));
+	listeners = qdf_mem_malloc_atomic(sizeof(*listeners));
 	if (!listeners) {
 		scm_warn("couldn't allocate listeners list");
 		return;
@@ -321,6 +321,9 @@ scm_scan_serialize_callback(struct wlan_serialization_command *cmd,
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
+	qdf_mtrace(QDF_MODULE_ID_SERIALIZATION, QDF_MODULE_ID_SCAN, reason,
+		   req->scan_req.vdev_id, req->scan_req.scan_id);
+
 	switch (reason) {
 	case WLAN_SER_CB_ACTIVATE_CMD:
 		/* command moved to active list
@@ -430,6 +433,10 @@ scm_scan_start_req(struct scheduler_msg *msg)
 	scm_debug("req: 0x%pK, reqid: %d, scanid: %d, vdevid: %d",
 		  req, req->scan_req.scan_req_id, req->scan_req.scan_id,
 		  req->scan_req.vdev_id);
+
+	qdf_mtrace(QDF_MODULE_ID_SCAN, QDF_MODULE_ID_SERIALIZATION,
+		   WLAN_SER_CMD_SCAN, req->vdev->vdev_objmgr.vdev_id,
+		   req->scan_req.scan_id);
 
 	ser_cmd_status = wlan_serialization_request(&cmd);
 	scm_debug("wlan_serialization_request status:%d", ser_cmd_status);

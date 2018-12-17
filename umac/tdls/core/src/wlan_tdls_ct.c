@@ -1177,7 +1177,9 @@ QDF_STATUS tdls_delete_all_tdls_peers(struct wlan_objmgr_vdev *vdev,
 	msg.bodyptr = del_msg;
 	msg.flush_callback = tdls_delete_all_tdls_peers_flush_cb;
 
-	status = scheduler_post_msg(QDF_MODULE_ID_PE, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_TDLS,
+					QDF_MODULE_ID_PE,
+					QDF_MODULE_ID_PE, &msg);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		tdls_err("post delete all peer req failed, status %d", status);
 		qdf_mem_free(del_msg);

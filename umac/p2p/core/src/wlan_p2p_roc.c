@@ -160,6 +160,9 @@ static QDF_STATUS p2p_scan_abort(struct p2p_roc_context *roc_ctx)
 	req->cancel_req.vdev_id = roc_ctx->vdev_id;
 	req->cancel_req.req_type = WLAN_SCAN_CANCEL_SINGLE;
 
+	qdf_mtrace(QDF_MODULE_ID_P2P, QDF_MODULE_ID_SCAN,
+		   req->cancel_req.req_type,
+		   req->vdev->vdev_objmgr.vdev_id, req->cancel_req.scan_id);
 	status = ucfg_scan_cancel(req);
 
 	p2p_debug("abort scan, scan req id:%d, scan id:%d, status:%d",
@@ -720,7 +723,9 @@ QDF_STATUS p2p_cleanup_roc_sync(
 	msg.type = P2P_CLEANUP_ROC;
 	msg.bodyptr = param;
 	msg.callback = p2p_process_cmd;
-	status = scheduler_post_msg(QDF_MODULE_ID_OS_IF, &msg);
+	status = scheduler_post_message(QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_P2P,
+					QDF_MODULE_ID_OS_IF, &msg);
 	if (status != QDF_STATUS_SUCCESS) {
 		p2p_err("failed to post message");
 		qdf_mem_free(param);
@@ -903,6 +908,9 @@ void p2p_scan_event_cb(struct wlan_objmgr_vdev *vdev,
 		p2p_err("Failed to find valid P2P roc context");
 		return;
 	}
+
+	qdf_mtrace(QDF_MODULE_ID_SCAN, QDF_MODULE_ID_P2P, event->type,
+		   event->vdev_id, event->scan_id);
 	switch (event->type) {
 	case SCAN_EVENT_TYPE_STARTED:
 		p2p_process_scan_start_evt(curr_roc_ctx);
