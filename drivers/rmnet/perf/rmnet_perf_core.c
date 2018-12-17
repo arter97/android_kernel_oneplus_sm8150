@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -93,6 +93,12 @@ MODULE_PARM_DESC(enable_packet_dropper, "enable_packet_dropper");
 unsigned long int packet_dropper_time = 1;
 module_param(packet_dropper_time, ulong, 0644);
 MODULE_PARM_DESC(packet_dropper_time, "packet_dropper_time");
+
+unsigned long int rmnet_perf_flush_shs = 0;
+module_param(rmnet_perf_flush_shs, ulong, 0644);
+MODULE_PARM_DESC(rmnet_perf_flush_shs, "rmnet_perf_flush_shs");
+
+#define SHS_FLUSH 0
 
 /* rmnet_perf_core_free_held_skbs() - Free held SKBs given to us by physical
  *		device
@@ -399,7 +405,7 @@ void rmnet_perf_core_send_skb(struct sk_buff *skb, struct rmnet_endpoint *ep,
 void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 				    struct sk_buff *skb,
 				    struct rmnet_perf_pkt_info *pkt_info,
-				    u16 packet_len)
+				    u16 packet_len, bool flush_shs)
 {
 	struct sk_buff *skbn;
 	struct rmnet_endpoint *ep = pkt_info->ep;
@@ -425,6 +431,7 @@ void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 	skbn->dev = skb->dev;
 	skbn->hash = pkt_info->hash_key;
 	skbn->sw_hash = 1;
+	skbn->cb[SHS_FLUSH] = (char) flush_shs;
 	rmnet_perf_core_send_skb(skbn, ep, perf, pkt_info);
 }
 
@@ -567,7 +574,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	return;
 
 flush:
-	rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info, pkt_len);
+	rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info, pkt_len, false);
 }
 
 /* rmnet_perf_core_deaggregate() - Deaggregated ip packets from map frame

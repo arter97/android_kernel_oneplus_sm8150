@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -226,7 +226,7 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 		napi_gro_flush(napi, false);
 		rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info,
 					       pkt_info->header_len +
-					       pkt_info->payload_len);
+					       pkt_info->payload_len, true);
 		napi_gro_flush(napi, false);
 		rmnet_perf_tcp_opt_flush_reason_cnt[
 			RMNET_PERF_TCP_OPT_TCP_FLUSH_FORCE]++;
@@ -238,7 +238,7 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
 		rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info,
 					       pkt_info->header_len +
-					       pkt_info->payload_len);
+					       pkt_info->payload_len, false);
 	} else if (rc == RMNET_PERF_TCP_OPT_FLUSH_SOME) {
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
 		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);

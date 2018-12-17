@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -113,7 +113,7 @@ void rmnet_perf_udp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
 		rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info,
 					       pkt_info->header_len +
-					       pkt_info->payload_len);
+					       pkt_info->payload_len, false);
 		update_udp_flush_stat(RMNET_PERF_UDP_OPT_FLAG_MISMATCH);
 		return;
 	}
