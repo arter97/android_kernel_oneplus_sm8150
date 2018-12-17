@@ -39,10 +39,17 @@ module_param_array(rmnet_perf_opt_flush_reason_cnt, ulong, 0, 0444);
 MODULE_PARM_DESC(rmnet_perf_opt_flush_reason_cnt,
 		 "opt performance statistics");
 
+/* Stat showing packets dropped due to lack of memory */
+unsigned long int rmnet_perf_opt_oom_drops = 0;
+module_param(rmnet_perf_opt_oom_drops, ulong, 0644);
+MODULE_PARM_DESC(rmnet_perf_opt_oom_drops,
+		 "Number of packets dropped because we couldn't allocate SKBs");
+
 enum {
 	RMNET_PERF_OPT_MODE_TCP,
 	RMNET_PERF_OPT_MODE_UDP,
 	RMNET_PERF_OPT_MODE_ALL,
+	RMNET_PERF_OPT_MODE_NON,
 };
 
 /* What protocols we optimize */
@@ -83,6 +90,8 @@ static int rmnet_perf_set_opt_mode(const char *val,
 		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_UDP;
 	else if (!strcmp(value, "all"))
 		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_ALL;
+	else if (!strcmp(value, "non"))
+		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_NON;
 	else
 		goto out;
 
@@ -104,6 +113,10 @@ static int rmnet_perf_set_opt_mode(const char *val,
 	case RMNET_PERF_OPT_MODE_UDP:
 		flush_flow_nodes_by_protocol(perf, IPPROTO_TCP);
 		break;
+	case RMNET_PERF_OPT_MODE_NON:
+		flush_flow_nodes_by_protocol(perf, IPPROTO_TCP);
+		flush_flow_nodes_by_protocol(perf, IPPROTO_UDP);
+		break;
 	}
 
 out:
@@ -123,6 +136,9 @@ static int rmnet_perf_get_opt_mode(char *buf,
 		break;
 	case RMNET_PERF_OPT_MODE_ALL:
 		strlcpy(buf, "all\n", 5);
+		break;
+	case RMNET_PERF_OPT_MODE_NON:
+		strlcpy(buf, "non\n", 5);
 		break;
 	}
 
@@ -442,11 +458,12 @@ void rmnet_perf_opt_flush_single_flow_node(struct rmnet_perf *perf,
 		if (ep->mux_id == flow_node->mux_id &&
 		    flow_node->num_pkts_held) {
 			skbn = make_flow_skb(perf, flow_node);
-			if (!skbn) {
-				pr_err("%s(): skbn is NULL\n", __func__);
-			} else {
+			if (skbn) {
 				flow_skb_fixup(skbn, flow_node);
 				rmnet_perf_core_send_skb(skbn, ep, perf, NULL);
+			} else {
+				rmnet_perf_opt_oom_drops +=
+					flow_node->num_pkts_held;
 			}
 			/* equivalent to memsetting the flow node */
 			flow_node->num_pkts_held = 0;
