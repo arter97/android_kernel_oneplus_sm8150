@@ -611,7 +611,7 @@ void rmnet_shs_flush_core(u8 cpu_num)
 			     rmnet_shs_cfg.num_pkts_parked,
 			     rmnet_shs_cfg.num_bytes_parked,
 			     0xDEF, 0xDEF, NULL, NULL);
-
+	local_bh_disable();
 	spin_lock_irqsave(&rmnet_shs_ht_splock, ht_flags);
 		cpu_tail = rmnet_shs_get_cpu_qtail(cpu_num);
 		list_for_each_safe(ptr, next,
@@ -640,6 +640,7 @@ void rmnet_shs_flush_core(u8 cpu_num)
 	rmnet_shs_cpu_node_tbl[cpu_num].prio = 0;
 	rmnet_shs_cpu_node_tbl[cpu_num].parkedlen = 0;
 	spin_unlock_irqrestore(&rmnet_shs_ht_splock, ht_flags);
+	local_bh_enable();
 
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH, RMNET_SHS_FLUSH_END,
 	     rmnet_shs_cfg.num_pkts_parked,
@@ -892,11 +893,12 @@ static void rmnet_flush_buffered(struct work_struct *work)
 
 	if (rmnet_shs_cfg.is_pkt_parked &&
 	   rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_ON) {
-
+		local_bh_disable();
 		rmnet_shs_flush_table(is_force_flush,
 				      RMNET_WQ_CTXT);
 
 		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_WQ_FB_FLUSH]++;
+		local_bh_enable();
 	}
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 			     RMNET_SHS_FLUSH_DELAY_WQ_END,
