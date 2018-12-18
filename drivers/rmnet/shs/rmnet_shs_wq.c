@@ -855,13 +855,15 @@ u16 rmnet_shs_wq_find_cpu_to_move_flows(u16 current_cpu,
 	cur_cpu_list_p = &rx_flow_tbl_p->cpu_list[current_cpu];
 	cur_cpu_rx_pps = cur_cpu_list_p->rx_pps;
 	pps_uthresh = rmnet_shs_cpu_rx_max_pps_thresh[current_cpu];
+	pps_lthresh = rmnet_shs_cpu_rx_min_pps_thresh[current_cpu];
+
 	/* If we are already on a perf core and required pps is beyond
 	 * beyond the capacity that even perf cores aren't sufficient
 	 * there is nothing much we can do. So we will continue to let flows
 	 * process packets on same perf core
 	 */
 	if (!rmnet_shs_is_lpwr_cpu(current_cpu) &&
-	    (cur_cpu_rx_pps > pps_uthresh)) {
+	    (cur_cpu_rx_pps > pps_lthresh)) {
 		return cpu_to_move;
 	}
 	/* If a core (should only be lpwr was marked prio we don't touch it

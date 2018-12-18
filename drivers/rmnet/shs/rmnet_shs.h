@@ -90,6 +90,7 @@ struct rmnet_shs_skb_list {
 	struct sk_buff *tail;
 	u64 num_parked_bytes;
 	u32 num_parked_skbs;
+	u32 skb_load;
 };
 
 struct rmnet_shs_skbn_s {
@@ -125,6 +126,15 @@ enum rmnet_shs_tmr_force_flush_state_e {
 	RMNET_SHS_FLUSH_ON,
 	RMNET_SHS_FLUSH_DONE
 };
+
+enum rmnet_shs_switch_reason_e {
+	RMNET_SHS_SWITCH_INSTANT_RATE,
+	RMNET_SHS_SWITCH_WQ_RATE,
+	RMNET_SHS_SWITCH_MAX_REASON
+};
+
+
+
 enum rmnet_shs_flush_reason_e {
 	RMNET_SHS_FLUSH_PKT_LIMIT,
 	RMNET_SHS_FLUSH_BYTE_LIMIT,
