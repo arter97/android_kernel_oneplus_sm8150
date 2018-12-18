@@ -319,6 +319,8 @@ static struct sk_buff *make_flow_skb(struct rmnet_perf *perf,
 				return NULL;
 		}
 	}
+
+	skb_reserve(skbn, RMNET_MAP_DEAGGR_HEADROOM);
 	pkt_list = flow_node->pkt_list;
 
 	for (i = 0; i < flow_node->num_pkts_held; i++) {
