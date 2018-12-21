@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -78,10 +78,20 @@ module_param(rmnet_shs_inst_rate_switch, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_switch,
 		 "Configurable option to enable rx rate cpu switching");
 
+unsigned int rmnet_shs_fall_back_timer __read_mostly = 1;
+module_param(rmnet_shs_fall_back_timer, uint, 0644);
+MODULE_PARM_DESC(rmnet_shs_fall_back_timer,
+		 "Option to enable fall back limit for parking");
+
 unsigned int rmnet_shs_inst_rate_max_pkts __read_mostly = 2500;
 module_param(rmnet_shs_inst_rate_max_pkts, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_max_pkts,
 		 "Max pkts in a instant burst interval before prioritizing");
+
+unsigned int rmnet_shs_timeout __read_mostly = 2;
+module_param(rmnet_shs_timeout, uint, 0644);
+MODULE_PARM_DESC(rmnet_shs_timeout, "Option to configure fall back duration");
+
 
 unsigned int rmnet_shs_switch_cores __read_mostly = 1;
 module_param(rmnet_shs_switch_cores, uint, 0644);
@@ -703,7 +713,7 @@ void rmnet_shs_flush_node(struct rmnet_shs_skbn_s *node, u8 ctext)
 		skb->next = NULL;
 		skbs_delivered += 1;
 		skb_bytes_delivered += skb->len;
-		if (RMNET_RX_CTXT)
+		if (ctext == RMNET_RX_CTXT)
 			rmnet_shs_deliver_skb(skb);
 		else
 			rmnet_shs_deliver_skb_wq(skb);
@@ -940,7 +950,7 @@ static void rmnet_flush_buffered(struct work_struct *work)
 			     rmnet_shs_cfg.force_flush_state, 0xDEF,
 			     0xDEF, NULL, NULL);
 
-	if (rmnet_shs_cfg.is_pkt_parked &&
+	if (rmnet_shs_cfg.num_pkts_parked &&
 	   rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_ON) {
 		local_bh_disable();
 		rmnet_shs_flush_table(is_force_flush,
@@ -981,7 +991,7 @@ enum hrtimer_restart rmnet_shs_map_flush_queue(struct hrtimer *t)
 					     0xDEF, 0xDEF, 0xDEF, NULL, NULL);
 		} else if (rmnet_shs_cfg.force_flush_state ==
 			   RMNET_SHS_FLUSH_DONE) {
-			rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_OFF;
+			rmnet_shs_cfg.force_flush_state = RMNET_SHS_FLUSH_OFF;
 
 		} else if (rmnet_shs_cfg.force_flush_state ==
 			   RMNET_SHS_FLUSH_ON) {
@@ -1276,7 +1286,9 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 	/* We got the first packet after a previous successdul flush. Arm the
 	 * flushing timer.
 	 */
-	if (!rmnet_shs_cfg.is_pkt_parked) {
+	if (!rmnet_shs_cfg.is_pkt_parked &&
+	    rmnet_shs_cfg.num_pkts_parked &&
+	    rmnet_shs_fall_back_timer) {
 		rmnet_shs_cfg.is_pkt_parked = 1;
 		rmnet_shs_cfg.force_flush_state = RMNET_SHS_FLUSH_OFF;
 		if (hrtimer_active(&rmnet_shs_cfg.hrtimer_shs)) {
@@ -1287,7 +1299,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 			hrtimer_cancel(&rmnet_shs_cfg.hrtimer_shs);
 		}
 		hrtimer_start(&rmnet_shs_cfg.hrtimer_shs,
-			      ns_to_ktime(2000000), HRTIMER_MODE_REL);
+			      ns_to_ktime(rmnet_shs_timeout * NS_IN_MS), HRTIMER_MODE_REL);
 		SHS_TRACE_LOW(RMNET_SHS_ASSIGN,
 				    RMNET_SHS_ASSIGN_PARK_TMR_START,
 				    RMNET_SHS_FORCE_FLUSH_TIME_NSEC,
