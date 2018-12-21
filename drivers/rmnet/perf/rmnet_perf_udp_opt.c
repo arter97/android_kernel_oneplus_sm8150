@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -115,6 +115,14 @@ void rmnet_perf_udp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 					       pkt_info->header_len +
 					       pkt_info->payload_len);
 		update_udp_flush_stat(RMNET_PERF_UDP_OPT_FLAG_MISMATCH);
+		return;
+	}
+
+	/* Go ahead and insert the packet now if we're not holding anything.
+	 * We know at this point that it's a normal packet in the flow
+	 */
+	if (!flow_node->num_pkts_held) {
+		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);
 		return;
 	}
 
