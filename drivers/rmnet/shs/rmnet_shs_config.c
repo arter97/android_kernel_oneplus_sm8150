@@ -45,6 +45,7 @@ static struct notifier_block rmnet_shs_dev_notifier __read_mostly = {
 static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 				    unsigned long event, void *data);
 
+static int rmnet_vnd_total;
 /* Enable smart hashing capability upon call to initialize module*/
 int __init rmnet_shs_module_init(void)
 {
@@ -64,9 +65,12 @@ int __init rmnet_shs_module_init(void)
 void __exit rmnet_shs_module_exit(void)
 {
 	RCU_INIT_POINTER(rmnet_shs_skb_entry, NULL);
-	rmnet_shs_cancel_table();
-	rmnet_shs_wq_exit();
-	rmnet_shs_exit();
+
+	if (rmnet_shs_cfg.rmnet_shs_init_complete) {
+		rmnet_shs_cancel_table();
+		rmnet_shs_wq_exit();
+		rmnet_shs_exit();
+	}
 	unregister_netdevice_notifier(&rmnet_shs_dev_notifier);
 	if (unlikely(rmnet_shs_debug))
 		pr_info("Exiting rmnet_shs module");
@@ -89,8 +93,16 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 	switch (event) {
 	case NETDEV_GOING_DOWN:
 		rmnet_shs_wq_reset_ep_active(dev);
-		if (rmnet_is_real_dev_registered(dev) &&
-		!strcmp(dev->name, "rmnet_ipa0")) {
+
+		if (strncmp(dev->name, "rmnet_data", 10) == 0)
+			rmnet_vnd_total--;
+
+		/* Deinitialize if last vnd is going down or if
+		 * phy_dev is going down.
+		 */
+		if ((rmnet_is_real_dev_registered(dev) &&
+		    !strcmp(dev->name, "rmnet_ipa0")) &&
+		    rmnet_shs_cfg.rmnet_shs_init_complete) {
 			RCU_INIT_POINTER(rmnet_shs_skb_entry, NULL);
 			rmnet_shs_cancel_table();
 			rmnet_shs_wq_exit();
@@ -106,12 +118,17 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 		if (strncmp(dev->name, "rmnet_ipa0", 10) == 0)
 			phy_dev = dev;
 
+
+		if (strncmp(dev->name, "rmnet_data", 10) == 0){
+			rmnet_vnd_total++;
+		}
+
 		if (strncmp(dev->name, "rmnet_data", 10) == 0) {
 			/* Need separate if check to avoid
 			 * NULL dereferencing
 			 */
 
-			if (phy_dev) {
+			if (phy_dev && !rmnet_shs_cfg.rmnet_shs_init_complete) {
 				rmnet_shs_init(phy_dev);
 				rmnet_shs_wq_init(phy_dev);
 				rmnet_shs_aggregate_init();

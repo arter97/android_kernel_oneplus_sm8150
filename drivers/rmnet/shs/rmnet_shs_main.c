@@ -43,7 +43,6 @@ struct rmnet_shs_cpu_node_s rmnet_shs_cpu_node_tbl[MAX_CPUS];
  */
 
 struct rmnet_shs_cfg_s rmnet_shs_cfg;
-static u8 rmnet_shs_init_complete;
 /* This flag is set to true after a successful SHS module init*/
 
 struct rmnet_shs_flush_work shs_delayed_work;
@@ -1068,7 +1067,7 @@ void rmnet_shs_init(struct net_device *dev)
 {
 	u8 num_cpu;
 
-	if (rmnet_shs_init_complete)
+	if (rmnet_shs_cfg.rmnet_shs_init_complete)
 		return;
 
 	rmnet_shs_cfg.port = rmnet_get_port(dev);
@@ -1076,7 +1075,7 @@ void rmnet_shs_init(struct net_device *dev)
 	for (num_cpu = 0; num_cpu < MAX_CPUS; num_cpu++)
 		INIT_LIST_HEAD(&rmnet_shs_cpu_node_tbl[num_cpu].node_list_id);
 
-	rmnet_shs_init_complete = 1;
+	rmnet_shs_cfg.rmnet_shs_init_complete = 1;
 }
 
 /* Invoked during SHS module exit to gracefully consume all
@@ -1158,7 +1157,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		return;
 	}
 
-	if ((unlikely(!map))|| !rmnet_shs_init_complete) {
+	if ((unlikely(!map))|| !rmnet_shs_cfg.rmnet_shs_init_complete) {
 		rmnet_shs_deliver_skb(skb);
 		SHS_TRACE_ERR(RMNET_SHS_ASSIGN,
 				    RMNET_SHS_ASSIGN_CRIT_ERROR_NO_SHS_REQD,
@@ -1357,6 +1356,6 @@ void rmnet_shs_exit(void)
 		hrtimer_cancel(&rmnet_shs_cfg.hrtimer_shs);
 
 	memset(&rmnet_shs_cfg, 0, sizeof(rmnet_shs_cfg));
-	rmnet_shs_init_complete = 0;
+	rmnet_shs_cfg.rmnet_shs_init_complete = 0;
 
 }
