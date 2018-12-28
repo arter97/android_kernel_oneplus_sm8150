@@ -13,7 +13,7 @@ typedef     __u8        uint8;
 
 #include <linux/string.h>
 #include <linux/kallsyms.h>
-extern unsigned long totalram_pages;
+#include <linux/swap.h>
 
 struct project_info {
     char project_name[8];  //eg, 16859
