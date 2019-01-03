@@ -48,6 +48,9 @@ static u8 rmnet_shs_init_complete;
 
 struct rmnet_shs_flush_work shs_delayed_work;
 /* Delayed workqueue that will be used to flush parked packets*/
+unsigned long int rmnet_shs_switch_reason[RMNET_SHS_SWITCH_MAX_REASON];
+module_param_array(rmnet_shs_switch_reason, ulong, 0, 0444);
+MODULE_PARM_DESC(rmnet_shs_switch_reason, "rmnet shs skb core swtich type");
 
 unsigned long int rmnet_shs_flush_reason[RMNET_SHS_FLUSH_MAX_REASON];
 module_param_array(rmnet_shs_flush_reason, ulong, 0, 0444);
@@ -66,17 +69,17 @@ module_param(rmnet_shs_max_core_wait, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_max_core_wait,
 		 "Max wait module will wait during move to perf core in ms");
 
-unsigned int rmnet_shs_inst_rate_interval __read_mostly = 15;
+unsigned int rmnet_shs_inst_rate_interval __read_mostly = 20;
 module_param(rmnet_shs_inst_rate_interval, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_interval,
 		 "Max interval we sample for instant burst prioritizing");
 
-unsigned int rmnet_shs_inst_rate_switch __read_mostly = 0;
+unsigned int rmnet_shs_inst_rate_switch __read_mostly = 1;
 module_param(rmnet_shs_inst_rate_switch, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_switch,
 		 "Configurable option to enable rx rate cpu switching");
 
-unsigned int rmnet_shs_inst_rate_max_pkts __read_mostly = 1800;
+unsigned int rmnet_shs_inst_rate_max_pkts __read_mostly = 2500;
 module_param(rmnet_shs_inst_rate_max_pkts, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_max_pkts,
 		 "Max pkts in a instant burst interval before prioritizing");
@@ -570,6 +573,12 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 				if (rmnet_shs_cpu_node_tbl[cpu_num].prio) {
 					node->hstats->suggested_cpu = ccpu;
 					rmnet_shs_cpu_node_tbl[ccpu].wqprio = 1;
+					rmnet_shs_switch_reason[RMNET_SHS_SWITCH_INSTANT_RATE]++;
+
+				} else {
+
+					rmnet_shs_switch_reason[RMNET_SHS_SWITCH_WQ_RATE]++;
+
 				}
 				cpun = &rmnet_shs_cpu_node_tbl[node->map_cpu];
 				rmnet_shs_update_cpu_proc_q_all_cpus();
@@ -611,7 +620,7 @@ void rmnet_shs_flush_core(u8 cpu_num)
 			     rmnet_shs_cfg.num_pkts_parked,
 			     rmnet_shs_cfg.num_bytes_parked,
 			     0xDEF, 0xDEF, NULL, NULL);
-
+	local_bh_disable();
 	spin_lock_irqsave(&rmnet_shs_ht_splock, ht_flags);
 		cpu_tail = rmnet_shs_get_cpu_qtail(cpu_num);
 		list_for_each_safe(ptr, next,
@@ -640,6 +649,7 @@ void rmnet_shs_flush_core(u8 cpu_num)
 	rmnet_shs_cpu_node_tbl[cpu_num].prio = 0;
 	rmnet_shs_cpu_node_tbl[cpu_num].parkedlen = 0;
 	spin_unlock_irqrestore(&rmnet_shs_ht_splock, ht_flags);
+	local_bh_enable();
 
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH, RMNET_SHS_FLUSH_END,
 	     rmnet_shs_cfg.num_pkts_parked,
@@ -755,6 +765,9 @@ void rmnet_shs_flush_table(u8 flsh, u8 ctxt)
 	u32 num_bytes_flush = 0;
 	u32 total_pkts_flush = 0;
 	u32 total_bytes_flush = 0;
+	u32 total_cpu_gro_flushed = 0;
+	u32 total_node_gro_flushed = 0;
+
 	u8 is_flushed = 0;
 	u32 wait = (!rmnet_shs_max_core_wait) ? 1 : rmnet_shs_max_core_wait;
 
@@ -772,6 +785,35 @@ void rmnet_shs_flush_table(u8 flsh, u8 ctxt)
 
 		cpu_tail = rmnet_shs_get_cpu_qtail(cpu_num);
 
+		total_cpu_gro_flushed = 0;
+		list_for_each_safe(ptr, next,
+			   &rmnet_shs_cpu_node_tbl[cpu_num].node_list_id) {
+			n = list_entry(ptr, struct rmnet_shs_skbn_s, node_id);
+
+			if (n != NULL && n->skb_list.num_parked_skbs) {
+				num_pkts_flush = n->skb_list.num_parked_skbs;
+				num_bytes_flush = n->skb_list.num_parked_bytes;
+				total_node_gro_flushed = n->skb_list.skb_load;
+
+				is_flushed = rmnet_shs_chk_and_flush_node(n,
+									  flsh,
+									  ctxt);
+
+				if (is_flushed) {
+					total_cpu_gro_flushed += total_node_gro_flushed;
+					total_pkts_flush += num_pkts_flush;
+					total_bytes_flush += num_bytes_flush;
+					rmnet_shs_cpu_node_tbl[n->map_cpu].parkedlen -= num_pkts_flush;
+					n->skb_list.skb_load = 0;
+					if (n->map_cpu == cpu_num) {
+					       cpu_tail += num_pkts_flush;
+					       n->queue_head = cpu_tail;
+
+					}
+				}
+			}
+		}
+
 		/* If core is loaded set core flows as priority and
 		 * start a 10ms hard flush timer
 		 */
@@ -779,7 +821,7 @@ void rmnet_shs_flush_table(u8 flsh, u8 ctxt)
 			if (rmnet_shs_is_lpwr_cpu(cpu_num) &&
 			    !rmnet_shs_cpu_node_tbl[cpu_num].prio)
 				rmnet_shs_update_core_load(cpu_num,
-				rmnet_shs_cpu_node_tbl[cpu_num].parkedlen);
+				total_cpu_gro_flushed);
 
 			if (rmnet_shs_is_core_loaded(cpu_num) &&
 			    rmnet_shs_is_lpwr_cpu(cpu_num) &&
@@ -796,30 +838,6 @@ void rmnet_shs_flush_table(u8 flsh, u8 ctxt)
 			}
 		}
 
-		list_for_each_safe(ptr, next,
-			&rmnet_shs_cpu_node_tbl[cpu_num].node_list_id) {
-			n = list_entry(ptr, struct rmnet_shs_skbn_s, node_id);
-
-			if (n != NULL && n->skb_list.num_parked_skbs) {
-				num_pkts_flush = n->skb_list.num_parked_skbs;
-				num_bytes_flush = n->skb_list.num_parked_bytes;
-				is_flushed = rmnet_shs_chk_and_flush_node(n,
-									  flsh,
-									  ctxt);
-
-				if (is_flushed) {
-					total_pkts_flush += num_pkts_flush;
-					total_bytes_flush += num_bytes_flush;
-					rmnet_shs_cpu_node_tbl[n->map_cpu].parkedlen -= num_pkts_flush;
-
-					if (n->map_cpu == cpu_num) {
-						cpu_tail += num_pkts_flush;
-						n->queue_head = cpu_tail;
-
-					}
-				}
-			}
-		}
 		if (rmnet_shs_cpu_node_tbl[cpu_num].parkedlen < 0)
 			rmnet_shs_crit_err[RMNET_SHS_CPU_PKTLEN_ERR]++;
 
@@ -866,10 +884,43 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 
 	node->skb_list.num_parked_bytes += skb->len;
 	rmnet_shs_cfg.num_bytes_parked  += skb->len;
-	rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
 
+	/* skb_list.num_parked_skbs Number of packets are parked for this flow 
+	 */
 	node->skb_list.num_parked_skbs += 1;
 	rmnet_shs_cfg.num_pkts_parked  += 1;
+
+	/* UDP GRO should tell us how many packets make up a
+	 * coalesced packet. Use that instead for stats for wq
+	 * Node stats only used by WQ
+	 * Parkedlen useful for cpu stats used by old IB
+	 * skb_load used by IB + UDP coals
+	 */
+
+	if ((skb->protocol == htons(ETH_P_IP) &&
+	     ip_hdr(skb)->protocol == IPPROTO_UDP) ||
+	    (skb->protocol == htons(ETH_P_IPV6) &&
+	     ipv6_hdr(skb)->nexthdr == IPPROTO_UDP)) {
+
+		if (skb_shinfo(skb)->gso_segs) {
+			node->num_skb += skb_shinfo(skb)->gso_segs;
+			rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
+			node->skb_list.skb_load += skb_shinfo(skb)->gso_segs;
+		} else {
+			node->num_skb += 1;
+			rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
+			node->skb_list.skb_load++;
+
+		}
+	} else {
+		/* TCP load tweaked for WQ since LRO changes load of each packet*/
+		node->num_skb += ((skb->len / 4000) + 1);
+		rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
+		node->skb_list.skb_load++;
+	}
+
+	node->num_skb_bytes += skb->len;
+
 	SHS_TRACE_HIGH(RMNET_SHS_ASSIGN,
 			     RMNET_SHS_ASSIGN_PARK_PKT_COMPLETE,
 			     node->skb_list.num_parked_skbs,
@@ -892,11 +943,12 @@ static void rmnet_flush_buffered(struct work_struct *work)
 
 	if (rmnet_shs_cfg.is_pkt_parked &&
 	   rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_ON) {
-
+		local_bh_disable();
 		rmnet_shs_flush_table(is_force_flush,
 				      RMNET_WQ_CTXT);
 
 		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_WQ_FB_FLUSH]++;
+		local_bh_enable();
 	}
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 			     RMNET_SHS_FLUSH_DELAY_WQ_END,
@@ -1148,22 +1200,6 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 			SHS_TRACE_LOW(RMNET_SHS_ASSIGN,
 				RMNET_SHS_ASSIGN_MATCH_FLOW_COMPLETE,
 				0xDEF, 0xDEF, 0xDEF, 0xDEF, skb, NULL);
-
-			/* UDP GRO should tell us how many packets make up a
-                        * coalesced packet. Use that instead for stats for wq
-                        */
-
-			if ((skb->protocol == htons(ETH_P_IP) &&
-			     ip_hdr(skb)->protocol == IPPROTO_UDP) ||
-			    (skb->protocol == htons(ETH_P_IPV6) &&
-			    ipv6_hdr(skb)->nexthdr == IPPROTO_UDP)) {
-
-				if (skb_shinfo(skb)->gso_segs)
-					node_p->num_skb += skb_shinfo(skb)->gso_segs;
-				else
-					node_p->num_skb += 1;
-			} else
-				node_p->num_skb += 1;
 
 			node_p->num_skb_bytes += skb->len;
 			cpu_map_index = node_p->map_index;
