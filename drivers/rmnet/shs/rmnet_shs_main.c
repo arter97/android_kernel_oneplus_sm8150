@@ -30,6 +30,9 @@
 #define PERF_CLUSTER 4
 #define INVALID_CPU -1
 
+#define WQ_DELAY 2000000
+#define MIN_MS 5
+
 #define GET_QTAIL(SD, CPU) (per_cpu(SD, CPU).input_queue_tail)
 #define GET_QHEAD(SD, CPU) (per_cpu(SD, CPU).input_queue_head)
 #define GET_CTIMER(CPU) rmnet_shs_cfg.core_flush[CPU].core_timer
@@ -88,7 +91,7 @@ module_param(rmnet_shs_inst_rate_max_pkts, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_inst_rate_max_pkts,
 		 "Max pkts in a instant burst interval before prioritizing");
 
-unsigned int rmnet_shs_timeout __read_mostly = 2;
+unsigned int rmnet_shs_timeout __read_mostly = 6;
 module_param(rmnet_shs_timeout, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_timeout, "Option to configure fall back duration");
 
@@ -169,7 +172,7 @@ static void rmnet_shs_update_core_load(int cpu, int burst)
 	struct  timespec time1;
 	struct  timespec *time2;
 	long int curinterval;
-	int maxinterval = (rmnet_shs_inst_rate_interval < 5) ? 5 :
+	int maxinterval = (rmnet_shs_inst_rate_interval < MIN_MS) ? MIN_MS :
 			   rmnet_shs_inst_rate_interval;
 
 	getnstimeofday(&time1);
@@ -483,10 +486,11 @@ void rmnet_shs_update_cpu_proc_q(u8 cpu_num)
 	   GET_QHEAD(softnet_data, cpu_num);
 	rmnet_shs_cpu_node_tbl[cpu_num].qtail =
 	   GET_QTAIL(softnet_data, cpu_num);
+	rcu_read_unlock();
+
 	rmnet_shs_cpu_node_tbl[cpu_num].qdiff =
 	rmnet_shs_cpu_node_tbl[cpu_num].qtail -
 	rmnet_shs_cpu_node_tbl[cpu_num].qhead;
-	rcu_read_unlock();
 
 	SHS_TRACE_LOW(RMNET_SHS_CORE_CFG,
 			    RMNET_SHS_CORE_CFG_GET_CPU_PROC_PARAMS,
@@ -982,7 +986,7 @@ enum hrtimer_restart rmnet_shs_map_flush_queue(struct hrtimer *t)
 		if (rmnet_shs_cfg.force_flush_state == RMNET_SHS_FLUSH_OFF) {
 			rmnet_shs_cfg.force_flush_state = RMNET_SHS_FLUSH_ON;
 			hrtimer_forward(t, hrtimer_cb_get_time(t),
-					ns_to_ktime(2000000));
+					ns_to_ktime(WQ_DELAY));
 			ret = HRTIMER_RESTART;
 
 			SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
@@ -1048,9 +1052,17 @@ void rmnet_shs_ps_off_hdlr(void *port)
 
 void rmnet_shs_dl_hdr_handler(struct rmnet_map_dl_ind_hdr *dlhdr)
 {
+
 	SHS_TRACE_LOW(RMNET_SHS_DL_MRK, RMNET_SHS_DL_MRK_HDR_HDLR_START,
 			    dlhdr->le.seq, dlhdr->le.pkts,
 			    0xDEF, 0xDEF, NULL, NULL);
+	if (rmnet_shs_cfg.num_pkts_parked > 0 &&
+	    rmnet_shs_cfg.dl_ind_state != RMNET_SHS_IND_COMPLETE) {
+
+		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_INV_DL_IND]++;
+		rmnet_shs_flush_table(0, RMNET_RX_CTXT);
+	}
+	rmnet_shs_cfg.dl_ind_state = RMNET_SHS_END_PENDING;
 }
 
 /* Triggers flushing of all packets upon DL trailer
@@ -1059,17 +1071,15 @@ void rmnet_shs_dl_hdr_handler(struct rmnet_map_dl_ind_hdr *dlhdr)
 void rmnet_shs_dl_trl_handler(struct rmnet_map_dl_ind_trl *dltrl)
 {
 
-	u8 is_force_flush = 0;
-
 	SHS_TRACE_HIGH(RMNET_SHS_DL_MRK,
 			     RMNET_SHS_FLUSH_DL_MRK_TRLR_HDLR_START,
-			     rmnet_shs_cfg.num_pkts_parked, is_force_flush,
+			     rmnet_shs_cfg.num_pkts_parked, 0,
 			     dltrl->seq_le, 0xDEF, NULL, NULL);
+	rmnet_shs_cfg.dl_ind_state = RMNET_SHS_IND_COMPLETE;
 
 	if (rmnet_shs_cfg.num_pkts_parked > 0) {
 		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_RX_DL_TRAILER]++;
-		rmnet_shs_flush_table(is_force_flush,
-				      RMNET_RX_CTXT);
+		rmnet_shs_flush_table(0, RMNET_RX_CTXT);
 	}
 }
 
@@ -1347,8 +1357,11 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 				     0xDEF, 0xDEF, NULL, NULL);
 		rmnet_shs_flush_table(0, RMNET_RX_CTXT);
 
+	} else if (rmnet_shs_cfg.num_pkts_parked &&
+		   rmnet_shs_cfg.dl_ind_state != RMNET_SHS_END_PENDING) {
+		rmnet_shs_flush_reason[RMNET_SHS_FLUSH_INV_DL_IND]++;
+		rmnet_shs_flush_table(0, RMNET_RX_CTXT);
 	}
-
 }
 
 /* Cancels the flushing timer if it has been armed

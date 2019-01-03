@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -84,6 +84,7 @@ struct rmnet_shs_cfg_s {
 	u8 is_timer_init;
 	u8 force_flush_state;
 	u8 rmnet_shs_init_complete;
+	u8 dl_ind_state;
 };
 
 struct rmnet_shs_skb_list {
@@ -134,6 +135,12 @@ enum rmnet_shs_switch_reason_e {
 	RMNET_SHS_SWITCH_MAX_REASON
 };
 
+enum rmnet_shs_dl_ind_state {
+	RMNET_SHS_HDR_PENDING,
+	RMNET_SHS_END_PENDING,
+	RMNET_SHS_IND_COMPLETE,
+	RMNET_SHS_DL_IND_MAX_STATE
+};
 
 
 enum rmnet_shs_flush_reason_e {
@@ -141,6 +148,7 @@ enum rmnet_shs_flush_reason_e {
 	RMNET_SHS_FLUSH_BYTE_LIMIT,
 	RMNET_SHS_FLUSH_TIMER_EXPIRY,
 	RMNET_SHS_FLUSH_RX_DL_TRAILER,
+	RMNET_SHS_FLUSH_INV_DL_IND,
 	RMNET_SHS_FLUSH_WQ_FB_FLUSH,
 	RMNET_SHS_FLUSH_WQ_CORE_FLUSH,
 	RMNET_SHS_FLUSH_MAX_REASON
