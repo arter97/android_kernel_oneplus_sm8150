@@ -367,13 +367,15 @@ QDF_STATUS sme_ser_cmd_callback(void *buf,
 				enum wlan_serialization_cb_reason reason);
 
 /**
- * sme_purge_pdev_all_ser_cmd_list() - purge all scan and non-scan
+ * sme_purge_pdev_all_ser_cmd_list_sync() - purge all scan and non-scan
  * active and pending cmds for pdev
  * @mac_handle: pointer to global MAC context
+ * @cb: callback to hdd
  *
- * Return : none
+ * Return : QDF_STATUS
  */
-void sme_purge_pdev_all_ser_cmd_list(mac_handle_t mac_handle);
+QDF_STATUS sme_purge_pdev_all_ser_cmd_list_sync(mac_handle_t mac_handle,
+						sir_purge_pdev_cmd_cb cb);
 
 /*
  * sme_process_msg() - The main message processor for SME.
@@ -1242,40 +1244,9 @@ void wlan_sap_enable_phy_error_logs(tHalHandle hal, uint32_t enable_log);
 #ifdef WLAN_FEATURE_DSRC
 void sme_set_dot11p_config(tHalHandle hal, bool enable_dot11p);
 
-QDF_STATUS sme_ocb_set_config(tHalHandle hHal, void *context,
-			      ocb_callback callback,
-			      struct sir_ocb_config *config);
-
-QDF_STATUS sme_ocb_set_utc_time(tHalHandle hHal, struct sir_ocb_utc *utc);
-
-QDF_STATUS sme_ocb_start_timing_advert(tHalHandle hHal,
-	struct sir_ocb_timing_advert *timing_advert);
-
-QDF_STATUS sme_ocb_stop_timing_advert(tHalHandle hHal,
-	struct sir_ocb_timing_advert *timing_advert);
-
 int sme_ocb_gen_timing_advert_frame(tHalHandle hHal, tSirMacAddr self_addr,
 				    uint8_t **buf, uint32_t *timestamp_offset,
 				    uint32_t *time_value_offset);
-
-QDF_STATUS sme_ocb_get_tsf_timer(tHalHandle hHal, void *context,
-				 ocb_callback callback,
-				 struct sir_ocb_get_tsf_timer *request);
-
-QDF_STATUS sme_dcc_get_stats(tHalHandle hHal, void *context,
-			     ocb_callback callback,
-			     struct sir_dcc_get_stats *request);
-
-QDF_STATUS sme_dcc_clear_stats(tHalHandle hHal, uint32_t vdev_id,
-			       uint32_t dcc_stats_bitmap);
-
-QDF_STATUS sme_dcc_update_ndl(tHalHandle hHal, void *context,
-			      ocb_callback callback,
-			      struct sir_dcc_update_ndl *request);
-
-QDF_STATUS sme_register_for_dcc_stats_event(tHalHandle hHal, void *context,
-					    ocb_callback callback);
-QDF_STATUS sme_deregister_for_dcc_stats_event(tHalHandle hHal);
 
 static inline void
 sme_set_etsi13_srd_ch_in_master_mode(tHalHandle hal,
@@ -1288,73 +1259,12 @@ static inline void sme_set_dot11p_config(tHalHandle hal, bool enable_dot11p)
 	return;
 }
 
-static inline QDF_STATUS sme_ocb_set_config(tHalHandle hHal, void *context,
-		ocb_callback callback,
-		struct sir_ocb_config *config)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_ocb_set_utc_time(struct sir_ocb_utc *utc)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_ocb_start_timing_advert(
-		struct sir_ocb_timing_advert *timing_advert)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_ocb_stop_timing_advert(struct sir_ocb_timing_advert
-		*timing_advert)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
 static inline int sme_ocb_gen_timing_advert_frame(tHalHandle hHal,
 		tSirMacAddr self_addr, uint8_t **buf,
 		uint32_t *timestamp_offset,
 		uint32_t *time_value_offset)
 {
 	return 0;
-}
-
-static inline QDF_STATUS sme_ocb_get_tsf_timer(tHalHandle hHal, void *context,
-		ocb_callback callback,
-		struct sir_ocb_get_tsf_timer *request)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_dcc_get_stats(tHalHandle hHal, void *context,
-		ocb_callback callback,
-		struct sir_dcc_get_stats *request)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_dcc_clear_stats(uint32_t vdev_id,
-		uint32_t dcc_stats_bitmap)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_dcc_update_ndl(tHalHandle hHal, void *context,
-		ocb_callback callback,
-		struct sir_dcc_update_ndl *request)
-{
-	return QDF_STATUS_SUCCESS;
-}
-
-static inline QDF_STATUS sme_register_for_dcc_stats_event(tHalHandle hHal,
-		void *context, ocb_callback callback)
-{
-	return QDF_STATUS_SUCCESS;
-}
-static inline QDF_STATUS sme_deregister_for_dcc_stats_event(tHalHandle hHal)
-{
-	return QDF_STATUS_SUCCESS;
 }
 
 /**

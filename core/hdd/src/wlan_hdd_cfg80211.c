@@ -10408,6 +10408,8 @@ static int hdd_validate_avoid_freq_chanlist(
 		     ch_idx <= channel_list->
 					avoid_freq_range[range_idx].end_freq;
 		     ch_idx++) {
+			 if (INVALID_CHANNEL == reg_get_chan_enum(ch_idx))
+				continue;
 			for (unsafe_channel_index = 0;
 			     unsafe_channel_index < unsafe_channel_count;
 			     unsafe_channel_index++) {
@@ -16172,12 +16174,6 @@ static int __wlan_hdd_cfg80211_change_iface(struct wiphy *wiphy,
 	/* Reset the current device mode bit mask */
 	policy_mgr_clear_concurrency_mode(hdd_ctx->psoc,
 		adapter->device_mode);
-
-	if (!(adapter->device_mode == QDF_P2P_DEVICE_MODE &&
-	    type == NL80211_IFTYPE_STATION)) {
-		hdd_debug("Teardown tdls links and disable tdls in FW as new interface is coming up");
-		hdd_notify_teardown_tdls_links(adapter->vdev);
-	}
 
 	if ((adapter->device_mode == QDF_STA_MODE) ||
 	    (adapter->device_mode == QDF_P2P_CLIENT_MODE) ||
