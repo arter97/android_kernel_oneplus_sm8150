@@ -6568,6 +6568,8 @@ static QDF_STATUS send_roam_scan_offload_mode_cmd_tlv(wmi_unified_t wmi_handle,
 			req_offload_params->roam_preauth_no_ack_timeout;
 		roam_offload_params->reassoc_failure_timeout =
 			roam_req->reassoc_failure_timeout;
+		roam_offload_params->roam_candidate_validity_time =
+			roam_req->rct_validity_timer;
 
 		/* Fill the capabilities */
 		roam_offload_params->capability =
@@ -15882,6 +15884,13 @@ static QDF_STATUS send_roam_scan_offload_ap_profile_cmd_tlv(wmi_unified_t wmi_ha
 		 score_param->oce_wan_scoring.score_pcnt11_to_8,
 		 score_param->oce_wan_scoring.score_pcnt15_to_12);
 
+	score_param->roam_score_delta_pcnt = ap_profile->param.roam_score_delta;
+	score_param->roam_score_delta_mask =
+				ap_profile->param.roam_trigger_bitmap;
+	WMI_LOGD("Roam score delta:%d Roam_trigger_bitmap:%x",
+		 score_param->roam_score_delta_pcnt,
+		 score_param->roam_score_delta_mask);
+
 	wmi_mtrace(WMI_ROAM_AP_PROFILE, NO_SESSION, 0);
 	status = wmi_unified_cmd_send(wmi_handle, buf,
 				      len, WMI_ROAM_AP_PROFILE);
@@ -20950,10 +20959,13 @@ static QDF_STATUS extract_reg_chan_list_update_event_tlv(
 	reg_info->min_bw_5g = chan_list_event_hdr->min_bw_5g;
 	reg_info->max_bw_5g = chan_list_event_hdr->max_bw_5g;
 
-	WMI_LOGD("%s:cc %s dsf %d BW: min_2g %d max_2g %d min_5g %d max_5g %d",
-			__func__, reg_info->alpha2, reg_info->dfs_region,
-			reg_info->min_bw_2g, reg_info->max_bw_2g,
-			reg_info->min_bw_5g, reg_info->max_bw_5g);
+	WMI_LOGD(FL("num_phys = %u and phy_id = %u"),
+		 reg_info->num_phy, reg_info->phy_id);
+
+	WMI_LOGD("%s:cc %s dfs %d BW: min_2g %d max_2g %d min_5g %d max_5g %d",
+		 __func__, reg_info->alpha2, reg_info->dfs_region,
+		 reg_info->min_bw_2g, reg_info->max_bw_2g,
+		 reg_info->min_bw_5g, reg_info->max_bw_5g);
 
 	WMI_LOGD("%s: num_2g_reg_rules %d num_5g_reg_rules %d", __func__,
 			num_2g_reg_rules, num_5g_reg_rules);
@@ -21364,6 +21376,7 @@ static QDF_STATUS send_set_country_cmd_tlv(wmi_unified_t wmi_handle,
 	QDF_STATUS qdf_status;
 	wmi_set_current_country_cmd_fixed_param *cmd;
 	uint16_t len = sizeof(*cmd);
+	uint8_t pdev_id = params->pdev_id;
 
 	buf = wmi_buf_alloc(wmi_handle, len);
 	if (!buf) {
@@ -21378,11 +21391,11 @@ static QDF_STATUS send_set_country_cmd_tlv(wmi_unified_t wmi_handle,
 		       WMITLV_GET_STRUCT_TLVLEN
 			       (wmi_set_current_country_cmd_fixed_param));
 
-	WMI_LOGD("setting cuurnet country to  %s", params->country);
+	cmd->pdev_id = wmi_handle->ops->convert_host_pdev_id_to_target(pdev_id);
+	WMI_LOGD("setting current country to  %s and target pdev_id = %u",
+		 params->country, cmd->pdev_id);
 
 	qdf_mem_copy((uint8_t *)&cmd->new_alpha2, params->country, 3);
-
-	cmd->pdev_id = params->pdev_id;
 
 	wmi_mtrace(WMI_SET_CURRENT_COUNTRY_CMDID, NO_SESSION, 0);
 	qdf_status = wmi_unified_cmd_send(wmi_handle,
@@ -21844,6 +21857,51 @@ static QDF_STATUS send_btm_config_cmd_tlv(wmi_unified_t wmi_handle,
 	if (wmi_unified_cmd_send(wmi_handle, buf, len,
 	    WMI_ROAM_BTM_CONFIG_CMDID)) {
 		WMI_LOGE("%s: failed to send WMI_ROAM_BTM_CONFIG_CMDID",
+			 __func__);
+		wmi_buf_free(buf);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * send_roam_bss_load_config_tlv() - send roam load bss trigger configuration
+ * @wmi_handle: wmi handle
+ * @parms: pointer to wmi_bss_load_config
+ *
+ * This function sends the roam load bss trigger configuration to fw.
+ * the bss_load_threshold parameter is used to configure the maximum
+ * bss load percentage, above which the firmware should trigger roaming
+ *
+ * Return: QDF status
+ */
+static QDF_STATUS
+send_roam_bss_load_config_tlv(wmi_unified_t wmi_handle,
+			      struct wmi_bss_load_config *params)
+{
+	wmi_roam_bss_load_config_cmd_fixed_param *cmd;
+	wmi_buf_t buf;
+	uint32_t len;
+
+	len = sizeof(*cmd);
+	buf = wmi_buf_alloc(wmi_handle, len);
+	if (!buf)
+		return QDF_STATUS_E_NOMEM;
+
+	cmd = (wmi_roam_bss_load_config_cmd_fixed_param *)wmi_buf_data(buf);
+	WMITLV_SET_HDR(
+	   &cmd->tlv_header,
+	   WMITLV_TAG_STRUC_wmi_roam_bss_load_config_cmd_fixed_param,
+	   WMITLV_GET_STRUCT_TLVLEN(wmi_roam_bss_load_config_cmd_fixed_param));
+	cmd->vdev_id = params->vdev_id;
+	cmd->bss_load_threshold = params->bss_load_threshold;
+	cmd->monitor_time_window = params->bss_load_sample_time;
+
+	wmi_mtrace(WMI_ROAM_BSS_LOAD_CONFIG_CMDID, cmd->vdev_id, 0);
+	if (wmi_unified_cmd_send(wmi_handle, buf, len,
+				 WMI_ROAM_BSS_LOAD_CONFIG_CMDID)) {
+		WMI_LOGE("%s: failed to send WMI_ROAM_BSS_LOAD_CONFIG_CMDID ",
 			 __func__);
 		wmi_buf_free(buf);
 		return QDF_STATUS_E_FAILURE;
@@ -23124,6 +23182,11 @@ struct wmi_ops tlv_ops =  {
 	.convert_pdev_id_target_to_host =
 		convert_target_pdev_id_to_host_pdev_id_legacy,
 
+	.convert_host_pdev_id_to_target =
+		convert_host_pdev_id_to_target_pdev_id,
+	.convert_target_pdev_id_to_host =
+		convert_target_pdev_id_to_host_pdev_id,
+
 	.send_start_11d_scan_cmd = send_start_11d_scan_cmd_tlv,
 	.send_stop_11d_scan_cmd = send_stop_11d_scan_cmd_tlv,
 	.extract_reg_11d_new_country_event =
@@ -23157,6 +23220,7 @@ struct wmi_ops tlv_ops =  {
 	.extract_ndp_sch_update = extract_ndp_sch_update_tlv,
 #endif
 	.send_btm_config = send_btm_config_cmd_tlv,
+	.send_roam_bss_load_config = send_roam_bss_load_config_tlv,
 	.send_obss_detection_cfg_cmd = send_obss_detection_cfg_cmd_tlv,
 	.extract_obss_detection_info = extract_obss_detection_info_tlv,
 #ifdef WLAN_SUPPORT_FILS
@@ -23482,6 +23546,7 @@ static void populate_tlv_events_id(uint32_t *event_ids)
 	event_ids[wmi_roam_scan_stats_event_id] = WMI_ROAM_SCAN_STATS_EVENTID;
 	event_ids[wmi_vdev_bcn_reception_stats_event_id] =
 		WMI_VDEV_BCN_RECEPTION_STATS_EVENTID;
+	event_ids[wmi_roam_blacklist_event_id] = WMI_ROAM_BLACKLIST_EVENTID;
 }
 
 /**
