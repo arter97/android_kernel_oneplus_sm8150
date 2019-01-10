@@ -56,9 +56,6 @@ update_udp_flush_stat(enum rmnet_perf_udp_opt_flush_reasons stat)
  * @flow_node:  flow node meta data for checking condition
  * @pkt_info: characteristics of the current packet
  *
- * 1. validate packet length
- * 2. check for size overflow
- *
  * Return:
  *    - rmnet_perf_upd_opt_merge_check_rc enum indicating
  *      merge status
@@ -76,7 +73,20 @@ udp_pkt_can_be_merged(struct sk_buff *skb,
 		return RMNET_PERF_UDP_OPT_FLUSH_SOME;
 	}
 
-	/* 2. check for size/count overflow */
+	/* 2. validate IP ordering. Only works for v4, unfortunately. */
+	if (pkt_info->ip_proto == 4) {
+		__be16 pkt_id = pkt_info->iphdr.v4hdr->id;
+		u16 current_id = flow_node->ip_id + flow_node->num_pkts_held;
+
+		/* Enforce incremenetal or static IP ID fields, like GRO */
+		if (htons(current_id) != pkt_id ||
+		    htons(flow_node->ip_id) != pkt_id) {
+			update_udp_flush_stat(RMNET_PERF_UDP_OPT_V4_OOO);
+			return RMNET_PERF_UDP_OPT_FLUSH_SOME;
+		}
+	}
+
+	/* 3. check for size/count overflow */
 	if ((payload_len + flow_node->len >= rmnet_perf_udp_opt_flush_limit)) {
 		update_udp_flush_stat(RMNET_PERF_UDP_OPT_64K_LIMIT);
 		return RMNET_PERF_UDP_OPT_FLUSH_SOME;
