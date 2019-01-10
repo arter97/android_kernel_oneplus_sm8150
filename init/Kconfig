@@ -1190,6 +1190,36 @@ source "usr/Kconfig"
 
 endif
 
+config EXECPROG
+	bool "Inject a binary to the userspace and execute"
+	help
+	  This module injects a binary from the kernel's __init storage to
+	  the userspace and executes it.
+
+	  This is useful in cases like Android, where you would want to
+	  avoid changing a physical block device to execute a program just
+	  for your kernel.
+
+	  You can use execprog_helper to include a binary to the kernel's
+	  source code. The bloated memory from this will be freed upon boot.
+
+	  The file is not deleted by this module. The userspace program must
+	  handle this on its own.
+
+	  If unsure say N.
+
+if EXECPROG
+
+config EXECPROG_DST
+	string "Userspace destination path for the binary to be extracted"
+	default "/dev/execprog"
+
+config EXECPROG_WAIT_FOR
+	string "Wait for this file on the userspace before execution"
+	default "/dev/socket/property_service"
+
+endif
+
 choice
 	prompt "Compiler optimization level"
 	default CC_OPTIMIZE_FOR_PERFORMANCE
