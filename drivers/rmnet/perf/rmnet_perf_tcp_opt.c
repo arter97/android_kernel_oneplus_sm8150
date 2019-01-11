@@ -213,12 +213,6 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 	enum rmnet_perf_tcp_opt_merge_check_rc rc;
 	struct napi_struct *napi = NULL;
 
-	pkt_info->curr_timestamp =
-		rmnet_perf_tcp_opt_check_timestamp(skb,
-						   pkt_info->trns_hdr.tp,
-						   perf->core_meta->dev);
-	timestamp_mismatch = flow_node->timestamp != pkt_info->curr_timestamp;
-
 	if (flush || rmnet_perf_tcp_opt_tcp_flag_flush(pkt_info)) {
 		rmnet_perf_opt_update_flow(flow_node, pkt_info);
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
@@ -232,6 +226,20 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 			RMNET_PERF_TCP_OPT_TCP_FLUSH_FORCE]++;
 		return;
 	}
+
+	/* Go ahead and insert the packet now if we're not holding anything.
+	 * We know at this point that it's a normal packet in the flow
+	 */
+	if (!flow_node->num_pkts_held) {
+		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);
+		return;
+	}
+
+	pkt_info->curr_timestamp =
+		rmnet_perf_tcp_opt_check_timestamp(skb,
+						   pkt_info->trns_hdr.tp,
+						   perf->core_meta->dev);
+	timestamp_mismatch = flow_node->timestamp != pkt_info->curr_timestamp;
 
 	rc = rmnet_perf_tcp_opt_pkt_can_be_merged(skb, flow_node, pkt_info);
 	if (rc == RMNET_PERF_TCP_OPT_FLUSH_ALL) {

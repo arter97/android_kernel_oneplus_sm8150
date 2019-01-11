@@ -118,6 +118,14 @@ void rmnet_perf_udp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 		return;
 	}
 
+	/* Go ahead and insert the packet now if we're not holding anything.
+	 * We know at this point that it's a normal packet in the flow
+	 */
+	if (!flow_node->num_pkts_held) {
+		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);
+		return;
+	}
+
 	rc = udp_pkt_can_be_merged(skb, flow_node, pkt_info);
 	if (rc == RMNET_PERF_UDP_OPT_FLUSH_SOME) {
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
