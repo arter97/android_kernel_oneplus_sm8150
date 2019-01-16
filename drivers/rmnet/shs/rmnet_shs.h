@@ -274,7 +274,8 @@ extern int (*rmnet_shs_skb_entry)(struct sk_buff *skb,
 				  struct rmnet_port *port);
 int rmnet_shs_is_lpwr_cpu(u16 cpu);
 void rmnet_shs_cancel_table(void);
-void rmnet_shs_aggregate_init(void);
+void rmnet_shs_rx_wq_init(void);
+void rmnet_shs_rx_wq_exit(void);
 
 int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
 				 u8 force_flush, u8 ctxt);
