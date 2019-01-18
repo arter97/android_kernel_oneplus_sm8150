@@ -129,6 +129,7 @@ service ldconfigtxt /sbin/touch /sbin/ld.config.txt
 
 on boot
 	export LD_CONFIG_FILE /sbin/ld.config.txt
+    start qcom_postboot
     setprop sys.usb.config adb
     write /proc/touchpanel/gesture_enable 1
     write /sys/devices/platform/soc/c440000.qcom,spmi/spmi-0/spmi0-02/c440000.qcom,spmi:qcom,pmi8998@2:qcom,qpnp-smb2/power_supply/usb/otg_switch 1
@@ -158,3 +159,10 @@ on property:vendor.sys.listeners.registered=true
 
 on property:sys.usb.config=mtp,adb
     restart time_daemon
+
+service qcom_postboot /sbin/sh /init.qcom.post_boot.sh
+    user root
+    group root
+    oneshot
+    disabled
+    seclabel u:r:shell:s0
