@@ -79,12 +79,14 @@ struct rmnet_perf_core_meta {
 	//spinlock_t timer_lock;
 	struct rmnet_perf_core_burst_marker_state *bm_state;
 	struct rmnet_map_dl_ind *dl_ind;
+	struct qmi_rmnet_ps_ind *ps_ind;
 };
 
 enum rmnet_perf_core_flush_reasons {
 	RMNET_PERF_CORE_IPA_ZERO_FLUSH,
 	RMNET_PERF_CORE_SK_BUFF_HELD_LIMIT,
 	RMNET_PERF_CORE_DL_MARKER_FLUSHES,
+	RMNET_PERF_CORE_PS_MODE_ON,
 	RMNET_PERF_CORE_NUM_CONDITIONS
 };
 
@@ -109,6 +111,8 @@ enum rmnet_perf_trace_evt {
 	RMNET_PERF_DEAG_PKT,
 };
 
+void rmnet_perf_core_ps_on(void *port);
+void rmnet_perf_core_ps_off(void *port);
 void rmnet_perf_core_reset_recycled_skb(struct sk_buff *skb);
 struct sk_buff *rmnet_perf_core_elligible_for_cache_skb(struct rmnet_perf *perf,
 							u32 len);
