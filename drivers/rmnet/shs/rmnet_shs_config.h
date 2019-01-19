@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -28,6 +28,7 @@ enum rmnet_shs_crit_err_e {
 	RMNET_SHS_NETDEV_ERR,
 	RMNET_SHS_INVALID_CPU_ERR,
 	RMNET_SHS_MAIN_SHS_NOT_REQD,
+	RMNET_SHS_MAIN_SHS_RPS_INIT_ERR,
 	RMNET_SHS_MAIN_MALLOC_ERR,
 	RMNET_SHS_MAIN_MAP_LEN_INVALID,
 	RMNET_SHS_WQ_ALLOC_WQ_ERR,

@@ -132,6 +132,8 @@ enum rmnet_shs_tmr_force_flush_state_e {
 enum rmnet_shs_switch_reason_e {
 	RMNET_SHS_SWITCH_INSTANT_RATE,
 	RMNET_SHS_SWITCH_WQ_RATE,
+	RMNET_SHS_OOO_PACKET_SWITCH,
+	RMNET_SHS_OOO_PACKET_TOTAL,
 	RMNET_SHS_SWITCH_MAX_REASON
 };
 

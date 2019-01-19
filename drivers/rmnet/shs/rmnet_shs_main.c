@@ -562,7 +562,6 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 		node_qhead = node->queue_head;
 		cpu_num = node->map_cpu;
 		if ((cur_cpu_qhead >= node_qhead) ||
-		    (node->skb_tport_proto == IPPROTO_TCP) ||
 		    (force_flush)) {
 			if (rmnet_shs_switch_cores) {
 
@@ -578,6 +577,12 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 				node->map_cpu = map->cpus[cpu_map_index];
 				ccpu = node->map_cpu;
 
+				if (cur_cpu_qhead < node_qhead) {
+					rmnet_shs_switch_reason[RMNET_SHS_OOO_PACKET_SWITCH]++;
+					rmnet_shs_switch_reason[RMNET_SHS_OOO_PACKET_TOTAL]+=
+							(node_qhead -
+							cur_cpu_qhead);
+				}
 				/* Mark gold core as prio to prevent
 				 * flows from moving in wq
 				 */
@@ -1036,7 +1041,7 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 		 * Flush before parking PSH packet.
 		 */
 		if (skb->cb[SKB_FLUSH]){
-				rmnet_shs_flush_lock_table(1, RMNET_RX_CTXT);
+				rmnet_shs_flush_lock_table(0, RMNET_RX_CTXT);
 				rmnet_shs_flush_reason[RMNET_SHS_FLUSH_PSH_PKT_FLUSH]++;
 
 				napi_gro_flush(napi, false);
@@ -1048,7 +1053,7 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 		 */
 		node->num_skb += ((skb->len / 4000) + 1);
 		rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
-		node->skb_list.skb_load++;
+		node->skb_list.skb_load += ((skb->len / 4000) + 1);
 
 	}
 
@@ -1071,7 +1076,7 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 	rmnet_shs_cfg.num_pkts_parked  += 1;
 
 	if (unlikely(pushflush)) {
-		rmnet_shs_flush_lock_table(1, RMNET_RX_CTXT);
+		rmnet_shs_flush_lock_table(0, RMNET_RX_CTXT);
 		napi_gro_flush(napi, false);
 
 	}
@@ -1336,7 +1341,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		SHS_TRACE_ERR(RMNET_SHS_ASSIGN,
 				    RMNET_SHS_ASSIGN_CRIT_ERROR_NO_SHS_REQD,
 				    0xDEF, 0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_crit_err[RMNET_SHS_MAIN_SHS_NOT_REQD]++;
+		rmnet_shs_crit_err[RMNET_SHS_MAIN_SHS_RPS_INIT_ERR]++;
 		return;
 	}
 
