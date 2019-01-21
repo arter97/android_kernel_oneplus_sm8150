@@ -1977,6 +1977,10 @@ typedef enum {
 #define WMI_VHT_MAX_MCS_EXT_SS_GET(vht_mcs_map, index) WMI_GET_BITS(vht_mcs_map, 16 + index, 1)
 #define WMI_VHT_MAX_MCS_EXT_SS_SET(vht_mcs_map, index, value) WMI_SET_BITS(vht_mcs_map, 16 + index, 1, value)
 
+/* Notification bit for Ext MCS 10/11 support */
+#define WMI_VHT_MCS_NOTIFY_EXT_SS_GET(vht_mcs_map) WMI_GET_BITS(vht_mcs_map, 24, 1)
+#define WMI_VHT_MCS_NOTIFY_EXT_SS_SET(vht_mcs_map, value) WMI_SET_BITS(vht_mcs_map, 24, 1, value)
+
 #define WMI_VHT_MAX_MCS_4_SS_MASK(r,ss)      ((3 & (r)) << (((ss) - 1) << 1))
 #define WMI_VHT_MAX_SUPP_RATE_MASK           0x1fff0000
 #define WMI_VHT_MAX_SUPP_RATE_MASK_SHIFT     16
@@ -2895,6 +2899,14 @@ typedef struct {
     #define WMI_RSRC_CFG_FLAG_PEER_UNMAP_RESPONSE_SUPPORT_S 20
     #define WMI_RSRC_CFG_FLAG_PEER_UNMAP_RESPONSE_SUPPORT_M 0x100000
 
+    /*
+     * If this HTT_PEER_STATS is set, then the target should use the
+     * the HTT_T2H_MSG_TYPE_PEER_STATS_IND message to upload peer stats;
+     * else the target should avoid sending the PEER_STATS_IND message.
+     */
+    #define WMI_RSRC_CFG_FLAG_HTT_PEER_STATS_S 21
+    #define WMI_RSRC_CFG_FLAG_HTT_PEER_STATS_M 0x200000
+
     A_UINT32 flag1;
 
     /** @brief smart_ant_cap - Smart Antenna capabilities information
@@ -3137,6 +3149,11 @@ typedef struct {
     WMI_RSRC_CFG_FLAG_SET((word32), PEER_UNMAP_RESPONSE_SUPPORT, (value))
 #define WMI_RSRC_CFG_FLAG_PEER_UNMAP_RESPONSE_SUPPORT_GET(word32) \
     WMI_RSRC_CFG_FLAG_GET((word32), PEER_UNMAP_RESPONSE_SUPPORT)
+
+#define WMI_RSRC_CFG_FLAG_HTT_PEER_STATS_SET(word32, value) \
+    WMI_RSRC_CFG_FLAG_SET((word32), HTT_PEER_STATS, (value))
+#define WMI_RSRC_CFG_FLAG_HTT_PEER_STATS_GET(word32) \
+    WMI_RSRC_CFG_FLAG_GET((word32), HTT_PEER_STATS)
 
 
 typedef struct {
@@ -5720,9 +5737,14 @@ typedef struct {
 #define WMI_TPC_TX_NUM_CHAIN        4
 
 typedef enum {
-    WMI_TPC_CONFIG_EVENT_FLAG_TABLE_CDD = 0x1,
+    /* bits 0-7 for table flags */
+    WMI_TPC_CONFIG_EVENT_FLAG_TABLE_CDD  = 0x1,
     WMI_TPC_CONFIG_EVENT_FLAG_TABLE_STBC = 0x2,
     WMI_TPC_CONFIG_EVENT_FLAG_TABLE_TXBF = 0x4,
+
+    /* bits 8-11 for interface version flags */
+    WMI_TPC_CONFIG_EVENT_FLAG_IF_MASK = 0x0F00,
+    WMI_TPC_CONFIG_EVENT_FLAG_IF_V1   = 0x0100,
 } WMI_TPC_CONFIG_EVENT_FLAG;
 
 typedef struct {
@@ -7473,7 +7495,7 @@ typedef struct {
 typedef struct {
     /** peer MAC address */
     wmi_mac_addr peer_macaddr;
-    /* rx duration in microseconds*/
+    /* lower 32 bits of rx duration in microseconds */
     A_UINT32 rx_duration;
     /** Total TX bytes (including dot11 header) sent to peer */
     A_UINT32 peer_tx_bytes;
@@ -7486,7 +7508,9 @@ typedef struct {
 
     /* Total number of received multicast & broadcast data frames corresponding to this peer */
     A_UINT32 rx_mc_bc_cnt; /* 1 in the MSB of rx_mc_bc_cnt represents a valid data */
-    A_UINT32 reserved[3]; /** for future use - add new peer stats here */
+    /* upper 32 bits of rx duration in microseconds */
+    A_UINT32 rx_duration_u32; /* 1 in the most significant bit indicates this field contains valid data */
+    A_UINT32 reserved[2]; /** for future use - add new peer stats here */
 } wmi_peer_extd_stats;
 
 typedef struct {
@@ -10735,10 +10759,14 @@ typedef struct {
     A_UINT32 rx_max_rate; /* Max Rx data rate */
     A_UINT32 rx_mcs_set; /* Negotiated RX VHT rates */
     A_UINT32 tx_max_rate; /* Max Tx data rate */
+    /*
+     *  bit [15:0]  indicates MCS 0 to 9
+     *  bit [23:16] indicates MCS 10 & 11
+     *  bit [24]    indicates whether MCS 10 & 11 is notified in bit [23:16]
+     */
     A_UINT32 tx_mcs_set; /* Negotiated TX VHT rates */
     A_UINT32 tx_max_mcs_nss;  /* b0-b3: max mcs idx; b4-b7: max nss */
 } wmi_vht_rate_set;
-
 
 /* NOTE: It would bea good idea to represent the Tx MCS
  * info in one word and Rx in another word. This is split
@@ -11235,18 +11263,18 @@ typedef struct {
  *  BIT 8     : BTM query preference over 11k neighbor report request
  *  BIT 9-31  : Reserved
  */
-#define WMI_ROAM_BTM_SET_ENABLE(flags, val)                    WMI_SET_BITS(flags, 0, 1, val)
-#define WMI_ROAM_BTM_GET_ENABLE(flags)                         WMI_GET_BITS(flags, 0, 1)
-#define WMI_ROAM_BTM_SET_NON_MATCHING_CND_ACTION(flags, val)   WMI_SET_BITS(flags, 1, 2, val)
-#define WMI_ROAM_BTM_GET_NON_MATCHING_CND_ACTION(flags)        WMI_GET_BITS(flags, 1, 2)
-#define WMI_ROAM_BTM_SET_CNDS_MATCH_CONDITION(flags, val)      WMI_SET_BITS(flags, 3, 3, val)
-#define WMI_ROAM_BTM_GET_CNDS_MATCH_CONDITION(flags)           WMI_GET_BITS(flags, 3, 3)
-#define WMI_ROAM_BTM_SET_SOLICITED_BTM_ENABLE(flags, val)      WMI_SET_BITS(flags, 6, 1, val)
-#define WMI_ROAM_BTM_GET_SOLICITED_BTM_ENABLE(flags)           WMI_GET_BITS(flags, 6, 1)
-#define WMI_ROAM_BTM_SET_CNDS_SELECT_BASED_ON_SCORE(flags)     WMI_SET_BITS(flags, 7, 1, val)
-#define WMI_ROAM_BTM_GET_CNDS_SELECT_BASED_ON_SCORE(flags)     WMI_GET_BITS(flags, 7, 1)
-#define WMI_ROAM_BTM_SET_BTM_QUERY_PREFERENCE_OVER_11K(flags)  WMI_SET_BITS(flags, 8, 1, val)
-#define WMI_ROAM_BTM_GET_BTM_QUERY_PREFERENCE_OVER_11K(flags)  WMI_GET_BITS(flags, 8, 1)
+#define WMI_ROAM_BTM_SET_ENABLE(flags, val)                        WMI_SET_BITS(flags, 0, 1, val)
+#define WMI_ROAM_BTM_GET_ENABLE(flags)                             WMI_GET_BITS(flags, 0, 1)
+#define WMI_ROAM_BTM_SET_NON_MATCHING_CND_ACTION(flags, val)       WMI_SET_BITS(flags, 1, 2, val)
+#define WMI_ROAM_BTM_GET_NON_MATCHING_CND_ACTION(flags)            WMI_GET_BITS(flags, 1, 2)
+#define WMI_ROAM_BTM_SET_CNDS_MATCH_CONDITION(flags, val)          WMI_SET_BITS(flags, 3, 3, val)
+#define WMI_ROAM_BTM_GET_CNDS_MATCH_CONDITION(flags)               WMI_GET_BITS(flags, 3, 3)
+#define WMI_ROAM_BTM_SET_SOLICITED_BTM_ENABLE(flags, val)          WMI_SET_BITS(flags, 6, 1, val)
+#define WMI_ROAM_BTM_GET_SOLICITED_BTM_ENABLE(flags)               WMI_GET_BITS(flags, 6, 1)
+#define WMI_ROAM_BTM_SET_CNDS_SELECT_BASED_ON_SCORE(flags, val)    WMI_SET_BITS(flags, 7, 1, val)
+#define WMI_ROAM_BTM_GET_CNDS_SELECT_BASED_ON_SCORE(flags)         WMI_GET_BITS(flags, 7, 1)
+#define WMI_ROAM_BTM_SET_BTM_QUERY_PREFERENCE_OVER_11K(flags, val) WMI_SET_BITS(flags, 8, 1, val)
+#define WMI_ROAM_BTM_GET_BTM_QUERY_PREFERENCE_OVER_11K(flags)      WMI_GET_BITS(flags, 8, 1)
 
 /** WMI_ROAM_BTM_SET_NON_MATCHING_CNDS_ACTION definition: When BTM candidate is not matched with cache by WMI_ROAM_BTM_SET_CNDS_MATCH_CONDITION, determine what to do */
 #define WMI_ROAM_BTM_NON_MATCHING_CNDS_SCAN_CONSUME      0 /** Invoke roam scan and consume within firmware. Applicable only when ROAM_SCAN_MODE is enabled. If ROAM_SCAN_MODE is disabled, firmware won't scan and forward it to host */
@@ -21523,6 +21551,20 @@ typedef enum wmi_coex_config_type {
     WMI_COEX_CONFIG_WLAN_CONN_OVER_LE      = 30, /* config to elevate Wifi priority over BLE during WLAN association */
     WMI_COEX_CONFIG_LE_OVER_WLAN_TRAFFIC   = 31, /* config to elevate BLE traffic over WiFi traffic */
     WMI_COEX_CONFIG_THREE_WAY_COEX_RESET   = 32, /* config to reset the weights to default  */
+    /* WMI_COEX_CONFIG_THREE_WAY_DELAY_PARA
+     * config to T_PRIO T_DELAY parameter for each case
+     *   arg1 - wlan/bt state
+     *       0: beacon tx
+     *       1: wlan connecting
+     *       2: wlan in dhcp
+     *       3: a2dp critical
+     *       4: eSCO
+     *   arg2 - t_prio for low priority traffic (microsecond units)
+     *   arg3 - t_delay for low priority traffic (microsecond units)
+     *   arg4 - t_prio for high priority traffic (microsecond units)
+     *   arg5 - t_delay for high priority traffic (microsecond units)
+     */
+    WMI_COEX_CONFIG_THREE_WAY_DELAY_PARA   = 33,
 } WMI_COEX_CONFIG_TYPE;
 
 typedef struct {
@@ -21834,6 +21876,8 @@ typedef struct {
      *       - .
      *       - .
      *       - bit 23 - for NSS 8
+     *       - bit 24 - indicate whether the VHT-MCS 10-11 specs in bits 23:16
+     *                  are valid
      *   Refer to the WMI_VHT_MAX_MCS_EXT_SS_GET/SET macros.
      */
     A_UINT32 vht_supp_mcs_2G;
@@ -21876,6 +21920,8 @@ typedef struct {
      *       - .
      *       - .
      *       - bit 23 - for NSS 8
+     *       - bit 24 - indicate whether the VHT-MCS 10-11 specs in bits 23:16
+     *                  are valid
      *   Refer to the WMI_VHT_MAX_MCS_EXT_SS_GET/SET macros.
      */
     A_UINT32 vht_supp_mcs_5G;
@@ -23164,6 +23210,12 @@ typedef struct {
 } wmi_pdev_csa_switch_count_status_event_fixed_param;
 
 typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_csc_vdev_list */
+    A_UINT32 vdev_id;
+    A_UINT32 current_switch_count; /** CSC switch count value in the last transmitted beacon */
+} wmi_csc_vdev_list;
+
+typedef struct {
     /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_pdev_csc_switch_count_status_event_fixed_param */
     A_UINT32 tlv_header;
     /** pdev_id for identifying the MAC
@@ -23175,7 +23227,7 @@ typedef struct {
     A_UINT32 current_switch_count;
 
     /* The TLVs follows this structure:
-     * A_UINT32 vdev_ids[]; // IDs of vdevs whose color-switch countdown expired
+     * struct wmi_csc_vdev_list vdev_info[]; // IDs of vdevs and their current switch countdown values
      */
 } wmi_pdev_csc_switch_count_status_event_fixed_param;
 
