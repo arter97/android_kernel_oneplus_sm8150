@@ -49,6 +49,8 @@
 #include "DWC_ETH_QOS_yheader.h"
 #include "DWC_ETH_QOS_ipa.h"
 
+void *ipc_emac_log_ctxt;
+
 static UCHAR dev_addr[6] = {0, 0x55, 0x7b, 0xb5, 0x7d, 0xf7};
 struct DWC_ETH_QOS_res_data dwc_eth_qos_res_data = {0, };
 static struct msm_bus_scale_pdata *emac_bus_scale_vec = NULL;
@@ -422,7 +424,8 @@ static void DWC_ETH_QOS_configure_gpio_pins(struct platform_device *pdev)
 		}
 		EMACDBG("get pinctrl succeed\n");
 
-		if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_2_0) {
+		if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_2_0 ||
+			dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_3_1) {
 			/* PPS0 pin */
 			emac_pps_0 = pinctrl_lookup_state(pinctrl, EMAC_PIN_PPS0);
 			if (IS_ERR_OR_NULL(emac_pps_0)) {
@@ -435,7 +438,9 @@ static void DWC_ETH_QOS_configure_gpio_pins(struct platform_device *pdev)
 			if (ret) EMACERR("Unable to set emac_pps_0 state, err = %d\n", ret);
 			else EMACDBG("Set emac_pps_0 succeed\n");
 
-			return;
+			if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_2_0) {
+				return;
+			}
 		}
 
 		/* MDIO Pin ctlrs*/
@@ -936,6 +941,11 @@ void DWC_ETH_QOS_resume_clks(struct DWC_ETH_QOS_prv_data *pdata)
 	else
 		DWC_ETH_QOS_set_clk_and_bus_config(pdata, SPEED_10);
 
+#ifdef DWC_ETH_QOS_CONFIG_PTP
+	if (dwc_eth_qos_res_data.ptp_clk)
+		clk_prepare_enable(dwc_eth_qos_res_data.ptp_clk);
+#endif
+
 	pdata->clks_suspended = 0;
 	complete_all(&pdata->clk_enable_done);
 
@@ -959,6 +969,11 @@ void DWC_ETH_QOS_suspend_clks(struct DWC_ETH_QOS_prv_data *pdata)
 
 	if (dwc_eth_qos_res_data.rgmii_clk)
 		clk_disable_unprepare(dwc_eth_qos_res_data.rgmii_clk);
+
+#ifdef DWC_ETH_QOS_CONFIG_PTP
+	if (dwc_eth_qos_res_data.ptp_clk)
+		clk_disable_unprepare(dwc_eth_qos_res_data.ptp_clk);
+#endif
 
 	EMACDBG("Exit\n");
 }
@@ -2136,6 +2151,12 @@ static int DWC_ETH_QOS_init_module(void)
 		return ret;
 	}
 
+	ipc_emac_log_ctxt = ipc_log_context_create(IPCLOG_STATE_PAGES,"emac", 0);
+	if (!ipc_emac_log_ctxt)
+		pr_err("Error creating logging context for emac\n");
+	else
+		pr_info("IPC logging has been enabled for emac\n");
+
 #ifdef DWC_ETH_QOS_CONFIG_DEBUGFS
 	create_debug_files();
 #endif
@@ -2163,6 +2184,9 @@ static void __exit DWC_ETH_QOS_exit_module(void)
 #endif
 
 	platform_driver_unregister(&DWC_ETH_QOS_plat_drv);
+
+	if (ipc_emac_log_ctxt != NULL)
+		ipc_log_context_destroy(ipc_emac_log_ctxt);
 
 	DBGPR("<--DWC_ETH_QOS_exit_module\n");
 }

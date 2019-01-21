@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -604,32 +604,22 @@ handle_pkt:
 		pkt_info->first_packet = true;
 		flow_node_exists = true;
 
-		if (flow_node->num_pkts_held > 0) {
-			switch (pkt_info->trans_proto) {
-			case IPPROTO_TCP:
-				rmnet_perf_tcp_opt_ingress(perf, skb,
-							   flow_node,
-							   pkt_info,
-							   flush);
-				handled = true;
-				goto out;
-			case IPPROTO_UDP:
-				rmnet_perf_udp_opt_ingress(perf, skb,
-							   flow_node,
-							   pkt_info,
-							   flush);
-				handled = true;
-				goto out;
-			default:
-				pr_err("%s(): Unhandled protocol %u\n",
-				       __func__, pkt_info->trans_proto);
-				goto out;
-			}
+		switch (pkt_info->trans_proto) {
+		case IPPROTO_TCP:
+			rmnet_perf_tcp_opt_ingress(perf, skb, flow_node,
+						   pkt_info, flush);
+			handled = true;
+			goto out;
+		case IPPROTO_UDP:
+			rmnet_perf_udp_opt_ingress(perf, skb, flow_node,
+						   pkt_info, flush);
+			handled = true;
+			goto out;
+		default:
+			pr_err("%s(): Unhandled protocol %u\n",
+			       __func__, pkt_info->trans_proto);
+			goto out;
 		}
-		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node,
-						  pkt_info);
-		handled = true;
-		goto out;
 	}
 
 	/* If we didn't find the flow, we need to add it and try again */
