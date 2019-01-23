@@ -386,7 +386,8 @@ int rmnet_shs_new_flow_cpu(u64 burst_size, struct net_device *dev)
 
 	if (burst_size < RMNET_SHS_MAX_SILVER_CORE_BURST_CAPACITY)
 		flow_cpu = rmnet_shs_wq_get_lpwr_cpu_new_flow(dev);
-	else
+	if (flow_cpu == INVALID_CPU ||
+	    burst_size >= RMNET_SHS_MAX_SILVER_CORE_BURST_CAPACITY)
 		flow_cpu = rmnet_shs_wq_get_perf_cpu_new_flow(dev);
 
 	SHS_TRACE_HIGH(RMNET_SHS_ASSIGN,
@@ -1324,6 +1325,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 	unsigned long ht_flags;
 	int new_cpu;
 	int map_cpu;
+	int map_index;
 	u64 brate = 0;
 	u32 cpu_map_index, hash;
 	u8 is_match_found = 0;
@@ -1358,22 +1360,33 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 			if (skb->hash != node_p->hash)
 				continue;
 
+			rcu_read_lock();
 			/* Return saved cpu assignment if an entry found*/
 			if ((node_p->map_index >= map->len) ||
-			    ((!node_p->hstats) &&
-			     (node_p->hstats->rps_config_msk !=
-				 rmnet_shs_wq_get_dev_rps_msk(dev)))) {
+			map->cpus[node_p->map_index] != node_p->map_cpu) {
 
-				map_cpu = rmnet_shs_new_flow_cpu(brate, dev);
-				node_p->map_cpu = map_cpu;
-				node_p->map_index =
-				rmnet_shs_map_idx_from_cpu(map_cpu, map);
+				/* Keep flow on the same core if possible
+				 * or put Orphaned flow on the default 1st core
+				 */
+				map_index = rmnet_shs_map_idx_from_cpu(node_p->map_cpu,
+								       map);
+				if (map_index >= 0) {
+					node_p->map_index = map_index;
+					node_p->map_cpu = map_cpu;;
+				} else {
+					/*Put on default Core if no match*/
+					node_p->map_index = MAIN_CORE;
+					node_p->map_cpu = map->cpus[MAIN_CORE];
+
+				}
+				rmnet_shs_crit_err[RMNET_SHS_RPS_MASK_CHANGE]++;
 
 				SHS_TRACE_ERR(RMNET_SHS_ASSIGN,
 						    RMNET_SHS_ASSIGN_MASK_CHNG,
 						    0xDEF, 0xDEF, 0xDEF, 0xDEF,
 						    NULL, NULL);
 			}
+			rcu_read_unlock();
 
 			SHS_TRACE_LOW(RMNET_SHS_ASSIGN,
 				RMNET_SHS_ASSIGN_MATCH_FLOW_COMPLETE,

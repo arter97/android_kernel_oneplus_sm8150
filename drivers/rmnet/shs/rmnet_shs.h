@@ -33,6 +33,8 @@
 #define MAX_SILVER_CORES 4
 #define MAX_CPUS  8
 
+/* RPS mask change's Default core for orphaned CPU flows */
+#define MAIN_CORE 0
 //#define RMNET_SHS_MAX_UDP_SILVER_CORE_DATA_RATE 1073741824 //1.0Gbps
 //#define RMNET_SHS_MAX_UDP_SILVER_CORE_DATA_RATE 320787200 //320 Mbps
 //#define RMNET_SHS_MAX_UDP_GOLD_CORE_DATA_RATE 3650722201 //3.4 Gbps
