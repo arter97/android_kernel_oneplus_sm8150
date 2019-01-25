@@ -98,6 +98,11 @@ unsigned long int rmnet_perf_flush_shs = 0;
 module_param(rmnet_perf_flush_shs, ulong, 0644);
 MODULE_PARM_DESC(rmnet_perf_flush_shs, "rmnet_perf_flush_shs");
 
+unsigned long int rmnet_perf_frag_flush = 0;
+module_param(rmnet_perf_frag_flush, ulong, 0444);
+MODULE_PARM_DESC(rmnet_perf_frag_flush,
+		 "Number of packet fragments flushed to stack");
+
 #define SHS_FLUSH 0
 
 /* rmnet_perf_core_free_held_skbs() - Free held SKBs given to us by physical
@@ -367,8 +372,8 @@ void rmnet_perf_core_send_skb(struct sk_buff *skb, struct rmnet_endpoint *ep,
 		rmnet_set_skb_proto(skb);
 		/* If the checksum is unnecessary, update the header fields.
 		 * Otherwise, we know that this is a single packet that
-		 * failed checksum validation, so we don't want to touch
-		 * the headers.
+		 * either failed checksum validation, or is not coalescable
+		 * (fragment, ICMP, etc), so don't touch the headers.
 		 */
 		if (skb_csum_unnecessary(skb)) {
 			ip4hn->tot_len = htons(skb->len);
@@ -405,7 +410,8 @@ void rmnet_perf_core_send_skb(struct sk_buff *skb, struct rmnet_endpoint *ep,
 void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 				    struct sk_buff *skb,
 				    struct rmnet_perf_pkt_info *pkt_info,
-				    u16 packet_len, bool flush_shs)
+				    u16 packet_len, bool flush_shs,
+				    bool skip_hash)
 {
 	struct sk_buff *skbn;
 	struct rmnet_endpoint *ep = pkt_info->ep;
@@ -429,8 +435,13 @@ void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 	if (pkt_info->csum_valid)
 		skbn->ip_summed = CHECKSUM_UNNECESSARY;
 	skbn->dev = skb->dev;
-	skbn->hash = pkt_info->hash_key;
-	skbn->sw_hash = 1;
+
+	/* Only set hash info if we actually calculated it */
+	if (!skip_hash) {
+		skbn->hash = pkt_info->hash_key;
+		skbn->sw_hash = 1;
+	}
+
 	skbn->cb[SHS_FLUSH] = (char) flush_shs;
 	rmnet_perf_core_send_skb(skbn, ep, perf, pkt_info);
 }
@@ -508,7 +519,9 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 				 (skb->data + sizeof(struct rmnet_map_header));
 	struct rmnet_perf *perf = rmnet_perf_config_get_perf();
 	u16 pkt_len;
+	bool skip_hash = false;
 
+	pkt_len = frame_len - sizeof(struct rmnet_map_header) - trailer_len;
 	pkt_info->ep = ep;
 	pkt_info->ip_proto = (*payload & 0xF0) >> 4;
 	if (pkt_info->ip_proto == 4) {
@@ -517,17 +530,23 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->iphdr.v4hdr = iph;
 		pkt_info->trans_proto = iph->protocol;
 		pkt_info->header_len = iph->ihl * 4;
+		skip_hash = !!(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET));
 	} else if (pkt_info->ip_proto == 6) {
 		struct ipv6hdr *iph = (struct ipv6hdr *)payload;
 
 		pkt_info->iphdr.v6hdr = iph;
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
+		skip_hash = iph->nexthdr == NEXTHDR_FRAGMENT;
 	} else {
 		return;
 	}
 
-	pkt_len = frame_len - sizeof(struct rmnet_map_header) - trailer_len;
+	/* Push out fragments immediately */
+	if (skip_hash) {
+		rmnet_perf_frag_flush++;
+		goto flush;
+	}
 
 	if (pkt_info->trans_proto == IPPROTO_TCP) {
 		struct tcphdr *tp = (struct tcphdr *)
@@ -561,9 +580,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 			goto flush;
 	} else {
 		pkt_info->payload_len = pkt_len - pkt_info->header_len;
-		pkt_info->hash_key =
-			rmnet_perf_core_compute_flow_hash(pkt_info);
-
+		skip_hash = true;
 		/* We flush anyway, so the result of the validation
 		 * does not need to be checked.
 		 */
@@ -574,7 +591,8 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	return;
 
 flush:
-	rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info, pkt_len, false);
+	rmnet_perf_core_flush_curr_pkt(perf, skb, pkt_info, pkt_len, false,
+				       skip_hash);
 }
 
 /* rmnet_perf_core_deaggregate() - Deaggregated ip packets from map frame
