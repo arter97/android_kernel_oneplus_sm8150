@@ -16,6 +16,8 @@
 #include <net/sock.h>
 #include <linux/netlink.h>
 #include <linux/ip.h>
+#include <net/ip.h>
+
 #include <linux/ipv6.h>
 #include <linux/netdevice.h>
 #include <linux/percpu-defs.h>
@@ -141,17 +143,20 @@ int rmnet_shs_is_skb_stamping_reqd(struct sk_buff *skb)
 {
 	int ret_val = 0;
 
+	/* SHS will ignore ICMP and frag pkts completely */
 	switch (skb->protocol) {
 	case htons(ETH_P_IP):
-		if ((ip_hdr(skb)->protocol == IPPROTO_TCP) ||
-		    (ip_hdr(skb)->protocol == IPPROTO_UDP))
+		if (!ip_is_fragment(ip_hdr(skb)) &&
+		    ((ip_hdr(skb)->protocol == IPPROTO_TCP) ||
+		     (ip_hdr(skb)->protocol == IPPROTO_UDP)))
 			ret_val =  1;
 
 		break;
 
 	case htons(ETH_P_IPV6):
-		if ((ipv6_hdr(skb)->nexthdr == IPPROTO_TCP) ||
-		    (ipv6_hdr(skb)->nexthdr == IPPROTO_UDP))
+		if (!(ipv6_hdr(skb)->nexthdr == NEXTHDR_FRAGMENT) &&
+		    ((ipv6_hdr(skb)->nexthdr == IPPROTO_TCP) ||
+		     (ipv6_hdr(skb)->nexthdr == IPPROTO_UDP)))
 			ret_val =  1;
 
 		break;
