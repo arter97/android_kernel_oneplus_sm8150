@@ -1377,7 +1377,8 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 								       map);
 				if (map_index >= 0) {
 					node_p->map_index = map_index;
-					node_p->map_cpu = map_cpu;;
+					node_p->map_cpu = map->cpus[map_index];
+
 				} else {
 					/*Put on default Core if no match*/
 					node_p->map_index = MAIN_CORE;
