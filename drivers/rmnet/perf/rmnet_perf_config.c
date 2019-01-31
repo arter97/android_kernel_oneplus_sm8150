@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -159,7 +159,8 @@ static int rmnet_perf_config_allocate_resources(struct rmnet_perf **perf)
 
 	int total_size = perf_size + opt_meta_size + flow_node_pool_size +
 			(flow_node_size * RMNET_PERF_NUM_FLOW_NODES) +
-			core_meta_size + skb_list_size + skb_buff_pool_size;
+			core_meta_size + skb_list_size + skb_buff_pool_size
+			+ bm_state_size;
 
 	/* allocate all the memory in one chunk for cache coherency sake */
 	buffer_head = kmalloc(total_size, GFP_KERNEL);

@@ -49,7 +49,7 @@ struct rmnet_shs_cpu_node_s rmnet_shs_cpu_node_tbl[MAX_CPUS];
 struct rmnet_shs_cfg_s rmnet_shs_cfg;
 /* This flag is set to true after a successful SHS module init*/
 
-struct rmnet_shs_flush_work shs_delayed_work;
+struct rmnet_shs_flush_work shs_rx_work;
 /* Delayed workqueue that will be used to flush parked packets*/
 unsigned long int rmnet_shs_switch_reason[RMNET_SHS_SWITCH_MAX_REASON];
 module_param_array(rmnet_shs_switch_reason, ulong, 0, 0444);
@@ -95,7 +95,6 @@ MODULE_PARM_DESC(rmnet_shs_inst_rate_max_pkts,
 unsigned int rmnet_shs_timeout __read_mostly = 6;
 module_param(rmnet_shs_timeout, uint, 0644);
 MODULE_PARM_DESC(rmnet_shs_timeout, "Option to configure fall back duration");
-
 
 unsigned int rmnet_shs_switch_cores __read_mostly = 1;
 module_param(rmnet_shs_switch_cores, uint, 0644);
@@ -420,7 +419,6 @@ int rmnet_shs_get_hash_map_idx_to_stamp(struct rmnet_shs_skbn_s *node_p)
 
 	cpu = rmnet_shs_get_suggested_cpu(node_p);
 
-
 	map = rcu_dereference(node_p->dev->_rx->rps_map);
 	if (!node_p->dev || !node_p->dev->_rx || !map)
 		return idx;
@@ -553,7 +551,6 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 			break;
 		}
 
-
 		/* If the flow is going to the same core itself
 		 */
 		if (cpu_map_index == node->map_index) {
@@ -565,7 +562,6 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 		node_qhead = node->queue_head;
 		cpu_num = node->map_cpu;
 		if ((cur_cpu_qhead >= node_qhead) ||
-		    (node->skb_tport_proto == IPPROTO_TCP) ||
 		    (force_flush)) {
 			if (rmnet_shs_switch_cores) {
 
@@ -581,6 +577,12 @@ int rmnet_shs_node_can_flush_pkts(struct rmnet_shs_skbn_s *node, u8 force_flush)
 				node->map_cpu = map->cpus[cpu_map_index];
 				ccpu = node->map_cpu;
 
+				if (cur_cpu_qhead < node_qhead) {
+					rmnet_shs_switch_reason[RMNET_SHS_OOO_PACKET_SWITCH]++;
+					rmnet_shs_switch_reason[RMNET_SHS_OOO_PACKET_TOTAL]+=
+							(node_qhead -
+							cur_cpu_qhead);
+				}
 				/* Mark gold core as prio to prevent
 				 * flows from moving in wq
 				 */
@@ -979,7 +981,6 @@ void rmnet_shs_flush_lock_table(u8 flsh, u8 ctxt)
 						rmnet_shs_get_cpu_qdiff(cpu_num);
 		}
 
-
 	rmnet_shs_cfg.num_bytes_parked -= total_bytes_flush;
 	rmnet_shs_cfg.num_pkts_parked -= total_pkts_flush;
 
@@ -1004,7 +1005,6 @@ void rmnet_shs_flush_lock_table(u8 flsh, u8 ctxt)
 	}
 
 }
-
 
 /* After we have decided to handle the incoming skb we park them in order
  * per flow
@@ -1041,7 +1041,7 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 		 * Flush before parking PSH packet.
 		 */
 		if (skb->cb[SKB_FLUSH]){
-				rmnet_shs_flush_lock_table(1, RMNET_RX_CTXT);
+				rmnet_shs_flush_lock_table(0, RMNET_RX_CTXT);
 				rmnet_shs_flush_reason[RMNET_SHS_FLUSH_PSH_PKT_FLUSH]++;
 
 				napi_gro_flush(napi, false);
@@ -1053,7 +1053,7 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 		 */
 		node->num_skb += ((skb->len / 4000) + 1);
 		rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
-		node->skb_list.skb_load++;
+		node->skb_list.skb_load += ((skb->len / 4000) + 1);
 
 	}
 
@@ -1070,14 +1070,13 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 		node->skb_list.tail = skb;
 	}
 
-
 	/* skb_list.num_parked_skbs Number of packets are parked for this flow
 	 */
 	node->skb_list.num_parked_skbs += 1;
 	rmnet_shs_cfg.num_pkts_parked  += 1;
 
 	if (unlikely(pushflush)) {
-		rmnet_shs_flush_lock_table(1, RMNET_RX_CTXT);
+		rmnet_shs_flush_lock_table(0, RMNET_RX_CTXT);
 		napi_gro_flush(napi, false);
 
 	}
@@ -1151,7 +1150,7 @@ enum hrtimer_restart rmnet_shs_map_flush_queue(struct hrtimer *t)
 					     RMNET_SHS_FLUSH_DELAY_WQ_TRIGGER,
 					     rmnet_shs_cfg.force_flush_state,
 					     0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-			schedule_work((struct work_struct *)&shs_delayed_work);
+			schedule_work((struct work_struct *)&shs_rx_work);
 		}
 	}
 	return ret;
@@ -1168,10 +1167,11 @@ enum hrtimer_restart rmnet_shs_queue_core(struct hrtimer *t)
 	return ret;
 }
 
-void rmnet_shs_aggregate_init(void)
+void rmnet_shs_rx_wq_init(void)
 {
 	int i;
 
+	/* Initialize a timer/work for each core for switching */
 	for (i = 0; i < MAX_CPUS; i++) {
 		rmnet_shs_cfg.core_flush[i].core = i;
 		INIT_WORK(&rmnet_shs_cfg.core_flush[i].work,
@@ -1182,10 +1182,21 @@ void rmnet_shs_aggregate_init(void)
 		rmnet_shs_cfg.core_flush[i].core_timer.function =
 							rmnet_shs_queue_core;
 	}
-	       hrtimer_init(&rmnet_shs_cfg.hrtimer_shs,
-			    CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	       rmnet_shs_cfg.hrtimer_shs.function = rmnet_shs_map_flush_queue;
-	       INIT_WORK(&shs_delayed_work.work, rmnet_flush_buffered);
+	/* Initialize a fallback/failsafe work for when dl ind fails */
+	hrtimer_init(&rmnet_shs_cfg.hrtimer_shs,
+		     CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	rmnet_shs_cfg.hrtimer_shs.function = rmnet_shs_map_flush_queue;
+	INIT_WORK(&shs_rx_work.work, rmnet_flush_buffered);
+}
+
+void rmnet_shs_rx_wq_exit(void)
+{
+	int i;
+
+	for (i = 0; i < MAX_CPUS; i++)
+		cancel_work_sync(&rmnet_shs_cfg.core_flush[i].work);
+
+	cancel_work_sync(&shs_rx_work.work);
 }
 
 void rmnet_shs_ps_on_hdlr(void *port)
@@ -1330,7 +1341,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		SHS_TRACE_ERR(RMNET_SHS_ASSIGN,
 				    RMNET_SHS_ASSIGN_CRIT_ERROR_NO_SHS_REQD,
 				    0xDEF, 0xDEF, 0xDEF, 0xDEF, NULL, NULL);
-		rmnet_shs_crit_err[RMNET_SHS_MAIN_SHS_NOT_REQD]++;
+		rmnet_shs_crit_err[RMNET_SHS_MAIN_SHS_RPS_INIT_ERR]++;
 		return;
 	}
 
@@ -1439,7 +1450,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 					  &rmnet_shs_cfg.rmnet_idl_ind_cb);
 
 		rmnet_shs_cfg.is_reg_dl_mrk_ind = 1;
-		shs_delayed_work.port = port;
+		shs_rx_work.port = port;
 
 	}
 	/* We got the first packet after a previous successdul flush. Arm the

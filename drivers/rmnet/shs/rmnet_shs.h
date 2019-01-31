@@ -132,6 +132,8 @@ enum rmnet_shs_tmr_force_flush_state_e {
 enum rmnet_shs_switch_reason_e {
 	RMNET_SHS_SWITCH_INSTANT_RATE,
 	RMNET_SHS_SWITCH_WQ_RATE,
+	RMNET_SHS_OOO_PACKET_SWITCH,
+	RMNET_SHS_OOO_PACKET_TOTAL,
 	RMNET_SHS_SWITCH_MAX_REASON
 };
 
@@ -274,7 +276,8 @@ extern int (*rmnet_shs_skb_entry)(struct sk_buff *skb,
 				  struct rmnet_port *port);
 int rmnet_shs_is_lpwr_cpu(u16 cpu);
 void rmnet_shs_cancel_table(void);
-void rmnet_shs_aggregate_init(void);
+void rmnet_shs_rx_wq_init(void);
+void rmnet_shs_rx_wq_exit(void);
 
 int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
 				 u8 force_flush, u8 ctxt);

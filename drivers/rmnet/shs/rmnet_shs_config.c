@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -68,6 +68,7 @@ void __exit rmnet_shs_module_exit(void)
 
 	if (rmnet_shs_cfg.rmnet_shs_init_complete) {
 		rmnet_shs_cancel_table();
+		rmnet_shs_rx_wq_exit();
 		rmnet_shs_wq_exit();
 		rmnet_shs_exit();
 	}
@@ -105,6 +106,7 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 		    rmnet_shs_cfg.rmnet_shs_init_complete) {
 			RCU_INIT_POINTER(rmnet_shs_skb_entry, NULL);
 			rmnet_shs_cancel_table();
+			rmnet_shs_rx_wq_exit();
 			rmnet_shs_wq_exit();
 			rmnet_shs_exit();
 			trace_rmnet_shs_high(RMNET_SHS_MODULE,
@@ -131,7 +133,7 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 			if (phy_dev && !rmnet_shs_cfg.rmnet_shs_init_complete) {
 				rmnet_shs_init(phy_dev);
 				rmnet_shs_wq_init(phy_dev);
-				rmnet_shs_aggregate_init();
+				rmnet_shs_rx_wq_init();
 				rmnet_shs_cfg.is_timer_init = 1;
 				rmnet_shs_cfg.dl_mrk_ind_cb.priority =
 				   RMNET_SHS;
