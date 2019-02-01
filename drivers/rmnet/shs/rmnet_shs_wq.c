@@ -682,16 +682,20 @@ void rmnet_shs_wq_update_cpu_rx_tbl(struct rmnet_shs_wq_hstat_s *hstat_p)
 	if (hstat_p->inactive_duration > 0)
 		return;
 
+	rcu_read_lock();
 	map = rcu_dereference(node_p->dev->_rx->rps_map);
 
-	if (!map)
+	if (!map || node_p->map_index > map->len || !map->len) {
+		rcu_read_unlock();
 		return;
+	}
 
 	map_idx = node_p->map_index;
 	cpu_num = map->cpus[map_idx];
 
 	skb_diff = hstat_p->rx_skb - hstat_p->last_rx_skb;
 	byte_diff = hstat_p->rx_bytes - hstat_p->last_rx_bytes;
+	rcu_read_unlock();
 
 	if (hstat_p->is_new_flow) {
 		rmnet_shs_wq_cpu_list_add(hstat_p,
@@ -1230,14 +1234,14 @@ void rmnet_shs_wq_update_ep_rps_msk(struct rmnet_shs_wq_ep_s *ep)
 		rmnet_shs_crit_err[RMNET_SHS_WQ_EP_ACCESS_ERR]++;
 		return;
 	}
-
+	rcu_read_lock();
 	map = rcu_dereference(ep->ep->egress_dev->_rx->rps_map);
 	ep->rps_config_msk = 0;
 	if (map != NULL) {
 		for (len = 0; len < map->len; len++)
 			ep->rps_config_msk |= (1 << map->cpus[len]);
 	}
-
+	rcu_read_unlock();
 	ep->default_core_msk = ep->rps_config_msk & 0x0F;
 	ep->pri_core_msk = ep->rps_config_msk & 0xF0;
 }
@@ -1284,6 +1288,26 @@ void rmnet_shs_wq_refresh_ep_masks(void)
 		rmnet_shs_wq_update_ep_rps_msk(ep);
 	}
 }
+
+void rmnet_shs_update_cfg_mask(void)
+{
+	/* Start with most avaible mask all eps could share*/
+	u8 mask = UPDATE_MASK;
+	struct rmnet_shs_wq_ep_s *ep;
+
+	list_for_each_entry(ep, &rmnet_shs_wq_ep_tbl, ep_list_id) {
+
+		if (!ep->is_ep_active)
+			continue;
+		/* Bitwise and to get common mask  VNDs with different mask
+		 * will have UNDEFINED behavior
+		 */
+		mask &= ep->rps_config_msk;
+	}
+	rmnet_shs_cfg.map_mask = mask;
+	rmnet_shs_cfg.map_len = rmnet_shs_get_mask_len(mask);
+}
+
 static void rmnet_shs_wq_update_stats(void)
 {
 	struct timespec time;
@@ -1292,6 +1316,7 @@ static void rmnet_shs_wq_update_stats(void)
 	(void) getnstimeofday(&time);
 	rmnet_shs_wq_tnsec = RMNET_SHS_SEC_TO_NSEC(time.tv_sec) + time.tv_nsec;
 	rmnet_shs_wq_refresh_ep_masks();
+	rmnet_shs_update_cfg_mask();
 
 	list_for_each_entry(hnode, &rmnet_shs_wq_hstat_tbl, hstat_node_id) {
 		if (!hnode)

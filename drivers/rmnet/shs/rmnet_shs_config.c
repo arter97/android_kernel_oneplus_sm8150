@@ -131,7 +131,7 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 			 */
 
 			if (phy_dev && !rmnet_shs_cfg.rmnet_shs_init_complete) {
-				rmnet_shs_init(phy_dev);
+				rmnet_shs_init(phy_dev, dev);
 				rmnet_shs_wq_init(phy_dev);
 				rmnet_shs_rx_wq_init();
 				rmnet_shs_cfg.is_timer_init = 1;
