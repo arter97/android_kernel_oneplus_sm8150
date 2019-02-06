@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -305,7 +305,7 @@ void rmnet_shs_wq_hstat_alloc_nodes(u8 num_nodes_to_allocate, u8 is_store_perm)
 	struct rmnet_shs_wq_hstat_s *hnode = NULL;
 
 	while (num_nodes_to_allocate > 0) {
-		hnode = kzalloc(sizeof(*hnode), 0);
+		hnode = kzalloc(sizeof(*hnode), GFP_ATOMIC);
 		if (hnode) {
 			hnode->is_perm = is_store_perm;
 			rmnet_shs_wq_hstat_reset_node(hnode);
@@ -357,7 +357,8 @@ struct rmnet_shs_wq_hstat_s *rmnet_shs_wq_get_new_hstat_node(void)
 	 * However, this newly allocated memory will be released as soon as we
 	 * realize that this flow is inactive
 	 */
-	ret_node = kzalloc(sizeof(*hnode), 0);
+	ret_node = kzalloc(sizeof(*hnode), GFP_ATOMIC);
+
 	if (!ret_node) {
 		rmnet_shs_crit_err[RMNET_SHS_WQ_ALLOC_HSTAT_ERR]++;
 		return NULL;
@@ -1386,7 +1387,7 @@ void rmnet_shs_wq_gather_rmnet_ep(struct net_device *dev)
 		trace_rmnet_shs_wq_high(RMNET_SHS_WQ_EP_TBL,
 					RMNET_SHS_WQ_EP_TBL_INIT,
 					0xDEF, 0xDEF, 0xDEF, 0xDEF, ep, NULL);
-		ep_wq = kzalloc(sizeof(*ep_wq), 0);
+		ep_wq = kzalloc(sizeof(*ep_wq), GFP_ATOMIC);
 		if (!ep_wq) {
 			rmnet_shs_crit_err[RMNET_SHS_WQ_ALLOC_EP_TBL_ERR]++;
 			return;
@@ -1446,7 +1447,7 @@ void rmnet_shs_wq_init(struct net_device *dev)
 	}
 
 	rmnet_shs_delayed_wq = kmalloc(sizeof(struct rmnet_shs_delay_wq_s),
-						GFP_ATOMIC);
+				       GFP_ATOMIC);
 
 	if (!rmnet_shs_delayed_wq) {
 		rmnet_shs_crit_err[RMNET_SHS_WQ_ALLOC_DEL_WQ_ERR]++;

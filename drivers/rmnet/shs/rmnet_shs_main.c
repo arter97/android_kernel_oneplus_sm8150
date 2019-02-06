@@ -1415,7 +1415,7 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 		if (new_cpu < 0)
 			break;
 
-		node_p = kzalloc(sizeof(*node_p), 0);
+		node_p = kzalloc(sizeof(*node_p), GFP_ATOMIC);
 
 		if (!node_p) {
 			rmnet_shs_crit_err[RMNET_SHS_MAIN_MALLOC_ERR]++;
