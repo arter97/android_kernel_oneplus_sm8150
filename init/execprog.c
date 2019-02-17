@@ -95,14 +95,21 @@ static void execprog_worker(struct work_struct *work)
 	filp_close(file, NULL);
 	vfree(data);
 
-	/*
-	 * Wait for RCU grace period to end for the file to close properly.
-	 * call_usermodehelper() will return -ETXTBUSY without this barrier.
-	 */
-	rcu_barrier();
+	do {
+		/*
+		 * Wait for RCU grace period to end for the file to close properly.
+		 * call_usermodehelper() will return -ETXTBSY without this barrier.
+		 */
+		rcu_barrier();
+		msleep(10);
 
-	pr_info("executing %s\n", argv[0]);
-	call_usermodehelper(argv[0], argv, NULL, UMH_WAIT_EXEC);
+		ret = call_usermodehelper(argv[0], argv, NULL, UMH_WAIT_EXEC);
+	} while (ret == -ETXTBSY);
+
+	if (ret)
+		pr_err("execution failed with return code: %d\n", ret);
+	else
+		pr_info("execution finished\n");
 }
 
 static int __init execprog_init(void)
