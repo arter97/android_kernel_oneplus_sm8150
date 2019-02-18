@@ -119,7 +119,8 @@ void rmnet_perf_core_send_skb(struct sk_buff *skb, struct rmnet_endpoint *ep,
 void rmnet_perf_core_flush_curr_pkt(struct rmnet_perf *perf,
 				    struct sk_buff *skb,
 				    struct rmnet_perf_pkt_info *pkt_info,
-				    u16 packet_len, bool flush_shs);
+				    u16 packet_len, bool flush_shs,
+				    bool skip_hash);
 void rmnet_perf_core_deaggregate(struct sk_buff *skb,
 				struct rmnet_port *port);
 u32 rmnet_perf_core_compute_flow_hash(struct rmnet_perf_pkt_info *pkt_info);

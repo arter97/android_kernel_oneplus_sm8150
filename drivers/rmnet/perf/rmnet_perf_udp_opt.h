@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -28,6 +28,7 @@ enum rmnet_perf_udp_opt_merge_check_rc {
 enum rmnet_perf_udp_opt_flush_reasons {
 	RMNET_PERF_UDP_OPT_FLAG_MISMATCH,
 	RMNET_PERF_UDP_OPT_LENGTH_MISMATCH,
+	RMNET_PERF_UDP_OPT_V4_OOO,
 	RMNET_PERF_UDP_OPT_64K_LIMIT,
 	RMNET_PERF_UDP_OPT_NO_SPACE_IN_NODE,
 	RMNET_PERF_UDP_OPT_NUM_CONDITIONS

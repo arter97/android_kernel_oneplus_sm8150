@@ -319,6 +319,8 @@ static struct sk_buff *make_flow_skb(struct rmnet_perf *perf,
 				return NULL;
 		}
 	}
+
+	skb_reserve(skbn, RMNET_MAP_DEAGGR_HEADROOM);
 	pkt_list = flow_node->pkt_list;
 
 	for (i = 0; i < flow_node->num_pkts_held; i++) {
@@ -536,11 +538,12 @@ void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 			flow_node->gso_len = payload_len;
 
 		if (ip_version == 0x04) {
-			flow_node->saddr.saddr4 =
-				(__be32) ((struct iphdr *) iph)->saddr;
-			flow_node->daddr.daddr4 =
-				(__be32) ((struct iphdr *) iph)->daddr;
-			flow_node->protocol = ((struct iphdr *) iph)->protocol;
+			struct iphdr *ip4h = iph;
+
+			flow_node->saddr.saddr4 = (__be32)ip4h->saddr;
+			flow_node->daddr.daddr4 = (__be32)ip4h->daddr;
+			flow_node->protocol = ip4h->protocol;
+			flow_node->ip_id = ntohs(ip4h->id);
 		} else if (ip_version == 0x06) {
 			flow_node->saddr.saddr6 =
 				((struct ipv6hdr *) iph)->saddr;
