@@ -564,7 +564,7 @@ lim_send_sme_join_reassoc_rsp(tpAniSirGlobal mac_ctx, uint16_t msg_type,
 #endif
 		lim_handle_join_rsp_status(mac_ctx, session_entry, result_code,
 			sme_join_rsp);
-
+		sme_join_rsp->uapsd_mask = session_entry->gUapsdPerAcBitmask;
 		/* Send supported NSS 1x1 to SME */
 		sme_join_rsp->supported_nss_1x1 =
 			session_entry->supported_nss_1x1;
@@ -1347,9 +1347,8 @@ lim_send_sme_deauth_ntf(tpAniSirGlobal pMac, tSirMacAddr peerMacAddr,
 	}
 
 	/*Delete the PE session  created */
-	if (psessionEntry != NULL) {
+	if (psessionEntry && LIM_IS_STA_ROLE(psessionEntry))
 		pe_delete_session(pMac, psessionEntry);
-	}
 
 	lim_send_sme_disassoc_deauth_ntf(pMac, QDF_STATUS_SUCCESS,
 					 (uint32_t *) pMsg);
