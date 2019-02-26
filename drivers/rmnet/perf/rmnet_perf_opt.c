@@ -196,7 +196,8 @@ static bool ip_flag_flush(struct rmnet_perf_opt_flow_node *flow_node,
 		if ((ip4h->ttl ^ flow_node->ip_flags.ip4_flags.ip_ttl) ||
 		    (ip4h->tos ^ flow_node->ip_flags.ip4_flags.ip_tos) ||
 		    (ip4h->frag_off ^
-		     flow_node->ip_flags.ip4_flags.ip_frag_off))
+		     flow_node->ip_flags.ip4_flags.ip_frag_off) ||
+		     ip4h->ihl > 5)
 			return true;
 
 		break;
