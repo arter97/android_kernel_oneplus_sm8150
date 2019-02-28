@@ -538,12 +538,11 @@ void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 			flow_node->gso_len = payload_len;
 
 		if (ip_version == 0x04) {
-			struct iphdr *ip4h = iph;
-
-			flow_node->saddr.saddr4 = (__be32)ip4h->saddr;
-			flow_node->daddr.daddr4 = (__be32)ip4h->daddr;
-			flow_node->protocol = ip4h->protocol;
-			flow_node->ip_id = ntohs(ip4h->id);
+			flow_node->saddr.saddr4 =
+				(__be32) ((struct iphdr *) iph)->saddr;
+			flow_node->daddr.daddr4 =
+				(__be32) ((struct iphdr *) iph)->daddr;
+			flow_node->protocol = ((struct iphdr *) iph)->protocol;
 		} else if (ip_version == 0x06) {
 			flow_node->saddr.saddr6 =
 				((struct ipv6hdr *) iph)->saddr;
