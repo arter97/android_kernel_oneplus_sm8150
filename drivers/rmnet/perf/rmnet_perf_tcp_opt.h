@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -34,6 +34,7 @@ enum rmnet_perf_tcp_opt_flush_reasons {
 	RMNET_PERF_TCP_OPT_FLOW_NODE_SHORTAGE,
 	RMNET_PERF_TCP_OPT_OUT_OF_ORDER_SEQ,
 	RMNET_PERF_TCP_OPT_PACKET_CORRUPT_ERROR,
+	RMNET_PERF_TCP_OPT_LENGTH_MISMATCH,
 	RMNET_PERF_TCP_OPT_NUM_CONDITIONS
 };
 

@@ -138,6 +138,10 @@ rmnet_perf_tcp_opt_pkt_can_be_merged(struct sk_buff *skb,
 		rmnet_perf_tcp_opt_flush_reason_cnt[
 					RMNET_PERF_TCP_OPT_NO_SPACE_IN_NODE]++;
 		return RMNET_PERF_TCP_OPT_FLUSH_SOME;
+	} else if (flow_node->gso_len != payload_len) {
+		rmnet_perf_tcp_opt_flush_reason_cnt[
+					RMNET_PERF_TCP_OPT_LENGTH_MISMATCH]++;
+		return RMNET_PERF_TCP_OPT_FLUSH_SOME;
 	}
 	return RMNET_PERF_TCP_OPT_MERGE_SUCCESS;
 }
