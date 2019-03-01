@@ -45,7 +45,6 @@ struct rmnet_perf_opt_flow_node {
 	u32 len;
 	u32 hash_value;
 
-	u16 ip_id;
 	__be16	src_port;
 	__be16	dest_port;
 	union {
