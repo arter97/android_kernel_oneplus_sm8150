@@ -35,6 +35,8 @@
 
 /* RPS mask change's Default core for orphaned CPU flows */
 #define MAIN_CORE 0
+#define UPDATE_MASK 0xFF
+
 //#define RMNET_SHS_MAX_UDP_SILVER_CORE_DATA_RATE 1073741824 //1.0Gbps
 //#define RMNET_SHS_MAX_UDP_SILVER_CORE_DATA_RATE 320787200 //320 Mbps
 //#define RMNET_SHS_MAX_UDP_GOLD_CORE_DATA_RATE 3650722201 //3.4 Gbps
@@ -87,6 +89,9 @@ struct rmnet_shs_cfg_s {
 	u8 force_flush_state;
 	u8 rmnet_shs_init_complete;
 	u8 dl_ind_state;
+	u8 map_mask;
+	u8 map_len;
+
 };
 
 struct rmnet_shs_skb_list {
@@ -280,6 +285,7 @@ int rmnet_shs_is_lpwr_cpu(u16 cpu);
 void rmnet_shs_cancel_table(void);
 void rmnet_shs_rx_wq_init(void);
 void rmnet_shs_rx_wq_exit(void);
+int rmnet_shs_get_mask_len(u8 mask);
 
 int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
 				 u8 force_flush, u8 ctxt);
@@ -288,7 +294,7 @@ void rmnet_shs_dl_trl_handler(struct rmnet_map_dl_ind_trl *dltrl);
 void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port);
 void rmnet_shs_flush_table(u8 is_force_flush, u8 ctxt);
 void rmnet_shs_cpu_node_remove(struct rmnet_shs_skbn_s *node);
-void rmnet_shs_init(struct net_device *dev);
+void rmnet_shs_init(struct net_device *dev, struct net_device *vnd);
 void rmnet_shs_exit(void);
 void rmnet_shs_ps_on_hdlr(void *port);
 void rmnet_shs_ps_off_hdlr(void *port);
