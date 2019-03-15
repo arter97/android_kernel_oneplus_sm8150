@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <net/ip.h>
+#include <net/checksum.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_config.h>
 #include <../drivers/net/ethernet/qualcomm/rmnet/rmnet_map.h>
 #include "rmnet_perf_opt.h"
@@ -196,7 +197,8 @@ static bool ip_flag_flush(struct rmnet_perf_opt_flow_node *flow_node,
 		if ((ip4h->ttl ^ flow_node->ip_flags.ip4_flags.ip_ttl) ||
 		    (ip4h->tos ^ flow_node->ip_flags.ip4_flags.ip_tos) ||
 		    (ip4h->frag_off ^
-		     flow_node->ip_flags.ip4_flags.ip_frag_off))
+		     flow_node->ip_flags.ip4_flags.ip_frag_off) ||
+		     ip4h->ihl > 5)
 			return true;
 
 		break;
@@ -341,37 +343,77 @@ static void flow_skb_fixup(struct sk_buff *skb,
 			   struct rmnet_perf_opt_flow_node *flow_node)
 {
 	struct skb_shared_info *shinfo;
-
+	struct iphdr *iph = (struct iphdr *)skb->data;
+	struct tcphdr *tp;
+	struct udphdr *up;
+	__wsum pseudo;
+	u16 datagram_len, ip_len;
+	u16 proto;
+	bool ipv4 = (iph->version == 4);
 	skb->hash = flow_node->hash_value;
 	skb->sw_hash = 1;
 	/* We've already validated all data */
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 
-	/* UDP flows need to be segmented by the stack,
-	 * so pretend we ran through the GRO logic
+	/* Aggregated flows can be segmented by the stack
+	 * during forwarding/tethering scenarios, so pretend
+	 * we ran through the GRO logic to coalesce the packets
 	 */
-	if (flow_node->protocol == IPPROTO_UDP &&
-	    flow_node->num_pkts_held > 1) {
-		unsigned char *up;
-		struct iphdr *iph = (struct iphdr *)skb->data;
-		u16 datagram_len;
 
-		if (iph->version == 4)
-			up = ((unsigned char *)iph) + iph->ihl * 4;
-		else
-			up = ((unsigned char *)iph) + sizeof(struct ipv6hdr);
+	if (flow_node->num_pkts_held <= 1)
+		return;
 
-		datagram_len = flow_node->gso_len * flow_node->num_pkts_held;
-		datagram_len += sizeof(struct udphdr);
-		((struct udphdr *)up)->len = htons(datagram_len);
-		shinfo = skb_shinfo(skb);
-		shinfo->gso_size = flow_node->gso_len;
-		shinfo->gso_segs = flow_node->num_pkts_held;
-		shinfo->gso_type = SKB_GSO_UDP_L4;
-		skb->ip_summed = CHECKSUM_PARTIAL;
-		skb->csum_start = up - skb->head;
-		skb->csum_offset = offsetof(struct udphdr, check);
+	datagram_len = flow_node->gso_len * flow_node->num_pkts_held;
+
+	/* Update transport header fields to reflect new length.
+	 * Checksum is set to the pseudoheader checksum value
+	 * since we'll need to mark the SKB as CHECKSUM_PARTIAL.
+	 */
+	if (ipv4) {
+		ip_len = iph->ihl * 4;
+		pseudo = csum_partial(&iph->saddr,
+				      sizeof(iph->saddr) * 2, 0);
+		proto = iph->protocol;
+	} else {
+		struct ipv6hdr *ip6h = (struct ipv6hdr *)iph;
+
+		ip_len = sizeof(*ip6h);
+		pseudo = csum_partial(&ip6h->saddr,
+				      sizeof(ip6h->saddr) * 2, 0);
+		proto = ip6h->nexthdr;
 	}
+
+	pseudo = csum16_add(pseudo, htons(proto));
+	switch (proto) {
+	case IPPROTO_TCP:
+		tp = (struct tcphdr *)((char *)iph + ip_len);
+		datagram_len += tp->doff * 4;
+		pseudo = csum16_add(pseudo, htons(datagram_len));
+		tp->check = ~csum_fold(pseudo);
+		skb->csum_start = (unsigned char *) tp - skb->head;
+		skb->csum_offset = offsetof(struct tcphdr, check);
+		skb_shinfo(skb)->gso_type = (ipv4) ? SKB_GSO_TCPV4:
+					     SKB_GSO_TCPV6;
+		break;
+	case IPPROTO_UDP:
+		up = (struct udphdr *)((char *)iph + ip_len);
+		datagram_len += sizeof(*up);
+		up->len = htons(datagram_len);
+		pseudo = csum16_add(pseudo, up->len);
+		up->check = ~csum_fold(pseudo);
+		skb->csum_start = (unsigned char *)up - skb->head;
+		skb->csum_offset = offsetof(struct udphdr, check);
+		skb_shinfo(skb)->gso_type = SKB_GSO_UDP_L4;
+		break;
+	default:
+		return;
+	}
+
+	/* Update GSO metadata */
+	shinfo = skb_shinfo(skb);
+	shinfo->gso_size = flow_node->gso_len;
+	shinfo->gso_segs = flow_node->num_pkts_held;
+	skb->ip_summed = CHECKSUM_PARTIAL;
 }
 
 /* get_new_flow_index() - Pull flow node from node pool
@@ -531,19 +573,17 @@ void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 		flow_node->src_port = tp->source;
 		flow_node->dest_port = tp->dest;
 		flow_node->hash_value = pkt_info->hash_key;
+		flow_node->gso_len = payload_len;
 
 		if (pkt_info->trans_proto == IPPROTO_TCP)
 			flow_node->timestamp = pkt_info->curr_timestamp;
-		else if (pkt_info->trans_proto == IPPROTO_UDP)
-			flow_node->gso_len = payload_len;
 
 		if (ip_version == 0x04) {
-			struct iphdr *ip4h = iph;
-
-			flow_node->saddr.saddr4 = (__be32)ip4h->saddr;
-			flow_node->daddr.daddr4 = (__be32)ip4h->daddr;
-			flow_node->protocol = ip4h->protocol;
-			flow_node->ip_id = ntohs(ip4h->id);
+			flow_node->saddr.saddr4 =
+				(__be32) ((struct iphdr *) iph)->saddr;
+			flow_node->daddr.daddr4 =
+				(__be32) ((struct iphdr *) iph)->daddr;
+			flow_node->protocol = ((struct iphdr *) iph)->protocol;
 		} else if (ip_version == 0x06) {
 			flow_node->saddr.saddr6 =
 				((struct ipv6hdr *) iph)->saddr;
