@@ -152,7 +152,7 @@
 #define BQ27541_SUBCMD_CAL_MODE  0x0040
 #define BQ27541_SUBCMD_RESET     0x0041
 #define ZERO_DEGREE_CELSIUS_IN_TENTH_KELVIN   (-2731)
-#define BQ27541_INIT_DELAY   ((HZ)*1)
+#define BQ27541_INIT_DELAY_MS 1000
 #define SET_BQ_PARAM_DELAY_MS 6000
 
 
@@ -1144,7 +1144,7 @@ static int bq27541_temperature_thrshold_update(int temp)
 
 static void update_battery_soc_work(struct work_struct *work)
 {
-	int schedule_time, vbat, temp;
+	int vbat, temp;
 
 	if (is_usb_pluged() || get_dash_started()) {
 		schedule_delayed_work(
@@ -1167,12 +1167,12 @@ static void update_battery_soc_work(struct work_struct *work)
 	bq27541_set_allow_reading(false);
 	bq27541_temperature_thrshold_update(temp);
 	if (!bq27541_di->already_modify_smooth)
-		schedule_delayed_work(
-		&bq27541_di->modify_soc_smooth_parameter, 1000);
-	schedule_time =
-		vbat < 3600 ? LOW_BAT_SOC_UPDATE_MS : BATTERY_SOC_UPDATE_MS;
+		schedule_delayed_work(&bq27541_di->modify_soc_smooth_parameter,
+				msecs_to_jiffies(10000));
+
 	schedule_delayed_work(&bq27541_di->battery_soc_work,
-			msecs_to_jiffies(schedule_time));
+			msecs_to_jiffies(vbat < 3600 ?
+				LOW_BAT_SOC_UPDATE_MS : BATTERY_SOC_UPDATE_MS));
 }
 
 static bool bq27541_registered;
@@ -1330,7 +1330,7 @@ static void bq27541_hw_config(struct work_struct *work)
 	pr_info("Complete bq27541 configuration 0x%02X\n", flags);
 	schedule_delayed_work(
 		&di->modify_soc_smooth_parameter,
-		SET_BQ_PARAM_DELAY_MS);
+		msecs_to_jiffies(SET_BQ_PARAM_DELAY_MS * 10));
 }
 
 static int bq27541_read_i2c(u8 reg, int *rt_value, int b_single,
@@ -1968,8 +1968,8 @@ static int bq27541_battery_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&di->modify_soc_smooth_parameter,
 		bq_modify_soc_smooth_parameter);
 	INIT_DELAYED_WORK(&di->battery_soc_work, update_battery_soc_work);
-	schedule_delayed_work(&di->hw_config, BQ27541_INIT_DELAY);
-	schedule_delayed_work(&di->battery_soc_work, BATTERY_SOC_UPDATE_MS);
+	schedule_delayed_work(&di->hw_config, msecs_to_jiffies(BQ27541_INIT_DELAY_MS));
+	schedule_delayed_work(&di->battery_soc_work, msecs_to_jiffies(BATTERY_SOC_UPDATE_MS * 100));
 	retval = check_bat_present(di);
 	if( retval ) {
 		init_battery_exist_node();
