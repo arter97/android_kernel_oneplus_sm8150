@@ -356,6 +356,7 @@ struct sock {
 	atomic_t		sk_drops;
 	int			sk_rcvlowat;
 	struct sk_buff_head	sk_error_queue;
+	struct sk_buff		*sk_rx_skb_cache;
 	struct sk_buff_head	sk_receive_queue;
 	/*
 	 * The backlog queue is special, it is always used with
@@ -2320,6 +2321,15 @@ static inline void sock_tx_timestamp(const struct sock *sk, __u16 tsflags,
 static inline void sk_eat_skb(struct sock *sk, struct sk_buff *skb)
 {
 	__skb_unlink(skb, &sk->sk_receive_queue);
+	if (
+#ifdef CONFIG_RPS
+	    !static_key_false(&rps_needed) &&
+#endif
+	    !sk->sk_rx_skb_cache) {
+		sk->sk_rx_skb_cache = skb;
+		skb_orphan(skb);
+		return;
+	}
 	__kfree_skb(skb);
 }
 
