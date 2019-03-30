@@ -779,6 +779,7 @@ int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
 	/* Shoud stay int for error reporting*/
 	int map = rmnet_shs_cfg.map_mask;
 	int map_idx;
+	int new_cpu;
 
 	SHS_TRACE_HIGH(RMNET_SHS_FLUSH,
 			     RMNET_SHS_FLUSH_CHK_AND_FLUSH_NODE_START,
@@ -794,15 +795,18 @@ int rmnet_shs_chk_and_flush_node(struct rmnet_shs_skbn_s *node,
 							map);
 		if (map_idx >= 0) {
 			node->map_index = map_idx;
-			node->map_cpu = rmnet_shs_cpu_from_idx(map_idx, map);
-
+			new_cpu = rmnet_shs_cpu_from_idx(map_idx, map);
 		} else {
 			/*Put on default Core if no match*/
 			node->map_index = MAIN_CORE;
-			node->map_cpu = rmnet_shs_cpu_from_idx(MAIN_CORE, map);
-			if (node->map_cpu < 0)
-				node->map_cpu = MAIN_CORE;
+			new_cpu = rmnet_shs_cpu_from_idx(MAIN_CORE, map);
 		}
+
+		if (new_cpu < 0)
+			node->map_cpu = MAIN_CORE;
+		else
+			node->map_cpu = new_cpu;
+
 		force_flush = 1;
 		rmnet_shs_crit_err[RMNET_SHS_RPS_MASK_CHANGE]++;
 		SHS_TRACE_ERR(RMNET_SHS_ASSIGN,

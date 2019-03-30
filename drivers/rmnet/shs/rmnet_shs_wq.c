@@ -1315,6 +1315,7 @@ void rmnet_shs_update_cfg_mask(void)
 {
 	/* Start with most avaible mask all eps could share*/
 	u8 mask = UPDATE_MASK;
+	u8 active = 0;
 	struct rmnet_shs_wq_ep_s *ep;
 
 	list_for_each_entry(ep, &rmnet_shs_wq_ep_tbl, ep_list_id) {
@@ -1325,9 +1326,13 @@ void rmnet_shs_update_cfg_mask(void)
 		 * will have UNDEFINED behavior
 		 */
 		mask &= ep->rps_config_msk;
+		active = 1;
 	}
-	rmnet_shs_cfg.map_mask = mask;
-	rmnet_shs_cfg.map_len = rmnet_shs_get_mask_len(mask);
+	/* Only update if active VND changed mask */
+	if (active && mask != rmnet_shs_cfg.map_mask){
+		rmnet_shs_cfg.map_mask = mask;
+		rmnet_shs_cfg.map_len = rmnet_shs_get_mask_len(mask);
+	}
 }
 
 static void rmnet_shs_wq_update_stats(void)

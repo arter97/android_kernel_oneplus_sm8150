@@ -129,9 +129,9 @@ struct rmnet_shs_skbn_s {
 	/* n/w stack CPU pkt processing queue head */
 	u32 hash;
 	/*incoming hash*/
-	u16 map_index;
+	s16 map_index;
 	/* rps map index assigned*/
-	u16 map_cpu;
+	s16 map_cpu;
 	/* rps cpu for this flow*/
 	u16 skb_tport_proto;
 	/* Transport protocol associated with this flow*/
