@@ -2945,9 +2945,10 @@ int afe_send_spdif_ch_status_cfg(struct afe_param_id_spdif_ch_status_cfg
 	struct param_hdr_v3 param_hdr;
 	int ret = 0;
 
-	if (!ch_status_cfg)
+	if (!ch_status_cfg) {
 		pr_err("%s: Error, no configuration data\n", __func__);
-	return -EINVAL;
+		return -EINVAL;
+	}
 
 	memset(&param_hdr, 0, sizeof(param_hdr));
 	param_hdr.module_id = AFE_MODULE_AUDIO_DEV_INTERFACE;
@@ -7286,7 +7287,7 @@ int afe_set_lpass_clk_cfg(int index, struct afe_clk_set *cfg)
 
 	ret = afe_q6_interface_prepare();
 	if (ret != 0) {
-		pr_err("%s: Q6 interface prepare failed %d\n", __func__, ret);
+		pr_err_ratelimited("%s: Q6 interface prepare failed %d\n", __func__, ret);
 		return ret;
 	}
 
@@ -7307,7 +7308,7 @@ int afe_set_lpass_clk_cfg(int index, struct afe_clk_set *cfg)
 	ret = q6afe_svc_pack_and_set_param_in_band(index, param_hdr,
 						   (u8 *) cfg);
 	if (ret < 0)
-		pr_err("%s: AFE clk cfg failed with ret %d\n",
+		pr_err_ratelimited("%s: AFE clk cfg failed with ret %d\n",
 		       __func__, ret);
 
 	mutex_unlock(&this_afe.afe_cmd_lock);

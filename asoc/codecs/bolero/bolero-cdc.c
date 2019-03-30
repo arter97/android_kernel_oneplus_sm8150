@@ -452,12 +452,6 @@ int bolero_request_clock(struct device *dev, u16 macro_id,
 	}
 
 	mutex_lock(&priv->clk_lock);
-	if (!priv->dev_up && enable) {
-		dev_dbg_ratelimited(dev, "%s:SSR in progress, exit\n",
-				    __func__);
-		ret = -ENODEV;
-		goto err;
-	}
 
 	mclk_mux0_macro =  bolero_mclk_mux_tbl[macro_id][MCLK_MUX0];
 	switch (mclk_mux_id) {
@@ -465,7 +459,7 @@ int bolero_request_clock(struct device *dev, u16 macro_id,
 		ret = priv->macro_params[mclk_mux0_macro].mclk_fn(
 			priv->macro_params[mclk_mux0_macro].dev, enable);
 		if (ret < 0) {
-			dev_err(dev,
+			dev_err_ratelimited(dev,
 				"%s: MCLK_MUX0 %s failed for macro:%d, mclk_mux0_macro:%d\n",
 				__func__,
 				enable ? "enable" : "disable",
@@ -479,7 +473,7 @@ int bolero_request_clock(struct device *dev, u16 macro_id,
 			priv->macro_params[mclk_mux0_macro].dev,
 			true);
 		if (ret < 0) {
-			dev_err(dev,
+			dev_err_ratelimited(dev,
 				"%s: MCLK_MUX0 en failed for macro:%d mclk_mux0_macro:%d\n",
 				__func__, macro_id, mclk_mux0_macro);
 			/*
@@ -496,7 +490,7 @@ int bolero_request_clock(struct device *dev, u16 macro_id,
 		ret1 = priv->macro_params[mclk_mux1_macro].mclk_fn(
 			priv->macro_params[mclk_mux1_macro].dev, enable);
 		if (ret1 < 0)
-			dev_err(dev,
+			dev_err_ratelimited(dev,
 				"%s: MCLK_MUX1 %s failed for macro:%d, mclk_mux1_macro:%d\n",
 				__func__,
 				enable ? "enable" : "disable",
@@ -576,9 +570,6 @@ static int bolero_ssr_enable(struct device *dev, void *data)
 			BOLERO_MACRO_EVT_WAIT_VA_CLK_RESET, 0x0);
 
 	regcache_cache_only(priv->regmap, false);
-	mutex_lock(&priv->clk_lock);
-	priv->dev_up = true;
-	mutex_unlock(&priv->clk_lock);
 	/* call ssr event for supported macros */
 	for (macro_idx = START_MACRO; macro_idx < MAX_MACRO; macro_idx++) {
 		if (!priv->macro_params[macro_idx].event_handler)
@@ -586,6 +577,9 @@ static int bolero_ssr_enable(struct device *dev, void *data)
 		priv->macro_params[macro_idx].event_handler(priv->codec,
 			BOLERO_MACRO_EVT_SSR_UP, 0x0);
 	}
+	mutex_lock(&priv->clk_lock);
+	priv->dev_up = true;
+	mutex_unlock(&priv->clk_lock);
 	bolero_cdc_notifier_call(priv, BOLERO_WCD_EVT_SSR_UP);
 	return 0;
 }
@@ -859,6 +853,8 @@ static int bolero_probe(struct platform_device *pdev)
 	struct bolero_priv *priv;
 	u32 num_macros = 0;
 	int ret;
+	u32 slew_reg1 = 0, slew_reg2 = 0;
+	char __iomem *slew_io_base1 = NULL, *slew_io_base2 = NULL;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(struct bolero_priv),
 			    GFP_KERNEL);
@@ -903,6 +899,31 @@ static int bolero_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, priv);
 	mutex_init(&priv->io_lock);
 	mutex_init(&priv->clk_lock);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "slew_rate_reg1",
+				   &slew_reg1);
+	ret |= of_property_read_u32(pdev->dev.of_node, "slew_rate_reg2",
+				   &slew_reg2);
+
+	if (!ret) {
+		slew_io_base1 = devm_ioremap(&pdev->dev, slew_reg1, 0x4);
+		if (!slew_io_base1) {
+			dev_err(&pdev->dev, "%s: ioremap failed for slew reg 1\n",
+				__func__);
+			return -ENOMEM;
+		}
+
+		slew_io_base2 = devm_ioremap(&pdev->dev, slew_reg2, 0x4);
+		if (!slew_io_base2) {
+			dev_err(&pdev->dev, "%s: ioremap failed for slew reg 2\n",
+				__func__);
+			return -ENOMEM;
+		}
+
+		/* update slew rate for tx/rx swr interface */
+		iowrite32(0x3333, slew_io_base1);
+		iowrite32(0xF, slew_io_base2);
+	}
 	INIT_WORK(&priv->bolero_add_child_devices_work,
 		  bolero_add_child_devices);
 	schedule_work(&priv->bolero_add_child_devices_work);
