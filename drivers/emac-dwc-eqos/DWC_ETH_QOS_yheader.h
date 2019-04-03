@@ -125,7 +125,9 @@
 #include <linux/mailbox/qmp.h>
 #include <linux/mailbox_controller.h>
 #include <linux/ipc_logging.h>
-
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+#include <soc/qcom/boot_stats.h>
+#endif
 /* QOS Version Control Macros */
 /* #define DWC_ETH_QOS_VER_4_0 */
 /* Default Configuration is for QOS version 4.1 and above */
@@ -1864,7 +1866,7 @@ struct DWC_ETH_QOS_prv_data {
 	dev_t avb_class_b_dev_t;
 	struct cdev* avb_class_b_cdev;
 	struct class* avb_class_b_class;
-
+	bool print_kpi;
 };
 
 typedef enum {

@@ -2978,6 +2978,11 @@ static void DWC_ETH_QOS_tx_interrupt(struct net_device *dev,
 			pdata->xstats.q_tx_pkt_n[qinx]++;
 			pdata->xstats.tx_pkt_n++;
 			dev->stats.tx_packets++;
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+	if ( dev->stats.tx_packets == 1) {
+		place_marker("M - Ethernet first packet transmitted");
+	}
+#endif
 		}
 #else
 		if ((hw_if->get_tx_desc_ls(txptr)) && !(hw_if->get_tx_desc_ctxt(txptr))) {
@@ -3894,6 +3899,11 @@ static int DWC_ETH_QOS_clean_rx_irq(struct DWC_ETH_QOS_prv_data *pdata,
 				dev->stats.rx_bytes += skb->len;
 				DWC_ETH_QOS_receive_skb(pdata, dev, skb, qinx);
 				received++;
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+				if ( dev->stats.rx_packets == 1) {
+					place_marker("M - Ethernet first packet received");
+				}
+#endif
 			} else {
 				dump_rx_desc(qinx, RX_NORMAL_DESC, desc_data->cur_rx);
 				if (!(RX_NORMAL_DESC->RDES3 &
