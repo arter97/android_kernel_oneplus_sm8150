@@ -992,6 +992,11 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 
 		}
 	} else {
+		/* This should only have TCP based on current
+		 * rmnet_shs_is_skb_stamping_reqd logic. Unoptimal
+		 * if non UDP/TCP protos are supported
+		 */
+
 		/* Early flush for TCP if PSH packet.
 		 * Flush before parking PSH packet.
 		 */
@@ -1002,15 +1007,19 @@ void rmnet_shs_chain_to_skb_list(struct sk_buff *skb,
 			pushflush = 1;
 		}
 
-		/* TCP load tweaked for WQ since LRO changes load
-		 * of each packet
-		 */
-		node->num_skb += ((skb->len / 4000) + 1);
-		rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
-		node->skb_list.skb_load += ((skb->len / 4000) + 1);
+		/* TCP support for gso marked packets */
+		if (skb_shinfo(skb)->gso_segs) {
+			node->num_skb += skb_shinfo(skb)->gso_segs;
+			rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
+			node->skb_list.skb_load += skb_shinfo(skb)->gso_segs;
+		} else {
+			node->num_skb += 1;
+			rmnet_shs_cpu_node_tbl[node->map_cpu].parkedlen++;
+			node->skb_list.skb_load++;
+
+		}
 
 	}
-
 	node->num_skb_bytes += skb->len;
 
 	node->skb_list.num_parked_bytes += skb->len;
@@ -1323,7 +1332,6 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 				RMNET_SHS_ASSIGN_MATCH_FLOW_COMPLETE,
 				0xDEF, 0xDEF, 0xDEF, 0xDEF, skb, NULL);
 
-			node_p->num_skb_bytes += skb->len;
 			cpu_map_index = node_p->map_index;
 
 			rmnet_shs_chain_to_skb_list(skb, node_p);
@@ -1341,13 +1349,18 @@ void rmnet_shs_assign(struct sk_buff *skb, struct rmnet_port *port)
 			rmnet_shs_crit_err[RMNET_SHS_RPS_MASK_CHANGE]++;
 			break;
 		}
-
 		node_p = kzalloc(sizeof(*node_p), GFP_ATOMIC);
 
 		if (!node_p) {
 			rmnet_shs_crit_err[RMNET_SHS_MAIN_MALLOC_ERR]++;
 			break;
 		}
+
+		if (rmnet_shs_cfg.num_flows > MAX_FLOWS) {
+			rmnet_shs_crit_err[RMNET_SHS_MAX_FLOWS]++;
+			break;
+		}
+		rmnet_shs_cfg.num_flows++;
 
 		node_p->dev = skb->dev;
 		node_p->hash = skb->hash;
