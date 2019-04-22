@@ -1227,6 +1227,7 @@ void rmnet_shs_wq_cleanup_hash_tbl(u8 force_clean)
 			    node_p->hash, tns2s, 0xDEF, 0xDEF, node_p, hnode);
 
 			spin_lock_irqsave(&rmnet_shs_ht_splock, ht_flags);
+			rmnet_shs_clear_node(node_p, RMNET_WQ_CTXT);
 			rmnet_shs_wq_dec_cpu_flow(hnode->current_cpu);
 			if (node_p) {
 				rmnet_shs_cpu_node_remove(node_p);
@@ -1315,6 +1316,7 @@ void rmnet_shs_update_cfg_mask(void)
 {
 	/* Start with most avaible mask all eps could share*/
 	u8 mask = UPDATE_MASK;
+	u8 active = 0;
 	struct rmnet_shs_wq_ep_s *ep;
 
 	list_for_each_entry(ep, &rmnet_shs_wq_ep_tbl, ep_list_id) {
@@ -1325,9 +1327,13 @@ void rmnet_shs_update_cfg_mask(void)
 		 * will have UNDEFINED behavior
 		 */
 		mask &= ep->rps_config_msk;
+		active = 1;
 	}
-	rmnet_shs_cfg.map_mask = mask;
-	rmnet_shs_cfg.map_len = rmnet_shs_get_mask_len(mask);
+	/* Only update if active VND changed mask */
+	if (active && mask != rmnet_shs_cfg.map_mask){
+		rmnet_shs_cfg.map_mask = mask;
+		rmnet_shs_cfg.map_len = rmnet_shs_get_mask_len(mask);
+	}
 }
 
 static void rmnet_shs_wq_update_stats(void)

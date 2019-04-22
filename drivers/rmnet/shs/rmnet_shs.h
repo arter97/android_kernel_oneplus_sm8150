@@ -129,9 +129,9 @@ struct rmnet_shs_skbn_s {
 	/* n/w stack CPU pkt processing queue head */
 	u32 hash;
 	/*incoming hash*/
-	u16 map_index;
+	s16 map_index;
 	/* rps map index assigned*/
-	u16 map_cpu;
+	s16 map_cpu;
 	/* rps cpu for this flow*/
 	u16 skb_tport_proto;
 	/* Transport protocol associated with this flow*/
@@ -308,6 +308,7 @@ void rmnet_shs_exit(void);
 void rmnet_shs_ps_on_hdlr(void *port);
 void rmnet_shs_ps_off_hdlr(void *port);
 void rmnet_shs_update_cpu_proc_q_all_cpus(void);
+void rmnet_shs_clear_node(struct rmnet_shs_skbn_s *node, u8 ctxt);
 
 u32 rmnet_shs_get_cpu_qhead(u8 cpu_num);
 #endif /* _RMNET_SHS_H_ */
