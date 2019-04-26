@@ -428,7 +428,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -std=gnu89
 
 # Optimization for sm8150
-KBUILD_CFLAGS	+= -mcpu=cortex-a76.cortex-a55+crc+crypto
+KBUILD_CFLAGS	+= -mcpu=cortex-a76.cortex-a55+crc+crypto -Werror=vla
 
 # This doesn't need 835769/843419 erratum fixes.
 # Some toolchains enable those fixes automatically, so opt-out.
