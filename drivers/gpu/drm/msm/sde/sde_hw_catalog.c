@@ -1478,6 +1478,7 @@ static int sde_sspp_parse_dt(struct device_node *np,
 			sde_cfg->mdp[j].clk_ctrls[sspp->clk_ctrl].bit_off =
 				PROP_BITVALUE_ACCESS(prop_value,
 						SSPP_CLK_CTRL, i, 1);
+			sde_cfg->mdp[j].clk_ctrls[sspp->clk_ctrl].val = -1;
 		}
 
 		SDE_DEBUG(
@@ -1925,6 +1926,7 @@ static int sde_wb_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg)
 			sde_cfg->mdp[j].clk_ctrls[wb->clk_ctrl].bit_off =
 				PROP_BITVALUE_ACCESS(prop_value,
 						WB_CLK_CTRL, i, 1);
+			sde_cfg->mdp[j].clk_ctrls[wb->clk_ctrl].val = -1;
 		}
 
 		wb->format_list = sde_cfg->wb_formats;
@@ -2111,6 +2113,7 @@ static void _sde_inline_rot_parse_dt(struct device_node *np,
 			sde_cfg->mdp[j].clk_ctrls[index].bit_off =
 				PROP_BITVALUE_ACCESS(prop_value,
 						INLINE_ROT_CLK_CTRL, i, 1);
+			sde_cfg->mdp[j].clk_ctrls[index].val = -1;
 		}
 
 		SDE_DEBUG("rot- xin:%d, num:%d, rd:%d, clk:%d:0x%x/%d\n",
