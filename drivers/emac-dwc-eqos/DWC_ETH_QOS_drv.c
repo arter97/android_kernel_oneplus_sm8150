@@ -2978,6 +2978,11 @@ static void DWC_ETH_QOS_tx_interrupt(struct net_device *dev,
 			pdata->xstats.q_tx_pkt_n[qinx]++;
 			pdata->xstats.tx_pkt_n++;
 			dev->stats.tx_packets++;
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+	if ( dev->stats.tx_packets == 1) {
+		place_marker("M - Ethernet first packet transmitted");
+	}
+#endif
 		}
 #else
 		if ((hw_if->get_tx_desc_ls(txptr)) && !(hw_if->get_tx_desc_ctxt(txptr))) {
@@ -3894,6 +3899,11 @@ static int DWC_ETH_QOS_clean_rx_irq(struct DWC_ETH_QOS_prv_data *pdata,
 				dev->stats.rx_bytes += skb->len;
 				DWC_ETH_QOS_receive_skb(pdata, dev, skb, qinx);
 				received++;
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+				if ( dev->stats.rx_packets == 1) {
+					place_marker("M - Ethernet first packet received");
+				}
+#endif
 			} else {
 				dump_rx_desc(qinx, RX_NORMAL_DESC, desc_data->cur_rx);
 				if (!(RX_NORMAL_DESC->RDES3 &
@@ -5283,10 +5293,10 @@ int ETH_PPSOUT_Config(struct DWC_ETH_QOS_prv_data *pdata, struct ifr_data_struct
 	int interval, width;
 	int interval_ns; /*interval in nano seconds*/
 
-	if (pdata->emac_hw_version_type == EMAC_HW_v2_3_1 &&
+	if (pdata->res_data->pps_lpass_conn_en &&
 		eth_pps_cfg->ptpclk_freq <= 0) {
 		/* Set PTP clock to default 250 */
-		eth_pps_cfg->ptpclk_freq = DWC_ETH_QOS_DEFAULT_PTP_CLOCK;
+		eth_pps_cfg->ptpclk_freq = DWC_ETH_QOS_DEFAULT_LPASS_CLOCK;
 	}
 
 	if ((eth_pps_cfg->ppsout_ch < 0) ||
@@ -5325,7 +5335,7 @@ int ETH_PPSOUT_Config(struct DWC_ETH_QOS_prv_data *pdata, struct ifr_data_struct
 
 	EMACINFO("PPS: PPSOut_Config: interval=%d, width=%d\n", interval, width);
 
-	if (pdata->emac_hw_version_type == EMAC_HW_v2_3_1) {
+	if (pdata->res_data->pps_lpass_conn_en) {
 		//calculate interval & width
 		interval_ns = (1000000000/eth_pps_cfg->ppsout_freq) ;
 		interval = ((interval_ns)/4) - 1;
@@ -5335,7 +5345,7 @@ int ETH_PPSOUT_Config(struct DWC_ETH_QOS_prv_data *pdata, struct ifr_data_struct
 
 	switch (eth_pps_cfg->ppsout_ch) {
 	case DWC_ETH_QOS_PPS_CH_0:
-		if (pdata->emac_hw_version_type == EMAC_HW_v2_3_1) {
+		if (pdata->res_data->pps_lpass_conn_en) {
 			if (eth_pps_cfg->ppsout_start == DWC_ETH_QOS_PPS_START) {
 				MAC_PPSC_PPSEN0_UDFWR(0x1);
 				MAC_PPS_INTVAL_PPSINT0_UDFWR(DWC_ETH_QOS_PPS_CH_0, interval);

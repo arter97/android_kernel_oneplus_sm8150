@@ -125,7 +125,9 @@
 #include <linux/mailbox/qmp.h>
 #include <linux/mailbox_controller.h>
 #include <linux/ipc_logging.h>
-
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+#include <soc/qcom/boot_stats.h>
+#endif
 /* QOS Version Control Macros */
 /* #define DWC_ETH_QOS_VER_4_0 */
 /* Default Configuration is for QOS version 4.1 and above */
@@ -419,6 +421,7 @@ extern void *ipc_emac_log_ctxt;
 #define DWC_ETH_QOS_SYSTIMEPERIOD	4 /* System time period is 4ns */
 
 #define DWC_ETH_QOS_DEFAULT_PTP_CLOCK 50000000
+#define DWC_ETH_QOS_DEFAULT_LPASS_CLOCK 250000000
 
 #define DWC_ETH_QOS_TX_QUEUE_CNT (pdata->tx_queue_cnt)
 #define DWC_ETH_QOS_RX_QUEUE_CNT (pdata->rx_queue_cnt)
@@ -1570,6 +1573,7 @@ struct DWC_ETH_QOS_res_data {
 	struct clk *rgmii_clk;
 	struct clk *ptp_clk;
 	unsigned int emac_hw_version_type;
+	bool pps_lpass_conn_en;
 };
 
 struct DWC_ETH_QOS_prv_ipa_data {
@@ -1862,7 +1866,7 @@ struct DWC_ETH_QOS_prv_data {
 	dev_t avb_class_b_dev_t;
 	struct cdev* avb_class_b_cdev;
 	struct class* avb_class_b_class;
-
+	bool print_kpi;
 };
 
 typedef enum {
