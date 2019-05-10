@@ -4335,6 +4335,22 @@ void hdd_wlan_fill_per_chain_rssi_stats(struct station_info *sinfo,
 
 #endif
 
+#if defined(CFG80211_RX_FCS_ERROR_REPORTING_SUPPORT)
+static void hdd_fill_fcs_and_mpdu_count(struct hdd_adapter *adapter,
+					struct station_info *sinfo)
+{
+	sinfo->rx_mpdu_count = adapter->hdd_stats.peer_stats.rx_count;
+	sinfo->fcs_err_count = adapter->hdd_stats.peer_stats.fcs_count;
+	hdd_debug("RX mpdu count %d fcs_err_count %d",
+		  sinfo->rx_mpdu_count, sinfo->fcs_err_count);
+}
+#else
+static void hdd_fill_fcs_and_mpdu_count(struct hdd_adapter *adapter,
+					struct station_info *sinfo)
+{
+}
+#endif
+
 /**
  * wlan_hdd_get_sta_stats() - get aggregate STA stats
  * @wiphy: wireless phy
@@ -4509,6 +4525,8 @@ static int wlan_hdd_get_sta_stats(struct wiphy *wiphy,
 	sinfo->tx_bytes = adapter->stats.tx_bytes;
 	sinfo->rx_bytes = adapter->stats.rx_bytes;
 	sinfo->rx_packets = adapter->stats.rx_packets;
+
+	hdd_fill_fcs_and_mpdu_count(adapter, sinfo);
 
 	qdf_mem_copy(&sta_ctx->conn_info.txrate,
 		     &sinfo->txrate, sizeof(sinfo->txrate));
@@ -5894,6 +5912,12 @@ int wlan_hdd_get_station_stats(struct hdd_adapter *adapter)
 		stats->vdev_summary_stats[0].stats.rx_discard_cnt;
 	adapter->hdd_stats.summary_stat.rx_error_cnt =
 		stats->vdev_summary_stats[0].stats.rx_error_cnt;
+	adapter->hdd_stats.peer_stats.rx_count =
+		stats->peer_adv_stats->rx_count;
+	adapter->hdd_stats.peer_stats.rx_bytes =
+		stats->peer_adv_stats->rx_bytes;
+	adapter->hdd_stats.peer_stats.fcs_count =
+		stats->peer_adv_stats->fcs_count;
 
 	/* save class a stats to legacy location */
 	adapter->hdd_stats.class_a_stat.tx_nss =
