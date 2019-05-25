@@ -1191,6 +1191,9 @@ static int DWC_ETH_QOS_get_ts_info(struct net_device *dev,
 	DBGPR("-->DWC_ETH_QOS_get_ts_info\n");
 	info->phc_index = DWC_ETH_QOS_phc_index(pdata);
 	EMACINFO("PHC index = %d\n", info->phc_index);
+	info->so_timestamping = SOF_TIMESTAMPING_TX_HARDWARE |
+		SOF_TIMESTAMPING_RX_HARDWARE |
+		SOF_TIMESTAMPING_RAW_HARDWARE;
 	DBGPR("<--DWC_ETH_QOS_get_ts_info\n");
 	return 0;
 }
