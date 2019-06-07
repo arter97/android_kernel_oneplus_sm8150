@@ -578,9 +578,6 @@ void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 		flow_node->hash_value = pkt_info->hash_key;
 		flow_node->gso_len = payload_len;
 
-		if (pkt_info->trans_proto == IPPROTO_TCP)
-			flow_node->timestamp = pkt_info->curr_timestamp;
-
 		if (ip_version == 0x04) {
 			flow_node->saddr.saddr4 =
 				(__be32) ((struct iphdr *) iph)->saddr;

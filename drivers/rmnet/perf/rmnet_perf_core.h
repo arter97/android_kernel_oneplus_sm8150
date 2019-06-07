@@ -37,7 +37,6 @@ struct rmnet_perf_pkt_info {
 	u16 header_len;
 	u16 payload_len;
 	u32 hash_key;
-	u32 curr_timestamp;
 	union {
 		struct iphdr *v4hdr;
 		struct ipv6hdr *v6hdr;

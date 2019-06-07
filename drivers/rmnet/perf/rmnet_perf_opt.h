@@ -39,7 +39,6 @@ struct rmnet_perf_opt_flow_node {
 		struct rmnet_perf_opt_ip_flags ip4_flags;
 		__be32 first_word;
 	} ip_flags;
-	u32 timestamp;
 	__be32 next_seq;
 	u32 gso_len;
 	u32 len;
