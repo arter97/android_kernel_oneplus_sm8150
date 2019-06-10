@@ -256,36 +256,34 @@ typedef struct {
     struct htt_tx_ppdu_stats_info tx_ppdu_stats_info[1/*number_of_ppdu_stats*/];
 } htt_ppdu_stats_usr_common_array_tlv_v;
 
-#define HTT_PPDU_STATS_SCH_CMD_TLV_HDR_STRUCT \
-    struct { \
-        htt_tlv_hdr_t tlv_hdr; \
-        /* Refer bmi_msg.h */ \
-        A_UINT32 target_type; \
-    }
-
-typedef HTT_PPDU_STATS_SCH_CMD_TLV_HDR_STRUCT htt_ppdu_stats_sch_cmd_tlv_hdr_t;
-
 typedef struct {
-    /*
-     * Use a union to allow the HW-independent header portion of this struct
-     * to be accessed either within a hdr struct, or directly within the
-     * htt_ppdu_stats_sch_cmd_tlv_v struct.
-     * For example, the target_type field can be accessed either as
-     *     htt_ppdu_stats_sch_cmd_tlv_v.target_type
-     * or
-     *     htt_ppdu_stats_sch_cmd_tlv_v.hdr.target_type
-     */
+    htt_tlv_hdr_t tlv_hdr;
     union {
-        htt_ppdu_stats_sch_cmd_tlv_hdr_t hdr;
-        HTT_PPDU_STATS_SCH_CMD_TLV_HDR_STRUCT;
+        /* DEPRECATED (target_type)
+         * The target_type field is not actually present in the HTT messages
+         * produced by the FW.  However, it cannot be removed (yet), due to
+         * FW code that refers to this field.
+         * As a workaround, this target_type field is being moved into a
+         * union with the "hw" field that actually is present in the message.
+         * This makes the message definitions become consistent with the
+         * actual message contents, while not breaking the compilation of
+         * code that refers to the target_type field.
+         * Overlaying the memory for "target_type" and "hw" does not cause
+         * problems, because the FW code that refers to target_type first
+         * writes a value into the target_type field, then writes data into
+         * the hw field.
+         * Once all FW references to the target_type field have been removed,
+         * the target_type field def and the encapsulating anonymous union
+         * will be removed from this htt_ppdu_stats_sch_cmd_tlv_v struct def.
+         */
+        A_UINT32 target_type;
+
+        /*
+         * The hw portion of this struct contains a scheduler_command_status
+         * struct, whose definition is different for different target HW types.
+         */
+        A_UINT32 hw[1];
     };
-    /*
-     * The hw portion of this struct contains a scheduler_command_status
-     * struct, whose definition is different for different target HW types.
-     * The target_type field within the header can, if set correctly,
-     * clarify which definition of scheduler_command_status is being used.
-     */
-    A_UINT32 hw[1];
 } htt_ppdu_stats_sch_cmd_tlv_v;
 
 #define HTT_PPDU_STATS_COMMON_TLV_SCH_CMDID_M     0x0000ffff
@@ -1235,23 +1233,27 @@ typedef struct {
      * BIT [ 27:   24]   :- gi - HTT_PPDU_STATS_GI
      * BIT [ 28:   28]   :- dcm
      * BIT [ 29:   29]   :- ldpc
-     * BIT [ 31:   30]   :- reserved4
+     * BIT [ 30:   30]   :- valid_skipped_rate_ctrl
+     *                      This flag indicates whether the skipped_rate_ctrl
+     *                      flag should be ignored, or if it holds valid data.
+     * BIT [ 31:   31]   :- skipped_rate_ctrl
      */
     union {
         A_UINT32 rate_info;
         struct {
-            A_UINT32 ltf_size:           2,
-                     stbc:               1,
-                     he_re:              1,
-                     txbf:               4,
-                     bw:                 4,
-                     nss:                4,
-                     mcs:                4,
-                     preamble:           4,
-                     gi:                 4,
-                     dcm:                1,
-                     ldpc:               1,
-                     reserved4:          2;
+            A_UINT32 ltf_size:                2,
+                     stbc:                    1,
+                     he_re:                   1,
+                     txbf:                    4,
+                     bw:                      4,
+                     nss:                     4,
+                     mcs:                     4,
+                     preamble:                4,
+                     gi:                      4,
+                     dcm:                     1,
+                     ldpc:                    1,
+                     valid_skipped_rate_ctrl: 1,
+                     skipped_rate_ctrl:       1;
         };
     };
 
