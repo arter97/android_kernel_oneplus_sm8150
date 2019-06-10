@@ -88,7 +88,13 @@ ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 		guacamoleb-overlay-t0.dtbo \
 		guacamoleb-overlay-evt.dtbo \
 		guacamoleb-overlay-dvt.dtbo \
-		guacamoleb-overlay-pvt.dtbo
+		guacamoleb-overlay-pvt.dtbo \
+		sm8150-sdx50m-mtp-overlay.dtbo \
+		guacamole-sdx50m-overlay-t0.dtbo \
+		guacamole-sdx50m-overlay-evt1.dtbo \
+		guacamole-sdx50m-overlay-evt2.dtbo \
+		guacamole-sdx50m-overlay-dvt.dtbo \
+		guacamole-sdx50m-overlay-pvt.dtbo
 
 sm8150-mtp-overlay.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
 guacamole-overlay-t0.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
@@ -102,6 +108,12 @@ guacamoleb-overlay-t0.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-
 guacamoleb-overlay-evt.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
 guacamoleb-overlay-dvt.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
 guacamoleb-overlay-pvt.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+sm8150-sdx50m-mtp-overlay.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+guacamole-sdx50m-overlay-t0.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+guacamole-sdx50m-overlay-evt1.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+guacamole-sdx50m-overlay-evt2.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+guacamole-sdx50m-overlay-dvt.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
+guacamole-sdx50m-overlay-pvt.dtbo-base := sm8150.dtb sm8150-v2.dtb sm8150p.dtb sm8150p-v2.dtb
 else
 dtb-$(CONFIG_ARCH_SM8150)	+= sm8150-rumi.dtb \
 	sm8150-mtp.dtb \
