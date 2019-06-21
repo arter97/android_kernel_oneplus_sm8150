@@ -18,6 +18,7 @@
 #include <linux/jhash.h>
 #include <linux/module.h>
 #include <linux/skbuff.h>
+#include <linux/spinlock.h>
 #include <net/ip6_checksum.h>
 #include <net/tcp.h>
 #include <net/udp.h>
@@ -639,6 +640,7 @@ void rmnet_perf_core_deaggregate(struct sk_buff *skb,
 
 	perf = rmnet_perf_config_get_perf();
 	perf->rmnet_port = port;
+	spin_lock_bh(&rmnet_perf_core_lock);
 	while (skb) {
 		struct sk_buff *skb_frag = skb_shinfo(skb)->frag_list;
 
@@ -753,4 +755,5 @@ drop_packets:
 update_stats:
 	rmnet_perf_core_pre_ip_count += co;
 	rmnet_perf_core_chain_count[chain_count]++;
+	spin_unlock_bh(&rmnet_perf_core_lock);
 }

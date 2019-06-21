@@ -56,9 +56,6 @@ enum {
 /* What protocols we optimize */
 static int rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_ALL;
 
-/* Lock around flow nodes for syncornization with rmnet_perf_opt_mode changes */
-static DEFINE_SPINLOCK(rmnet_perf_opt_lock);
-
 /* flow hash table */
 DEFINE_HASHTABLE(rmnet_perf_opt_fht, RMNET_PERF_FLOW_HASH_TABLE_BITS);
 
@@ -87,7 +84,7 @@ static int rmnet_perf_set_opt_mode(const char *val,
 	value[3] = '\0';
 
 	local_bh_disable();
-	spin_lock_irqsave(&rmnet_perf_opt_lock, ht_flags);
+	spin_lock_irqsave(&rmnet_perf_core_lock, ht_flags);
 
 	if (!strcmp(value, "tcp"))
 		rmnet_perf_opt_mode = RMNET_PERF_OPT_MODE_TCP;
@@ -125,7 +122,7 @@ static int rmnet_perf_set_opt_mode(const char *val,
 	}
 
 out:
-	spin_unlock_irqrestore(&rmnet_perf_opt_lock, ht_flags);
+	spin_unlock_irqrestore(&rmnet_perf_core_lock, ht_flags);
 	local_bh_enable();
 
 	return rc;
@@ -635,7 +632,6 @@ bool rmnet_perf_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 	bool handled = false;
 	bool flow_node_exists = false;
 
-	spin_lock(&rmnet_perf_opt_lock);
 	if (!optimize_protocol(pkt_info->trans_proto))
 		goto out;
 
@@ -682,6 +678,5 @@ handle_pkt:
 	}
 
 out:
-	spin_unlock(&rmnet_perf_opt_lock);
 	return handled;
 }
