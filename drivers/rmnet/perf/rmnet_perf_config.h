@@ -26,6 +26,9 @@
 #ifndef _RMNET_PERF_CONFIG_H_
 #define _RMNET_PERF_CONFIG_H_
 
+/* Lock around flow nodes for syncornization with rmnet_perf_opt_mode changes */
+static DEFINE_SPINLOCK(rmnet_perf_core_lock);
+
 enum rmnet_perf_resource_management_e {
 	RMNET_PERF_RESOURCE_MGMT_SUCCESS,
 	RMNET_PERF_RESOURCE_MGMT_SEMI_FAIL,
