@@ -11077,7 +11077,7 @@ void csr_roam_joined_state_msg_processor(tpAniSirGlobal pMac, void *pMsgBuf)
 		roam_info->ampdu = pUpperLayerAssocCnf->ampdu;
 		roam_info->sgi_enable = pUpperLayerAssocCnf->sgi_enable;
 		roam_info->tx_stbc = pUpperLayerAssocCnf->tx_stbc;
-		roam_info->tx_stbc = pUpperLayerAssocCnf->rx_stbc;
+		roam_info->rx_stbc = pUpperLayerAssocCnf->rx_stbc;
 		roam_info->ch_width = pUpperLayerAssocCnf->ch_width;
 		roam_info->mode = pUpperLayerAssocCnf->mode;
 		roam_info->max_supp_idx = pUpperLayerAssocCnf->max_supp_idx;
@@ -17327,11 +17327,8 @@ QDF_STATUS csr_send_mb_start_bss_req_msg(tpAniSirGlobal pMac, uint32_t
 	pMsg->vht_config.su_beam_formee =
 		(uint8_t)value &&
 		(uint8_t)pMac->roam.configParam.enable_txbf_sap_mode;
-	if (wlan_cfg_get_int(pMac,
-			WNI_CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED,
-			&value) != QDF_STATUS_SUCCESS)
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-				("Failed to get CSN beamformee capability"));
+
+	value = WNI_CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_FW_DEF;
 	pMsg->vht_config.csnof_beamformer_antSup = (uint8_t)value;
 	pMsg->vht_config.mu_beam_formee = 0;
 

@@ -10067,6 +10067,8 @@ static int hdd_update_cds_config(struct hdd_context *hdd_ctx)
 		hdd_ctx->config->enable_peer_unmap_conf_support;
 
 	hdd_ra_populate_cds_config(cds_cfg, hdd_ctx);
+	cds_cfg->enable_tx_compl_tsf64 =
+		hdd_tsf_is_tsf64_tx_set(hdd_ctx);
 	hdd_txrx_populate_cds_config(cds_cfg, hdd_ctx);
 	hdd_nan_populate_cds_config(cds_cfg, hdd_ctx);
 	hdd_lpass_populate_cds_config(cds_cfg, hdd_ctx);
@@ -14110,6 +14112,11 @@ static int hdd_update_pmo_config(struct hdd_context *hdd_ctx)
 	psoc_cfg.power_save_mode = hdd_ctx->config->enablePowersaveOffload;
 	psoc_cfg.auto_power_save_fail_mode =
 		hdd_ctx->config->auto_pwr_save_fail_mode;
+	psoc_cfg.wow_data_inactivity_timeout =
+			hdd_ctx->config->wow_data_inactivity_timeout;
+	psoc_cfg.ps_data_inactivity_timeout =
+		hdd_ctx->config->nDataInactivityTimeout;
+	psoc_cfg.ito_repeat_count = hdd_ctx->config->ito_repeat_count;
 
 	hdd_ra_populate_pmo_config(&psoc_cfg, hdd_ctx);
 	hdd_nan_populate_pmo_config(&psoc_cfg, hdd_ctx);
