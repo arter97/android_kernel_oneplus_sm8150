@@ -2,6 +2,27 @@
 
 exec > /dev/kmsg 2>&1
 
+# Setup swap
+while [ ! -e /dev/block/vnswap0 ]; do
+  sleep 1
+done
+if ! grep -q vnswap /proc/swaps; then
+  MKSWAPSIZE=6081
+  tail -c $MKSWAPSIZE "$0" > /dev/mkswap
+  echo SIZE: $(($(stat -c%s "$0") - $MKSWAPSIZE))
+  head -c $(($(stat -c%s "$0") - $MKSWAPSIZE)) "$0" >> "$0".tmp
+  mv "$0".tmp "$0"
+  chmod 755 "$0"
+  chmod 755 /dev/mkswap
+  # 4GB
+  echo 4294967296 > /sys/devices/virtual/block/vnswap0/disksize
+  echo 130 > /proc/sys/vm/swappiness
+  # System mkswap behaves incorrectly with vnswap
+  /dev/mkswap /dev/block/vnswap0
+  swapon /dev/block/vnswap0
+  rm /dev/mkswap
+fi
+
 if [ ! -f /sbin/recovery ]; then
   # Hook up to existing init.qcom.post_boot.sh
   while [ ! -f /vendor/bin/init.qcom.post_boot.sh ]; do
@@ -216,3 +237,7 @@ fi
 misc_link=$(ls -l /dev/block/bootdevice/by-name/misc)
 real_path=${misc_link##*>}
 setprop persist.vendor.mmi.misc_dev_path $real_path
+
+exit 0
+
+# Binary will be appended afterwards
