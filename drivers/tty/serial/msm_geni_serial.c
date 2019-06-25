@@ -1093,6 +1093,34 @@ static void msm_geni_serial_rx_fsm_rst(struct uart_port *uport)
 	geni_write_reg_nolog(rx_irq_en, uport->membase, SE_DMA_RX_IRQ_EN_SET);
 }
 
+static void msm_geni_serial_set_manual_flow(bool enable,
+					struct msm_geni_serial_port *port)
+{
+	u32 uart_manual_rfr = 0;
+
+	if (!enable) {
+		uart_manual_rfr |= (UART_MANUAL_RFR_EN);
+		geni_write_reg_nolog(uart_manual_rfr, port->uport.membase,
+						SE_UART_MANUAL_RFR);
+		/* UART FW needs delay per HW experts recommendation */
+		udelay(10);
+
+		uart_manual_rfr |= (UART_RFR_NOT_READY);
+		geni_write_reg_nolog(uart_manual_rfr, port->uport.membase,
+						SE_UART_MANUAL_RFR);
+		/*
+		 * Ensure that the manual flow on writes go through before
+		 * doing a stop_rx.
+		 */
+		mb();
+	} else {
+		geni_write_reg_nolog(0, port->uport.membase,
+						SE_UART_MANUAL_RFR);
+		/* Ensure that the manual flow off writes go through */
+		mb();
+	}
+}
+
 static void stop_rx_sequencer(struct uart_port *uport)
 {
 	unsigned int geni_s_irq_en;
@@ -1795,6 +1823,8 @@ static void msm_geni_serial_set_termios(struct uart_port *uport,
 	 * and FSM_RESET. This also has a potential race with the dma_map/unmap
 	 * operations of ISR.
 	 */
+	disable_irq(uport->irq);
+	msm_geni_serial_set_manual_flow(false, port);
 	spin_lock_irqsave(&uport->lock, flags);
 	msm_geni_serial_stop_rx(uport);
 	spin_unlock_irqrestore(&uport->lock, flags);
@@ -1888,6 +1918,8 @@ static void msm_geni_serial_set_termios(struct uart_port *uport,
 		geni_write_reg_nolog(0x0, uport->membase, SE_UART_MANUAL_RFR);
 
 exit_set_termios:
+	msm_geni_serial_set_manual_flow(true, port);
+	enable_irq(uport->irq);
 	msm_geni_serial_start_rx(uport);
 	if (!uart_console(uport))
 		msm_geni_serial_power_off(uport);
