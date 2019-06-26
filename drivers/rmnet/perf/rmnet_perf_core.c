@@ -537,8 +537,8 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	struct rmnet_perf *perf = rmnet_perf_config_get_perf();
 	u16 pkt_len;
 	bool skip_hash = false;
+	bool jumbo = false;
 
-	pkt_len = frame_len - sizeof(struct rmnet_map_header) - trailer_len;
 	pkt_info->ep = ep;
 	pkt_info->ip_proto = (*payload & 0xF0) >> 4;
 	if (pkt_info->ip_proto == 4) {
@@ -548,6 +548,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->protocol;
 		pkt_info->header_len = iph->ihl * 4;
 		skip_hash = !!(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET));
+		pkt_len = ntohs(iph->tot_len);
 	} else if (pkt_info->ip_proto == 6) {
 		struct ipv6hdr *iph = (struct ipv6hdr *)payload;
 
@@ -555,6 +556,14 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
 		skip_hash = iph->nexthdr == NEXTHDR_FRAGMENT;
+		if (ntohs(iph->payload_len)) {
+			pkt_len = ntohs(iph->payload_len) +
+				  sizeof(struct ipv6hdr);
+		} else {
+			jumbo = true;
+			pkt_len = frame_len - sizeof(struct rmnet_map_header) -
+				  trailer_len;
+		}
 	} else {
 		return;
 	}
@@ -579,6 +588,12 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
 
+		if (jumbo) {
+			rmnet_perf_opt_flush_flow_by_hash(perf,
+							  pkt_info->hash_key);
+			goto flush;
+		}
+
 		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
 			goto flush;
 	} else if (pkt_info->trans_proto == IPPROTO_UDP) {
@@ -593,6 +608,12 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
+
+		if (jumbo) {
+			rmnet_perf_opt_flush_flow_by_hash(perf,
+							  pkt_info->hash_key);
+			goto flush;
+		}
 
 		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
 			goto flush;
