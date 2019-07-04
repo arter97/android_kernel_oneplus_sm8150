@@ -4482,7 +4482,7 @@ static void ipa3_freeze_clock_vote_and_notify_modem(void)
 		return;
 
 	if (IS_ERR(ipa3_ctx->smp2p_info.smem_state)) {
-		IPAERR("fail to get smp2p clk resp bit %d\n",
+		IPAERR("fail to get smp2p clk resp bit %ld\n",
 			PTR_ERR(ipa3_ctx->smp2p_info.smem_state));
 		return;
 	}
@@ -5099,7 +5099,7 @@ static ssize_t ipa3_write(struct file *file, const char __user *buf,
 
 	char dbg_buff[32] = { 0 };
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		return -EFAULT;
 
 	missing = copy_from_user(dbg_buff, buf, count);

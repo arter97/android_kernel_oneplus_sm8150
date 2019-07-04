@@ -45,7 +45,7 @@ static ssize_t gsi_dump_evt(struct file *file,
 	struct gsi_evt_ctx *ctx;
 	uint16_t i;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		return -EINVAL;
 
 	missing = copy_from_user(dbg_buff, buf, count);
@@ -158,7 +158,7 @@ static ssize_t gsi_dump_ch(struct file *file,
 	struct gsi_chan_ctx *ctx;
 	uint16_t i;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		return -EINVAL;
 
 	missing = copy_from_user(dbg_buff, buf, count);
@@ -298,7 +298,7 @@ static ssize_t gsi_dump_stats(struct file *file,
 	int ch_id;
 	int min, max;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		goto error;
 
 	if (copy_from_user(dbg_buff, buf, count))
@@ -357,7 +357,7 @@ static ssize_t gsi_enable_dp_stats(struct file *file,
 	bool enable;
 	int ret;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		goto error;
 
 	if (copy_from_user(dbg_buff, buf, count))
@@ -417,7 +417,7 @@ static ssize_t gsi_set_max_elem_dp_stats(struct file *file,
 	char *sptr, *token;
 
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		goto error;
 
 	missing = copy_from_user(dbg_buff, buf, count);
@@ -539,7 +539,7 @@ static ssize_t gsi_rst_stats(struct file *file,
 	int ch_id;
 	int min, max;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		goto error;
 
 	if (copy_from_user(dbg_buff, buf, count))
@@ -578,7 +578,7 @@ static ssize_t gsi_print_dp_stats(struct file *file,
 	bool enable;
 	int ret;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		goto error;
 
 	if (copy_from_user(dbg_buff, buf, count))
@@ -635,7 +635,7 @@ static ssize_t gsi_enable_ipc_low(struct file *file,
 	unsigned long missing;
 	s8 option = 0;
 
-	if (sizeof(dbg_buff) < count + 1)
+	if (sizeof(dbg_buff) < count)
 		return -EFAULT;
 
 	missing = copy_from_user(dbg_buff, ubuf, count);
