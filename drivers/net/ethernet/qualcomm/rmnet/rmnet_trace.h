@@ -476,5 +476,5 @@ TRACE_EVENT
 
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../drivers/net/ethernet/qualcomm/rmnet
 #include <trace/define_trace.h>
