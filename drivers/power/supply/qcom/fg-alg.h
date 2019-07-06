@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -57,12 +57,10 @@ struct cap_learning {
 	int			init_cc_soc_sw;
 	int			cc_soc_max;
 	int			init_batt_soc;
-	int			init_batt_soc_msb;
 	int64_t			nom_cap_uah;
 	int64_t			init_cap_uah;
 	int64_t			final_cap_uah;
 	int64_t			learned_cap_uah;
-	int64_t			delta_cap_uah;
 	bool			active;
 	struct mutex		lock;
 	struct cl_params	dt;
@@ -76,13 +74,11 @@ enum ttf_mode {
 	TTF_MODE_NORMAL = 0,
 	TTF_MODE_QNOVO,
 	TTF_MODE_V_STEP_CHG,
-	TTF_MODE_OCV_STEP_CHG,
 };
 
 enum ttf_param {
 	TTF_MSOC = 0,
 	TTF_VBAT,
-	TTF_OCV,
 	TTF_IBAT,
 	TTF_FCC,
 	TTF_MODE,
@@ -123,7 +119,6 @@ struct ttf {
 	struct step_chg_data	*step_chg_data;
 	struct range_data	*step_chg_cfg;
 	bool			step_chg_cfg_valid;
-	bool			ocv_step_chg_cfg_valid;
 	int			step_chg_num_params;
 	int			mode;
 	int			last_ttf;

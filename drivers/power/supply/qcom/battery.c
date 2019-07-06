@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,7 +32,6 @@
 #define DRV_MAJOR_VERSION	1
 #define DRV_MINOR_VERSION	0
 
-#define BATT_PROFILE_VOTER		"BATT_PROFILE_VOTER"
 #define CHG_STATE_VOTER			"CHG_STATE_VOTER"
 #define TAPER_STEPPER_VOTER		"TAPER_STEPPER_VOTER"
 #define TAPER_END_VOTER			"TAPER_END_VOTER"
@@ -66,7 +65,6 @@ struct pl_data {
 	struct votable		*usb_icl_votable;
 	struct votable		*pl_enable_votable_indirect;
 	struct votable		*cp_ilim_votable;
-	struct votable		*cp_disable_votable;
 	struct delayed_work	status_change_work;
 	struct work_struct	pl_disable_forever_work;
 	struct work_struct	pl_taper_work;
@@ -132,37 +130,6 @@ enum {
 	RESTRICT_CHG_CURRENT,
 	FCC_STEPPING_IN_PROGRESS,
 };
-/*********
- * HELPER*
- *********/
-static bool is_cp_available(struct pl_data *chip)
-{
-	if (!chip->cp_master_psy)
-		chip->cp_master_psy =
-			power_supply_get_by_name("charge_pump_master");
-
-	return !!chip->cp_master_psy;
-}
-
-static bool cp_ilim_boost_enabled(struct pl_data *chip)
-{
-	union power_supply_propval pval = {-1, };
-
-	if (is_cp_available(chip))
-		power_supply_get_property(chip->cp_master_psy,
-				POWER_SUPPLY_PROP_PARALLEL_OUTPUT_MODE, &pval);
-
-	return pval.intval == POWER_SUPPLY_PL_OUTPUT_VPH;
-}
-
-static void cp_configure_ilim(struct pl_data *chip, const char *voter, int ilim)
-{
-	if (!chip->cp_ilim_votable)
-		chip->cp_ilim_votable = find_votable("CP_ILIM");
-
-	if (!cp_ilim_boost_enabled(chip) && chip->cp_ilim_votable)
-		vote(chip->cp_ilim_votable, voter, true, ilim);
-}
 
 /*******
  * ICL *
@@ -351,8 +318,7 @@ static ssize_t slave_pct_store(struct class *c, struct class_attribute *attr,
 	vote(chip->pl_disable_votable, ICL_LIMIT_VOTER, disable, 0);
 	rerun_election(chip->fcc_votable);
 	rerun_election(chip->fv_votable);
-	if (IS_USBIN(chip->pl_mode))
-		split_settled(chip);
+	split_settled(chip);
 
 	return count;
 }
@@ -524,7 +490,10 @@ static void get_main_fcc_config(struct pl_data *chip, int *total_fcc)
 	union power_supply_propval pval = {0, };
 	int rc;
 
-	if (!is_cp_available(chip))
+	if (!chip->cp_master_psy)
+		chip->cp_master_psy =
+			power_supply_get_by_name("charge_pump_master");
+	if (!chip->cp_master_psy)
 		goto out;
 
 	rc = power_supply_get_property(chip->cp_master_psy,
@@ -607,12 +576,11 @@ static void pl_taper_work(struct work_struct *work)
 						pl_taper_work);
 	union power_supply_propval pval = {0, };
 	int rc;
-	int fcc_ua, total_fcc_ua, master_fcc_ua, slave_fcc_ua = 0;
+	int eff_fcc_ua;
+	int total_fcc_ua, master_fcc_ua, slave_fcc_ua = 0;
 
 	chip->taper_entry_fv = get_effective_result(chip->fv_votable);
 	chip->taper_work_running = true;
-	fcc_ua = get_client_vote(chip->fcc_votable, BATT_PROFILE_VOTER);
-	vote(chip->fcc_votable, TAPER_STEPPER_VOTER, true, fcc_ua);
 	while (true) {
 		if (get_effective_result(chip->pl_disable_votable)) {
 			/*
@@ -661,22 +629,21 @@ static void pl_taper_work(struct work_struct *work)
 
 		chip->charge_type = pval.intval;
 		if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER) {
-			fcc_ua = get_client_vote(chip->fcc_votable,
-					TAPER_STEPPER_VOTER);
-			if (fcc_ua < 0) {
+			eff_fcc_ua = get_effective_result(chip->fcc_votable);
+			if (eff_fcc_ua < 0) {
 				pr_err("Couldn't get fcc, exiting taper work\n");
 				goto done;
 			}
-			fcc_ua -= TAPER_REDUCTION_UA;
-			if (fcc_ua < 0) {
+			eff_fcc_ua = eff_fcc_ua - TAPER_REDUCTION_UA;
+			if (eff_fcc_ua < 0) {
 				pr_err("Can't reduce FCC any more\n");
 				goto done;
 			}
 
 			pl_dbg(chip, PR_PARALLEL, "master is taper charging; reducing FCC to %dua\n",
-					fcc_ua);
+					eff_fcc_ua);
 			vote(chip->fcc_votable, TAPER_STEPPER_VOTER,
-					true, fcc_ua);
+					true, eff_fcc_ua);
 		} else {
 			pl_dbg(chip, PR_PARALLEL, "master is fast charging; waiting for next taper\n");
 		}
@@ -695,34 +662,16 @@ static int pl_fcc_vote_callback(struct votable *votable, void *data,
 {
 	struct pl_data *chip = data;
 	int master_fcc_ua = total_fcc_ua, slave_fcc_ua = 0;
-	union power_supply_propval pval = {0, };
 
 	if (total_fcc_ua < 0)
 		return 0;
 
 	if (!chip->main_psy)
 		return 0;
+	pr_info("total_fcc_ua=%d\n", total_fcc_ua);
 
-	if (!chip->cp_disable_votable)
-		chip->cp_disable_votable = find_votable("CP_DISABLE");
-
-	if (chip->cp_disable_votable) {
-		if (cp_ilim_boost_enabled(chip)) {
-			power_supply_get_property(chip->cp_master_psy,
-					POWER_SUPPLY_PROP_MIN_ICL, &pval);
-			/*
-			 * With ILIM boost feature ILIM configuration is
-			 * independent of battery FCC, disable CP if FCC/2
-			 * falls below MIN_ICL supported by CP.
-			 */
-			if ((total_fcc_ua / 2) < pval.intval)
-				vote(chip->cp_disable_votable, FCC_VOTER,
-						true, 0);
-			else
-				vote(chip->cp_disable_votable, FCC_VOTER,
-						false, 0);
-		}
-	}
+	if (!chip->cp_ilim_votable)
+		chip->cp_ilim_votable = find_votable("CP_ILIM");
 
 	if (chip->pl_mode != POWER_SUPPLY_PL_NONE) {
 		get_fcc_split(chip, total_fcc_ua, &master_fcc_ua,
@@ -920,7 +869,9 @@ stepper_exit:
 	chip->main_fcc_ua = main_fcc;
 	chip->slave_fcc_ua = parallel_fcc;
 
-	cp_configure_ilim(chip, FCC_VOTER, chip->main_fcc_ua / 2);
+	if (chip->cp_ilim_votable)
+		vote(chip->cp_ilim_votable, FCC_VOTER, true,
+					chip->main_fcc_ua / 2);
 
 	if (reschedule_ms) {
 		schedule_delayed_work(&chip->fcc_stepper_work,
@@ -948,7 +899,7 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 		return 0;
 
 	pval.intval = fv_uv;
-
+	pr_info("fv_uv=%d\n", fv_uv);
 	rc = power_supply_set_property(chip->main_psy,
 			POWER_SUPPLY_PROP_VOLTAGE_MAX, &pval);
 	if (rc < 0) {
@@ -1037,7 +988,8 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 
 	vote(chip->pl_disable_votable, ICL_CHANGE_VOTER, false, 0);
 
-	cp_configure_ilim(chip, ICL_CHANGE_VOTER, icl_ua);
+	if (chip->cp_ilim_votable)
+		vote(chip->cp_ilim_votable, ICL_CHANGE_VOTER, true, icl_ua);
 
 	return 0;
 }
@@ -1297,7 +1249,9 @@ static int pl_disable_vote_callback(struct votable *votable,
 				return rc;
 			}
 
-			cp_configure_ilim(chip, FCC_VOTER, total_fcc_ua / 2);
+			if (chip->cp_ilim_votable)
+				vote(chip->cp_ilim_votable, FCC_VOTER, true,
+						total_fcc_ua / 2);
 
 			/* reset parallel FCC */
 			chip->slave_fcc_ua = 0;

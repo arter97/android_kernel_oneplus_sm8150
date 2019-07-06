@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,17 +29,17 @@ struct sync_device *sync_dev;
  */
 static bool trigger_cb_without_switch;
 
-void cam_sync_print_fence_table(void)
+static void cam_sync_print_table(void)
 {
-	int cnt;
+	int i = 0;
 
-	for (cnt = 0; cnt < CAM_SYNC_MAX_OBJS; cnt++) {
-		CAM_INFO(CAM_SYNC, "%d, %s, %d, %d, %d",
-			sync_dev->sync_table[cnt].sync_id,
-			sync_dev->sync_table[cnt].name,
-			sync_dev->sync_table[cnt].type,
-			sync_dev->sync_table[cnt].state,
-			sync_dev->sync_table[cnt].ref_cnt);
+	CAM_INFO(CAM_SYNC, "start to print sync obj table");
+
+	for (i = 0; i < CAM_SYNC_MAX_OBJS; i++) {
+		if (sync_dev->sync_table[i].state == CAM_SYNC_STATE_ACTIVE) {
+			CAM_INFO(CAM_SYNC, "sync id: %d, name %s",
+				i, sync_dev->sync_table[i].name);
+		}
 	}
 }
 
@@ -52,12 +52,7 @@ int cam_sync_create(int32_t *sync_obj, const char *name)
 	do {
 		idx = find_first_zero_bit(sync_dev->bitmap, CAM_SYNC_MAX_OBJS);
 		if (idx >= CAM_SYNC_MAX_OBJS) {
-			CAM_ERR(CAM_SYNC,
-				"Error: Unable to Create Sync Idx = %d Reached Max!!",
-				idx);
-			sync_dev->err_cnt++;
-			if (sync_dev->err_cnt == 1)
-				cam_sync_print_fence_table();
+			cam_sync_print_table();
 			return -ENOMEM;
 		}
 		CAM_DBG(CAM_SYNC, "Index location available at idx: %ld", idx);
@@ -217,8 +212,8 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status)
 	if (row->state != CAM_SYNC_STATE_ACTIVE) {
 		spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
 		CAM_ERR(CAM_SYNC,
-			"Sync object already signaled sync_obj = %d state = %d",
-			sync_obj, row->state);
+			"Error: Sync object already signaled sync_obj = %d",
+			sync_obj);
 		return -EALREADY;
 	}
 
@@ -343,9 +338,9 @@ int cam_sync_get_obj_ref(int32_t sync_obj)
 
 	if (row->state != CAM_SYNC_STATE_ACTIVE) {
 		spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
-		CAM_ERR_RATE_LIMIT_CUSTOM(CAM_SYNC, 1, 5,
-			"accessing an uninitialized sync obj = %d state = %d",
-			sync_obj, row->state);
+		CAM_ERR(CAM_SYNC,
+			"Error: accessing an uninitialized sync obj = %d",
+			sync_obj);
 		return -EINVAL;
 	}
 
@@ -454,7 +449,6 @@ static int cam_sync_handle_create(struct cam_private_ioctl_arg *k_ioctl)
 
 static int cam_sync_handle_signal(struct cam_private_ioctl_arg *k_ioctl)
 {
-	int rc = 0;
 	struct cam_sync_signal sync_signal;
 
 	if (k_ioctl->size != sizeof(struct cam_sync_signal))
@@ -469,14 +463,7 @@ static int cam_sync_handle_signal(struct cam_private_ioctl_arg *k_ioctl)
 		return -EFAULT;
 
 	/* need to get ref for UMD signaled fences */
-	rc = cam_sync_get_obj_ref(sync_signal.sync_obj);
-	if (rc) {
-		CAM_DBG(CAM_SYNC,
-			"Error: cannot signal an uninitialized sync obj = %d",
-			sync_signal.sync_obj);
-		return rc;
-	}
-
+	cam_sync_get_obj_ref(sync_signal.sync_obj);
 	return cam_sync_signal(sync_signal.sync_obj,
 		sync_signal.sync_state);
 }
@@ -786,7 +773,6 @@ static int cam_sync_open(struct file *filep)
 		CAM_ERR(CAM_SYNC, "Sync device NULL");
 		return -ENODEV;
 	}
-	sync_dev->err_cnt = 0;
 
 	mutex_lock(&sync_dev->table_lock);
 	if (sync_dev->open_cnt >= 1) {
@@ -819,7 +805,6 @@ static int cam_sync_close(struct file *filep)
 		rc = -ENODEV;
 		return rc;
 	}
-	sync_dev->err_cnt = 0;
 	mutex_lock(&sync_dev->table_lock);
 	sync_dev->open_cnt--;
 	if (!sync_dev->open_cnt) {
@@ -995,7 +980,6 @@ static int cam_sync_probe(struct platform_device *pdev)
 	if (!sync_dev)
 		return -ENOMEM;
 
-	sync_dev->err_cnt = 0;
 	mutex_init(&sync_dev->table_lock);
 	spin_lock_init(&sync_dev->cam_sync_eventq_lock);
 
