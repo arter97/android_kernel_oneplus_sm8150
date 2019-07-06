@@ -30,6 +30,7 @@ int avtimer_init(void);
 int msm_mdf_init(void);
 void msm_mdf_exit(void);
 #else
+int elliptic_driver_init(void);
 static inline int msm_mdf_init(void)
 {
 	return 0;
@@ -80,5 +81,6 @@ static inline void voice_mhi_exit(void)
 	return;
 }
 #endif
+int elliptic_driver_exit(void);
 #endif
 
