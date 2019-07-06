@@ -136,7 +136,7 @@ struct rdbg_device {
 
 int registers[32] = {0};
 static struct rdbg_device g_rdbg_instance = {
-	{ {0} },
+	{},
 	NULL,
 	0,
 	SMP2P_NUM_PROCS,

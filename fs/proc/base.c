@@ -1627,6 +1627,33 @@ static const struct file_operations proc_pid_sched_group_id_operations = {
 
 #endif	/* CONFIG_SCHED_WALT */
 
+static ssize_t
+memplus_type_write(struct file *file, const char __user *buf,
+	    size_t count, loff_t *offset)
+{
+	return count;
+}
+
+static int memplus_type_show(struct seq_file *m, void *v)
+{
+	seq_puts(m, "0\n");
+
+	return 0;
+}
+
+static int memplus_type_open(struct inode *inode, struct file *filp)
+{
+	return single_open(filp, memplus_type_show, inode);
+}
+
+static const struct file_operations proc_pid_memplus_type_operations = {
+	.open		= memplus_type_open,
+	.read		= seq_read,
+	.write		= memplus_type_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 #ifdef CONFIG_SCHED_AUTOGROUP
 /*
  * Print out autogroup related information:
@@ -2600,6 +2627,27 @@ static const struct file_operations proc_pid_set_timerslack_ns_operations = {
 	.release	= single_release,
 };
 
+static ssize_t page_hot_count_read(struct file *file, char __user *buf,
+				size_t count, loff_t *ppos)
+{
+	char buffer[PROC_NUMBUF];
+	size_t len;
+
+	len = snprintf(buffer, sizeof(buffer), "%d\n", 0);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t page_hot_count_write(struct file *file, const char __user *buf,
+				size_t count, loff_t *ppos)
+{
+	return count;
+}
+
+static const struct file_operations proc_page_hot_count_operations = {
+	.read		= page_hot_count_read,
+	.write		= page_hot_count_write,
+};
+
 static int proc_pident_instantiate(struct inode *dir,
 	struct dentry *dentry, struct task_struct *task, const void *ptr)
 {
@@ -3162,6 +3210,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("sched_init_task_load", 00644, proc_pid_sched_init_task_load_operations),
 	REG("sched_group_id", 00666, proc_pid_sched_group_id_operations),
 #endif
+	REG("memplus_type",      S_IRUGO|S_IWUGO, proc_pid_memplus_type_operations),
 #ifdef CONFIG_SCHED_DEBUG
 	REG("sched",      S_IRUGO|S_IWUSR, proc_pid_sched_operations),
 #endif
@@ -3217,8 +3266,8 @@ static const struct pid_entry tgid_base_stuff[] = {
 	ONE("cgroup",  S_IRUGO, proc_cgroup_show),
 #endif
 	ONE("oom_score",  S_IRUGO, proc_oom_score),
-	REG("oom_adj",    S_IRUSR, proc_oom_adj_operations),
-	REG("oom_score_adj", S_IRUSR, proc_oom_score_adj_operations),
+	REG("oom_adj",    S_IRUGO|S_IWUSR, proc_oom_adj_operations),
+	REG("oom_score_adj", S_IRUGO|S_IWUSR, proc_oom_score_adj_operations),
 #ifdef CONFIG_AUDITSYSCALL
 	REG("loginuid",   S_IWUSR|S_IRUGO, proc_loginuid_operations),
 	REG("sessionid",  S_IRUGO, proc_sessionid_operations),
@@ -3250,6 +3299,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("timers",	  S_IRUGO, proc_timers_operations),
 #endif
 	REG("timerslack_ns", S_IRUGO|S_IWUGO, proc_pid_set_timerslack_ns_operations),
+	REG("page_hot_count", 0666, proc_page_hot_count_operations),
 #ifdef CONFIG_LIVEPATCH
 	ONE("patch_state",  S_IRUSR, proc_pid_patch_state),
 #endif

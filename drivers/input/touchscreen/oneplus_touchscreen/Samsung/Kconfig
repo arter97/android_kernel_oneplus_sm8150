@@ -1,0 +1,2 @@
+
+source "drivers/input/touchscreen/oneplus_touchscreen/Samsung/S6SY761/Kconfig"

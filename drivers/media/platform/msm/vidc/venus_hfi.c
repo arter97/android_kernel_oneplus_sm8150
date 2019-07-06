@@ -4769,7 +4769,8 @@ fail_vote_buses:
 	return rc;
 }
 
-static void __venus_power_off(struct venus_hfi_device *device)
+static void __venus_power_off(struct venus_hfi_device *device,
+				bool axi_reset)
 {
 	u32 version;
 
@@ -4783,7 +4784,8 @@ static void __venus_power_off(struct venus_hfi_device *device)
 
 	__disable_unprepare_clks(device);
 
-	__unprepare_ahb2axi_bridge(device, version);
+	if (axi_reset)
+		__unprepare_ahb2axi_bridge(device, version);
 
 	device->intr_status = 0;
 
@@ -4821,7 +4823,7 @@ static inline int __suspend(struct venus_hfi_device *device)
 
 	__disable_subcaches(device);
 
-	__venus_power_off(device);
+	__venus_power_off(device, false);
 	dprintk(VIDC_PROF, "Venus power off\n");
 	return rc;
 
@@ -4896,7 +4898,7 @@ exit:
 err_reset_core:
 	__tzbsp_set_video_state(TZBSP_VIDEO_STATE_SUSPEND);
 err_set_video_state:
-	__venus_power_off(device);
+	__venus_power_off(device, false);
 err_venus_power_on:
 	dprintk(VIDC_ERR, "Failed to resume from power collapse\n");
 	return rc;
@@ -4955,7 +4957,7 @@ fail_protect_mem:
 		subsystem_put(device->resources.fw.cookie);
 	device->resources.fw.cookie = NULL;
 fail_load_fw:
-	__venus_power_off(device);
+	__venus_power_off(device, true);
 fail_venus_power_on:
 fail_init_pkt:
 	__deinit_resources(device);
@@ -4976,7 +4978,7 @@ static void __unload_fw(struct venus_hfi_device *device)
 	__vote_buses(device, NULL, 0);
 	subsystem_put(device->resources.fw.cookie);
 	__interface_queues_release(device);
-	__venus_power_off(device);
+	__venus_power_off(device, true);
 	device->resources.fw.cookie = NULL;
 	__deinit_resources(device);
 

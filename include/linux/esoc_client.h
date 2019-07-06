@@ -78,4 +78,7 @@ static inline int esoc_unregister_client_hook(struct esoc_desc *desc,
 	return -EIO;
 }
 #endif
+
+extern int oem_get_download_mode(void);
+
 #endif

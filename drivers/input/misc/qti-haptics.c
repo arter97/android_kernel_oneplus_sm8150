@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
+#include <linux/proc_fs.h>
 
 enum actutor_type {
 	ACT_LRA,
@@ -59,6 +60,8 @@ enum haptics_custom_effect_param {
 	CUSTOM_DATA_LEN,
 };
 
+#define REG_HAP_LRA_AUTO_RES	0x0B
+
 /* common definitions */
 #define HAP_BRAKE_PATTERN_MAX		4
 #define HAP_WAVEFORM_BUFFER_MAX		8
@@ -72,6 +75,7 @@ enum haptics_custom_effect_param {
 #define HAP_SC_DET_TIME_US		1000000
 #define FF_EFFECT_COUNT_MAX		32
 #define HAP_DISABLE_DELAY_USEC		1000
+#define HAP_VMAX_MV_WAEK		1000 /*OP set weak vibraton vmax*/
 
 /* haptics module register definitions */
 #define REG_HAP_STATUS1			0x0A
@@ -231,6 +235,7 @@ struct qti_hap_chip {
 	bool				perm_disable;
 	bool				play_irq_en;
 	bool				vdd_enabled;
+	int				resonant_frequency;
 };
 
 static int wf_repeat[8] = {1, 2, 4, 8, 16, 32, 64, 128};
@@ -522,6 +527,14 @@ static int qti_haptics_config_play_rate_us(struct qti_hap_chip *chip,
 	tmp = play_rate_us / HAP_PLAY_RATE_US_LSB;
 	val[0] = tmp & 0xff;
 	val[1] = (tmp >> 8) & 0xf;
+
+	/*op for use check rf*/
+	rc = qti_haptics_read(chip, REG_HAP_LRA_AUTO_RES, val, 2);
+	if (rc < 0)
+		dev_err(chip->dev, "read lra_auto_res failed, rc=%d\n", rc);
+	dev_info(chip->dev, "haptic val[0]=0x%x,val[1]=0x%x",val[0],val[1]);
+	val[1] = ((val[1] & 0xF0) >> 4);
+
 	rc = qti_haptics_write(chip, addr, val, 2);
 	if (rc < 0)
 		dev_err(chip->dev, "write play_rate failed, rc=%d\n", rc);
@@ -575,7 +588,7 @@ static int qti_haptics_lra_auto_res_enable(struct qti_hap_chip *chip, bool en)
 
 	addr = REG_HAP_AUTO_RES_CTRL;
 	mask = HAP_AUTO_RES_EN_BIT;
-	val = en ? HAP_AUTO_RES_EN_BIT : 0;
+	val = 0; /*op force disable AUTIO RES*/
 	rc = qti_haptics_masked_write(chip, addr, mask, val);
 	if (rc < 0)
 		dev_err(chip->dev, "set AUTO_RES_CTRL failed, rc=%d\n", rc);
@@ -605,6 +618,12 @@ static int qti_haptics_clear_settings(struct qti_hap_chip *chip)
 			HAP_WAVEFORM_BUFFER_MAX);
 	if (rc < 0)
 		return rc;
+
+/*GCEB-243 abnormal vibration begin*/
+	rc = qti_haptics_config_vmax(chip, HAP_VMAX_MV_WAEK);
+	if (rc < 0)
+		return rc;
+/*GCEB-243 abnormal vibration end*/
 
 	rc = qti_haptics_play(chip, true);
 	if (rc < 0)
@@ -652,6 +671,11 @@ static int qti_haptics_load_constant_waveform(struct qti_hap_chip *chip)
 		play->playing_pattern = false;
 		play->effect = NULL;
 	} else {
+		/*op for vibration less than VMAX_MIN_PLAY_TIME_US begin*/
+		play->effect = &chip->predefined[5];
+		rc = qti_haptics_config_brake(chip, play->effect->brake);
+		/*op for vibration less than VMAX_MIN_PLAY_TIME_US begin*/
+
 		rc = qti_haptics_config_vmax(chip, config->vmax_mv);
 		if (rc < 0)
 			return rc;
@@ -856,7 +880,7 @@ static int qti_haptics_upload_effect(struct input_dev *dev,
 		level = effect->u.constant.level;
 		tmp = level * config->vmax_mv;
 		play->vmax_mv = tmp / 0x7fff;
-		dev_dbg(chip->dev, "upload constant effect, length = %dus, vmax_mv=%d\n",
+		dev_info(chip->dev, "upload constant effect, length = %dus, vmax_mv=%d\n",
 				play->length_us, play->vmax_mv);
 
 		rc = qti_haptics_load_constant_waveform(chip);
@@ -895,7 +919,7 @@ static int qti_haptics_upload_effect(struct input_dev *dev,
 		tmp = level * chip->predefined[i].vmax_mv;
 		play->vmax_mv = tmp / 0x7fff;
 
-		dev_dbg(chip->dev, "upload effect %d, vmax_mv=%d\n",
+		dev_info(chip->dev, "upload effect %d, vmax_mv=%d\n",
 				chip->predefined[i].id, play->vmax_mv);
 		rc = qti_haptics_load_predefined_effect(chip, i);
 		if (rc < 0) {
@@ -947,7 +971,7 @@ static int qti_haptics_playback(struct input_dev *dev, int effect_id, int val)
 	unsigned long nsecs;
 	int rc = 0;
 
-	dev_dbg(chip->dev, "playback, val = %d\n", val);
+	dev_info(chip->dev, "playback, val = %d\n", val);
 	if (!!val) {
 		rc = qti_haptics_module_en(chip, true);
 		if (rc < 0)

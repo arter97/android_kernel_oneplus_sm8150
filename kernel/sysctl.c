@@ -1386,6 +1386,12 @@ static struct ctl_table kern_table[] = {
 	{ }
 };
 
+static int sysctl_page_cache_reside_switch;
+static int sysctl_page_cache_reside_max;
+static int vm_breath_period;
+static int vm_breath_priority;
+static int vm_memory_plus_test_worstcase;
+static int vm_memory_plus;
 static struct ctl_table vm_table[] = {
 	{
 		.procname	= "overcommit_memory",
@@ -1404,6 +1410,22 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &two,
+	},
+	{
+		.procname	= "page_cache_reside_switch",
+		.data		= &sysctl_page_cache_reside_switch,
+		.maxlen		= sizeof(sysctl_page_cache_reside_switch),
+		.mode		= 0666,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two,
+	},
+	{
+		.procname	= "page_cache_reside_max",
+		.data		= &sysctl_page_cache_reside_max,
+		.maxlen		= sizeof(sysctl_page_cache_reside_max),
+		.mode		= 0666,
+		.proc_handler	= proc_dointvec_minmax,
 	},
 	{
 		.procname	= "oom_kill_allocating_task",
@@ -1520,6 +1542,21 @@ static struct ctl_table vm_table[] = {
 		.extra2		= &one_hundred,
 	},
 	{
+		.procname	= "breath_period",
+		.data		= &vm_breath_period,
+		.maxlen		= sizeof(vm_breath_period),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+	},
+	{
+		.procname	= "breath_priority",
+		.data		= &vm_breath_priority,
+		.maxlen		= sizeof(vm_breath_priority),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
 		.procname       = "want_old_faultaround_pte",
 		.data           = &want_old_faultaround_pte,
 		.maxlen         = sizeof(want_old_faultaround_pte),
@@ -1527,6 +1564,24 @@ static struct ctl_table vm_table[] = {
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
 		.extra2         = &one,
+	},
+	{
+		.procname	= "memory_plus_test_worstcase",
+		.data		= &vm_memory_plus_test_worstcase,
+		.maxlen 	= sizeof(vm_memory_plus),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1 	= &neg_one,
+		.extra2 	= &one_thousand,
+	},
+	{
+		.procname	= "memory_plus",
+		.data		= &vm_memory_plus,
+		.maxlen 	= sizeof(vm_memory_plus),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1 	= &neg_one,
+		.extra2 	= &one_thousand,
 	},
 #ifdef CONFIG_HUGETLB_PAGE
 	{
