@@ -104,7 +104,8 @@ module_param(rmnet_perf_frag_flush, ulong, 0444);
 MODULE_PARM_DESC(rmnet_perf_frag_flush,
 		 "Number of packet fragments flushed to stack");
 
-#define SHS_FLUSH 0
+#define SHS_FLUSH				0
+#define RECYCLE_BUFF_SIZE_THRESH		51200
 
 /* rmnet_perf_core_free_held_skbs() - Free held SKBs given to us by physical
  *		device
@@ -185,9 +186,10 @@ struct sk_buff *rmnet_perf_core_elligible_for_cache_skb(struct rmnet_perf *perf,
 	struct sk_buff *skbn;
 	int user_count;
 
-	if (len < 51200)
-		return NULL;
 	buff_pool = perf->core_meta->buff_pool;
+	if (len < RECYCLE_BUFF_SIZE_THRESH || !buff_pool->available[0])
+		return NULL;
+
 	circ_index = buff_pool->index;
 	iterations = 0;
 	while (iterations < RMNET_PERF_NUM_64K_BUFFS) {
@@ -634,6 +636,7 @@ void rmnet_perf_core_deaggregate(struct sk_buff *skb,
 	struct rmnet_perf *perf;
 	struct timespec curr_time, diff;
 	static struct timespec last_drop_time;
+	struct rmnet_perf_core_burst_marker_state *bm_state;
 	u32 trailer_len = 0;
 	int co = 0;
 	int chain_count = 0;
@@ -730,12 +733,13 @@ next_chain:
 		skb = skb_frag;
 	}
 
-	perf->core_meta->bm_state->expect_packets -= co;
+	bm_state = perf->core_meta->bm_state;
+	bm_state->expect_packets -= co;
 	/* if we ran out of data and should have gotten an end marker,
 	 * then we can flush everything
 	 */
-	if (!rmnet_perf_core_bm_flush_on ||
-	    (int) perf->core_meta->bm_state->expect_packets <= 0) {
+	if (!bm_state->callbacks_valid || !rmnet_perf_core_bm_flush_on ||
+	    (int) bm_state->expect_packets <= 0) {
 		rmnet_perf_opt_flush_all_flow_nodes(perf);
 		rmnet_perf_core_free_held_skbs(perf);
 		rmnet_perf_core_flush_reason_cnt[
