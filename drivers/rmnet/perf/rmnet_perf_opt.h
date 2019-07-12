@@ -80,6 +80,7 @@ rmnet_perf_opt_update_flow(struct rmnet_perf_opt_flow_node *flow_node,
 			   struct rmnet_perf_pkt_info *pkt_info);
 void rmnet_perf_opt_flush_single_flow_node(struct rmnet_perf *perf,
 				struct rmnet_perf_opt_flow_node *flow_node);
+void rmnet_perf_opt_flush_flow_by_hash(struct rmnet_perf *perf, u32 hash_val);
 void rmnet_perf_opt_flush_all_flow_nodes(struct rmnet_perf *perf);
 void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 			struct rmnet_perf_opt_flow_node *flow_node,
