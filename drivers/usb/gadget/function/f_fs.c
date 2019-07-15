@@ -1075,7 +1075,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 
-		ffs_log("queued %d bytes on %s", data_len, epfile->name);
+		ffs_log("queued %ld bytes on %s", data_len, epfile->name);
 
 		if (unlikely(wait_for_completion_interruptible(&done))) {
 			/*
@@ -1093,9 +1093,12 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			 */
 			if (epfile->ep == ep) {
 				usb_ep_dequeue(ep->ep, req);
+				spin_unlock_irq(&epfile->ffs->eps_lock);
+				wait_for_completion(&done);
 				interrupted = ep->status < 0;
+			} else {
+				spin_unlock_irq(&epfile->ffs->eps_lock);
 			}
-			spin_unlock_irq(&epfile->ffs->eps_lock);
 		}
 
 		ffs_log("ep status %d for req %pK", ep->status, req);
@@ -1139,7 +1142,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			goto error_lock;
 		}
 
-		ffs_log("queued %d bytes on %s", data_len, epfile->name);
+		ffs_log("queued %ld bytes on %s", data_len, epfile->name);
 
 		ret = -EIOCBQUEUED;
 		/*
@@ -1186,8 +1189,8 @@ ffs_epfile_open(struct inode *inode, struct file *file)
 static int ffs_aio_cancel(struct kiocb *kiocb)
 {
 	struct ffs_io_data *io_data = kiocb->private;
-	struct ffs_data *ffs = io_data->ffs;
 	struct ffs_epfile *epfile = kiocb->ki_filp->private_data;
+	struct ffs_data *ffs = epfile->ffs;
 	int value;
 
 	ENTER();

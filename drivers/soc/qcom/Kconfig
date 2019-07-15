@@ -102,6 +102,24 @@ config QCOM_SDMMAGPIE_LLCC
 	  data required to configure LLCC so that clients can start using the
 	  LLCC slices.
 
+config QCOM_ATOLL_LLCC
+	tristate "Qualcomm Technologies, Inc. ATOLL LLCC driver"
+	depends on QCOM_LLCC
+	help
+	  Say yes here to enable the LLCC driver for ATOLL. This provides
+	  data required to configure LLCC so that clients can start using the
+	  LLCC slices.
+
+config QCOM_SDXPRAIRIE_LLCC
+	tristate "Qualcomm Technologies, Inc. SDXPRAIRIE LLCC driver"
+	depends on QCOM_LLCC
+	help
+	  This configuration option enables LLCC driver specific to SDXPRAIRIE.
+	  Say 'Y' here to enable the LLCC driver for SDXPRAIRIE which provides
+	  data required to configure LLCC so that clients can start using the
+	  LLCC slices.
+
+
 config QCOM_LLCC_AMON
 	tristate "Qualcomm Technologies, Inc. LLCC Activity Monitor(AMON) driver"
 	depends on QCOM_LLCC
@@ -142,7 +160,7 @@ config QCOM_PM
 
 config QCOM_QMI_HELPERS
 	bool "Qualcomm QMI Helpers"
-	depends on QRTR
+	depends on QRTR || QTI_QRTR
 	help
 	  Helper library for handling QMI encoded messages.  QMI encoded
 	  messages are used in communication between the majority of QRTR
@@ -226,6 +244,15 @@ config QCOM_SCM
 	 SCM provides communication channel to communicate with secure
 	 world(EL2 and EL3) by using smc call.
 	 SCM driver provides the support for atomic scm calls also.
+
+config QCOM_SCM_QCPE
+	bool "Para-Virtualized Secure Channel Manager (SCM) support over QCPE"
+	default n
+        help
+	 Say y here to enable Secure Channel Mananger(SCM) support for SoC
+	 in virtualized Linux, where SCM backend is QCPE (QCOM Protected
+	 environment). The SCM channel will use QCOM HAB interface for
+	 fronet-end to back-end communication.
 
 config QCOM_MEMORY_DUMP_V2
 	bool "QCOM Memory Dump V2 Support"
@@ -420,6 +447,16 @@ config MSM_BOOT_STATS
 	  display init, total boot time.
 	  This figures are reported in mpm sleep clock cycles and have a
 	  resolution of 31 bits as 1 bit is used as an overflow check.
+
+config MSM_BOOT_TIME_MARKER
+        bool "Use MSM boot time marker reporting"
+        depends on MSM_BOOT_STATS
+        help
+         Use this to mark msm boot kpi for measurement.
+         An instrumentation for boot time measurement.
+         To create an entry, call "place_marker" function.
+         At userspace, write marker name to "/sys/kernel/debug/bootkpi/kpi_values"
+         If unsure, say N
 
 config MSM_CORE_HANG_DETECT
        tristate "MSM Core Hang Detection Support"
@@ -702,6 +739,15 @@ config MSM_EVENT_TIMER
 	  monitor events that require the core to be awake and ready to
 	  handle the event.
 
+config MSM_AVTIMER
+	tristate "Avtimer Driver"
+	default n
+	help
+	  This driver gets the Q6 out of power collapsed state
+	  and exposes ioctl control to read avtimer tick.
+	  Enables camera to use for VT call to get avtimer
+	  timestamp.
+
 config MSM_PM
 	depends on PM
 	select MSM_IDLE_STATS if DEBUG_FS
@@ -842,6 +888,12 @@ config QCOM_AOP_DDR_MESSAGING
 	  This driver sends messages to the AOP to adjust the DDR frequency when
 	  the device is rebooting, to ensure that the device is powered off
 	  cleanly.
+
+config QCOM_AOP_DDRSS_COMMANDS
+	bool "Send commands to AOP to affect the behavior of the DDRSS"
+	help
+	  This driver allows messages to be sent to the AOP to affect the DDRSS
+	  behavior.
 endmenu
 
 config QCOM_HYP_CORE_CTL

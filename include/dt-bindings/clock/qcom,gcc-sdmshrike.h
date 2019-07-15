@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -257,6 +257,10 @@
 #define GPLL1							240
 #define GPLL4							241
 #define GPLL7							242
+#define GCC_PCIE_0_CLKREF_CLK					243
+#define GCC_PCIE_1_CLKREF_CLK					244
+#define GCC_USB3_PRIM_CLKREF_CLK				245
+#define GCC_USB3_SEC_CLKREF_CLK					246
 
 #define GCC_EMAC_BCR						0
 #define GCC_GPU_BCR							1
@@ -299,6 +303,7 @@
 #define GCC_USB30_PRIM_BCR					38
 #define GCC_USB30_SEC_BCR					39
 #define GCC_USB_PHY_CFG_AHB2PHY_BCR			40
+#define GCC_VIDEO_AXIC_CLK_BCR				41
 
 #define MMCX_CLK					0
 #endif

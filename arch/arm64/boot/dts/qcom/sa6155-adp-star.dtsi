@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -11,7 +11,11 @@
  */
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/clock/qcom,gcc-sm6150.h>
+#include "sa6155-cnss.dtsi"
 
+&bluetooth_ext {
+	status = "ok";
+};
 
 &qupv3_se6_spi {
 	status = "ok";
@@ -33,15 +37,58 @@
 		status = "ok";
 	};
 
-	audio_apr: qcom,msm-audio-apr {
-		status = "ok";
-	};
-
 	qcom,glink {
 		modem {
 			status = "disabled";
 		};
 	};
+
+	hsi2s: qcom,hsi2s {
+		compatible = "qcom,hsi2s";
+		number-of-interfaces = <2>;
+		reg = <0x1B40000 0x28000>;
+		reg-names = "lpa_if";
+		interrupts = <GIC_SPI 267 0>;
+		clocks = <&clock_gcc GCC_SDR_CORE_CLK>,
+			 <&clock_gcc GCC_SDR_WR0_MEM_CLK>,
+			 <&clock_gcc GCC_SDR_WR1_MEM_CLK>,
+			 <&clock_gcc GCC_SDR_WR2_MEM_CLK>,
+			 <&clock_gcc GCC_SDR_CSR_HCLK>;
+		clock-names = "core_clk", "wr0_mem_clk",
+			      "wr1_mem_clk", "wr2_mem_clk",
+			      "csr_hclk";
+
+		sdr0: qcom,hs0_i2s {
+			compatible = "qcom,hsi2s-interface";
+			minor-number = <0>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&hs0_i2s_sck_active &hs0_i2s_data0_active
+				     &hs0_i2s_data1_active>;
+			pinctrl-1 = <&hs0_i2s_sck_sleep &hs0_i2s_data0_sleep
+				     &hs0_i2s_data1_sleep>;
+			clocks = <&clock_gcc GCC_SDR_PRI_MI2S_CLK>;
+			clock-names = "pri_mi2s_clk";
+			iommus = <&apps_smmu 0x035C 0x0>;
+			qcom,smmu-s1-bypass;
+			qcom,iova-mapping = <0x0 0xFFFFFFFF>;
+		};
+
+		sdr1: qcom,hs1_i2s {
+			compatible = "qcom,hsi2s-interface";
+			minor-number = <1>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&hs1_i2s_sck_active &hs1_i2s_data0_active
+				     &hs1_i2s_data1_active>;
+			pinctrl-1 = <&hs1_i2s_sck_sleep &hs1_i2s_data0_sleep
+				     &hs1_i2s_data1_sleep>;
+			clocks = <&clock_gcc GCC_SDR_SEC_MI2S_CLK>;
+			clock-names = "sec_mi2s_clk";
+			iommus = <&apps_smmu 0x035D 0x0>;
+			qcom,smmu-s1-bypass;
+			qcom,iova-mapping = <0x0 0xFFFFFFFF>;
+		};
+	};
+
 	emac_hw: qcom,emac@20000 {
 		compatible = "qcom,emac-dwc-eqos";
 		qcom,arm-smmu;
@@ -90,7 +137,8 @@
 		"dev-emac-rgmii_rxd2_state", "dev-emac-rgmii_rxd3_state",
 		"dev-emac-rgmii_rxc_state", "dev-emac-rgmii_rx_ctl_state",
 		"dev-emac-phy_intr", "dev-emac-phy_reset_state",
-		"dev-emac_pin_pps_0";
+		"dev-emac_pin_pps_0", "dev-emac-rgmii_rxc_suspend_state",
+		"dev-emac-rgmii_rxc_resume_state";
 
 		pinctrl-0 = <&emac_mdc>;
 		pinctrl-1 = <&emac_mdio>;
@@ -109,6 +157,8 @@
 		pinctrl-14 = <&emac_phy_intr>;
 		pinctrl-15 = <&emac_phy_reset_state>;
 		pinctrl-16 = <&emac_pin_pps_0>;
+		pinctrl-17 = <&emac_rgmii_rxc_suspend>;
+		pinctrl-18 = <&emac_rgmii_rxc_resume>;
 
 		io-macro-info {
 			io-macro-bypass-mode = <0>;
@@ -121,9 +171,6 @@
 		};
 	};
 
-	bluetooth_ext: bt_qca6174 {
-		status = "ok";
-	};
 };
 
 &ufsphy_mem {
@@ -191,7 +238,15 @@
 };
 
 &usb0 {
+	qcom,default-mode-none;
 	qcom,host-poweroff-in-pm-suspend;
+};
+
+&qusb_phy0 {
+	qcom,usb-hs-ac-bitmask = <0x30>;
+	qcom,usb-hs-ac-value = <0x10>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb0_hs_ac_en_default>;
 };
 
 &usb1 {
@@ -200,7 +255,18 @@
 	qcom,host-poweroff-in-pm-suspend;
 };
 
+&qusb_phy1 {
+	qcom,usb-hs-ac-bitmask = <0xc0>;
+	qcom,usb-hs-ac-value = <0x40>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb1_hs_ac_en_default>;
+};
+
 &qupv3_se0_2uart {
+	status = "ok";
+};
+
+&qupv3_se5_i2c {
 	status = "ok";
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, 2017-2019, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -76,11 +76,18 @@ struct clk_alpha_pll {
 #define SUPPORTS_SLEW		BIT(4)
 	/* Associated with soft_vote for multiple PLL software instances */
 #define SUPPORTS_FSM_VOTE	BIT(5)
+#define SUPPORTS_NO_SLEW	BIT(6)
+#define SUPPORTS_NO_PLL_LATCH	BIT(7)
 	u8 flags;
 
 	struct clk_regmap clkr;
 	enum pll_type type;
 	unsigned long min_supported_freq;
+};
+
+enum postdiv_type {
+	POSTDIV_EVEN,
+	POSTDIV_ODD,
 };
 
 /**
@@ -100,6 +107,7 @@ struct clk_alpha_pll_postdiv {
 	size_t num_post_div;
 	struct clk_regmap clkr;
 	enum pll_type type;
+	enum postdiv_type postdiv;
 };
 
 struct alpha_pll_config {

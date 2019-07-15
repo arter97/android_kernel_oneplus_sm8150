@@ -1707,6 +1707,9 @@ static void adreno_fault_header(struct kgsl_device *device,
 		struct adreno_context *drawctxt =
 			ADRENO_CONTEXT(drawobj->context);
 
+		drawctxt->base.total_fault_count++;
+		drawctxt->base.last_faulted_cmd_ts = drawobj->timestamp;
+
 		trace_adreno_gpu_fault(drawobj->context->id,
 			drawobj->timestamp,
 			status, rptr, wptr, ib1base, ib1sz,
@@ -2110,7 +2113,7 @@ static int dispatcher_do_fault(struct adreno_device *adreno_dev)
 	}
 
 	/* Mask all GMU interrupts */
-	if (gmu_core_isenabled(device)) {
+	if (gmu_core_gpmu_isenabled(device)) {
 		adreno_write_gmureg(adreno_dev,
 			ADRENO_REG_GMU_AO_HOST_INTERRUPT_MASK,
 			0xFFFFFFFF);

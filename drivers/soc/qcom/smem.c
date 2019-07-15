@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2015, Sony Mobile Communications AB.
- * Copyright (c) 2012-2013, 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, 2017, 2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -91,7 +92,7 @@
 #define SMEM_GLOBAL_HOST	0xfffe
 
 /* Max number of processors/hosts in a system */
-#define SMEM_HOST_COUNT		10
+#define SMEM_HOST_COUNT		11
 
 /**
   * struct smem_proc_comm - proc_comm communication struct (legacy)
@@ -1057,6 +1058,40 @@ static int qcom_smem_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int qcom_smem_freeze(struct device *dev)
+{
+	struct platform_device *pdev = container_of(dev, struct
+					platform_device, dev);
+	dev_dbg(dev, "%s\n", __func__);
+
+	qcom_smem_remove(pdev);
+
+	return 0;
+}
+
+static int qcom_smem_restore(struct device *dev)
+{
+	int ret = 0;
+	struct platform_device *pdev = container_of(dev, struct
+					platform_device, dev);
+	dev_dbg(dev, "%s\n", __func__);
+
+	/*
+	 * SMEM related information has to fetched again
+	 * during resuming from Hibernation, Hence call probe.
+	 */
+	ret = qcom_smem_probe(pdev);
+	if (ret)
+		dev_err(dev, "Error getting SMEM information");
+
+	return ret;
+}
+
+static const struct dev_pm_ops qcom_smem_pm_ops = {
+	.freeze = qcom_smem_freeze,
+	.restore = qcom_smem_restore,
+};
+
 static const struct of_device_id qcom_smem_of_match[] = {
 	{ .compatible = "qcom,smem" },
 	{}
@@ -1070,6 +1105,7 @@ static struct platform_driver qcom_smem_driver = {
 		.name = "qcom-smem",
 		.of_match_table = qcom_smem_of_match,
 		.suppress_bind_attrs = true,
+		.pm = &qcom_smem_pm_ops,
 	},
 };
 

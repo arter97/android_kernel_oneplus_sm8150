@@ -172,6 +172,12 @@ static int qcom_mhi_qrtr_probe(struct mhi_device *mhi_dev,
 
 	rt = of_property_read_bool(mhi_dev->dev.of_node, "qcom,low-latency");
 
+	rc = of_property_read_u32(mhi_dev->dev.of_node, "qcom,net-id", &net_id);
+	if (rc < 0)
+		net_id = QRTR_EP_NET_ID_AUTO;
+
+	rt = of_property_read_bool(mhi_dev->dev.of_node, "qcom,low-latency");
+
 	INIT_LIST_HEAD(&qdev->ul_pkts);
 	spin_lock_init(&qdev->ul_lock);
 

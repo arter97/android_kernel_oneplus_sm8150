@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -335,6 +335,10 @@ static int _sde_debugfs_init(struct sde_kms *sde_kms)
 		SDE_ERROR("failed to init perf %d\n", rc);
 		return rc;
 	}
+
+	if (sde_kms->catalog->qdss_count)
+		debugfs_create_u32("qdss", 0600, debugfs_root,
+				(u32 *)&sde_kms->qdss_enabled);
 
 	return 0;
 }
@@ -882,7 +886,7 @@ static int _sde_kms_splash_mem_get(struct sde_kms *sde_kms,
 	}
 
 	splash->ref_cnt++;
-	SDE_DEBUG("one2one mapping done for base:%x size:%x ref_cnt:%d\n",
+	SDE_DEBUG("one2one mapping done for base:%lx size:%x ref_cnt:%d\n",
 				splash->splash_buf_base,
 				splash->splash_buf_size,
 				splash->ref_cnt);
@@ -933,7 +937,7 @@ static int _sde_kms_splash_mem_put(struct sde_kms *sde_kms,
 
 	splash->ref_cnt--;
 
-	SDE_DEBUG("splash base:%x refcnt:%d\n",
+	SDE_DEBUG("splash base:%lx refcnt:%d\n",
 			splash->splash_buf_base, splash->ref_cnt);
 
 	if (!splash->ref_cnt) {
@@ -1467,6 +1471,17 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 			SDE_ERROR("dsi %d connector init failed\n", i);
 			dsi_display_drm_bridge_deinit(display);
 			sde_encoder_destroy(encoder);
+			continue;
+		}
+
+		rc = dsi_display_drm_ext_bridge_init(display,
+					encoder,
+					connector);
+		if (rc) {
+			SDE_ERROR("dsi %d ext bridge init failed\n", rc);
+			dsi_display_drm_bridge_deinit(display);
+			sde_encoder_destroy(encoder);
+			sde_connector_destroy(connector);
 		}
 	}
 
@@ -2359,7 +2374,6 @@ static void _sde_kms_post_open(struct msm_kms *kms, struct drm_file *file)
 	struct drm_connector *connector = NULL;
 	struct drm_connector_list_iter conn_iter;
 	struct sde_connector *sde_conn = NULL;
-	int i;
 
 	if (!kms) {
 		SDE_ERROR("invalid kms\n");
@@ -2376,18 +2390,6 @@ static void _sde_kms_post_open(struct msm_kms *kms, struct drm_file *file)
 
 	if (!dev->mode_config.poll_enabled)
 		return;
-
-	/* init external dsi bridge here to make sure ext bridge is probed*/
-	for (i = 0; i < sde_kms->dsi_display_count; ++i) {
-		struct dsi_display *dsi_display;
-
-		dsi_display = sde_kms->dsi_displays[i];
-		if (dsi_display->bridge) {
-			dsi_display_drm_ext_bridge_init(dsi_display,
-				dsi_display->bridge->base.encoder,
-				dsi_display->drm_conn);
-		}
-	}
 
 	mutex_lock(&dev->mode_config.mutex);
 	drm_connector_list_iter_begin(dev, &conn_iter);
@@ -3311,6 +3313,13 @@ static int sde_kms_hw_init(struct msm_kms *kms)
 	rc = _sde_kms_get_splash_data(&sde_kms->splash_data);
 	if (rc)
 		SDE_DEBUG("sde splash data fetch failed: %d\n", rc);
+
+	for (i = 0; i < SDE_POWER_HANDLE_DBUS_ID_MAX; i++) {
+		priv->phandle.data_bus_handle[i].ab_rt =
+			SDE_POWER_HANDLE_CONT_SPLASH_BUS_AB_QUOTA;
+		priv->phandle.data_bus_handle[i].ib_rt =
+			SDE_POWER_HANDLE_CONT_SPLASH_BUS_IB_QUOTA;
+	}
 
 	rc = sde_power_resource_enable(&priv->phandle, sde_kms->core_client,
 		true);

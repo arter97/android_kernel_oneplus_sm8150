@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/msm_ep_pcie.h>
+#include <linux/iommu.h>
 
 #define PCIE20_PARF_SYS_CTRL           0x00
 #define PCIE20_PARF_DB_CTRL            0x10
@@ -55,7 +56,13 @@
 #define PCIE20_PARF_SLV_ADDR_SPACE_SIZE_HI     0x35C
 #define PCIE20_PARF_ATU_BASE_ADDR      0x634
 #define PCIE20_PARF_ATU_BASE_ADDR_HI   0x638
+#define PCIE20_PARF_BUS_DISCONNECT_CTRL          0x648
+#define PCIE20_PARF_BUS_DISCONNECT_STATUS        0x64c
+#define PCIE20_PARF_BDF_TO_SID_CFG		0x2c00
+
 #define PCIE20_PARF_DEVICE_TYPE        0x1000
+#define PCIE20_PARF_EDMA_BASE_ADDR      0x64C
+#define PCIE20_PARF_EDMA_BASE_ADDR_HI   0x650
 
 #define PCIE20_ELBI_VERSION            0x00
 #define PCIE20_ELBI_SYS_CTRL           0x04
@@ -63,6 +70,8 @@
 #define PCIE20_ELBI_CS2_ENABLE         0xA4
 
 #define PCIE20_DEVICE_ID_VENDOR_ID     0x00
+#define PCIE20_MASK_DEVICE_ID          GENMASK(31, 16)
+#define PCIE20_MASK_VENDOR_ID          GENMASK(15, 0)
 #define PCIE20_COMMAND_STATUS          0x04
 #define PCIE20_CLASS_CODE_REVISION_ID  0x08
 #define PCIE20_BIST_HDR_TYPE           0x0C
@@ -154,7 +163,7 @@
 #define MAX_IATU_ENTRY_NUM 2
 
 #define EP_PCIE_LOG_PAGES 50
-#define EP_PCIE_MAX_VREG 2
+#define EP_PCIE_MAX_VREG 3
 #define EP_PCIE_MAX_CLK 7
 #define EP_PCIE_MAX_PIPE_CLK 1
 #define EP_PCIE_MAX_RESET 2
@@ -229,6 +238,8 @@ enum ep_pcie_res {
 	EP_PCIE_RES_DM_CORE,
 	EP_PCIE_RES_ELBI,
 	EP_PCIE_RES_IATU,
+	EP_PCIE_RES_EDMA,
+	EP_PCIE_RES_TCSR_PERST,
 	EP_PCIE_MAX_RES,
 };
 
@@ -318,15 +329,22 @@ struct ep_pcie_dev_t {
 	void __iomem                 *mmio;
 	void __iomem                 *msi;
 	void __iomem                 *dm_core;
+	void __iomem                 *edma;
 	void __iomem                 *elbi;
 	void __iomem                 *iatu;
+	void __iomem		     *tcsr_perst_en;
 
 	struct msm_bus_scale_pdata   *bus_scale_table;
 	u32                          bus_client;
+	u16                          vendor_id;
+	u16                          device_id;
+	u32                          subsystem_id;
 	u32                          link_speed;
 	bool                         active_config;
 	bool                         aggregated_irq;
 	bool                         mhi_a7_irq;
+	bool                         pcie_edma;
+	bool                         tcsr_not_supported;
 	u32                          dbi_base_reg;
 	u32                          slv_space_reg;
 	u32                          phy_status_reg;
@@ -379,6 +397,15 @@ struct ep_pcie_dev_t {
 
 extern struct ep_pcie_dev_t ep_pcie_dev;
 extern struct ep_pcie_hw hw_drv;
+
+#if IS_ENABLED(CONFIG_QCOM_PCI_EDMA)
+int qcom_edma_init(struct device *dev);
+#else
+static inline int qcom_edma_init(struct device *dev)
+{
+	return 0;
+}
+#endif
 
 static inline void ep_pcie_write_mask(void __iomem *addr,
 				u32 clear_mask, u32 set_mask)

@@ -13,21 +13,24 @@
 
 &pcie_rc1 {
 	reg = <0 0 0 0 0>;
+	#address-cells = <3>;
+	#size-cells = <2>;
 
 	mhi_0: qcom,mhi@0 {
 		reg = <0 0 0 0 0 >;
+
+		pci-ids = "17cb:0305", "17cb:0306";
 
 		/* controller specific configuration */
 		qcom,smmu-cfg = <0x3>;
 
 		/* mhi bus specific settings */
-		mhi,max-channels = <106>;
+		mhi,max-channels = <110>;
 		mhi,timeout = <2000>;
 
-		#address-cells = <1>;
-		#size-cells = <0>;
-
 		mhi_channels {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mhi_chan@0 {
 				reg = <0>;
 				label = "LOOPBACK";
@@ -328,8 +331,30 @@
 				mhi,num-elements = <512>;
 				mhi,event-ring = <5>;
 				mhi,chan-dir = <2>;
-				mhi,data-type = <1>;
+				mhi,data-type = <4>;
 				mhi,doorbell-mode = <3>;
+				mhi,ee = <0x4>;
+			};
+
+			mhi_chan@102 {
+				reg = <102>;
+				label = "IP_HW_ADPL";
+				mhi,event-ring = <6>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+				mhi,lpm-notify;
+			};
+
+			mhi_chan@103 {
+				reg = <103>;
+				label = "IP_HW_QDSS";
+				mhi,num-elements = <128>;
+				mhi,event-ring = <7>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <0>;
+				mhi,doorbell-mode = <2>;
 				mhi,ee = <0x4>;
 			};
 
@@ -340,7 +365,6 @@
 				mhi,chan-dir = <1>;
 				mhi,data-type = <3>;
 				mhi,ee = <0x4>;
-				mhi,offload-chan;
 			};
 
 			mhi_chan@105 {
@@ -353,10 +377,34 @@
 				mhi,offload-chan;
 				mhi,lpm-notify;
 			};
+
+			mhi_chan@107 {
+				reg = <107>;
+				label = "IP_HW_MHIP_1";
+				mhi,event-ring = <10>;
+				mhi,chan-dir = <1>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+			};
+
+			mhi_chan@108 {
+				reg = <108>;
+				label = "IP_HW_MHIP_1";
+				mhi,event-ring = <11>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+				mhi,lpm-notify;
+			};
 		};
 
 		mhi_events {
-				mhi_event@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mhi_event@0 {
 				mhi,num-elements = <32>;
 				mhi,intmod = <1>;
 				mhi,msi = <1>;
@@ -409,21 +457,94 @@
 				mhi,hw-ev;
 				mhi,client-manage;
 			};
+
+			mhi_event@6 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <7>;
+				mhi,chan = <102>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@7 {
+				mhi,num-elements = <1024>;
+				mhi,intmod = <5>;
+				mhi,msi = <8>;
+				mhi,chan = <103>;
+				mhi,priority = <1>;
+				mhi,brstmode = <2>;
+				mhi,hw-ev;
+			};
+
+			mhi_event@8 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <9>;
+				mhi,chan = <105>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@9 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <10>;
+				mhi,chan = <106>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@10 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <11>;
+				mhi,chan = <107>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@11 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <12>;
+				mhi,chan = <108>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
 		};
 
 		mhi_devices {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mhi_netdev_0: mhi_rmnet@0 {
 				reg = <0x0>;
 				mhi,chan = "IP_HW0";
 				mhi,interface-name = "rmnet_mhi";
-				mhi,mru = <0x4000>;
+				mhi,mru = <0x8000>;
+				mhi,chan-skb;
 			};
 
-			mhi_netdev_1: mhi_rmnet@1 {
+			mhi_rmnet@1 {
 				reg = <0x1>;
-				mhi,chan = "IP_HW_ADPL";
-				mhi,interface-name = "rmnet_mhi";
-				mhi,mru = <0x4000>;
+				mhi,chan = "IP_HW0_RSC";
+				mhi,mru = <0x8000>;
+				mhi,rsc-parent = <&mhi_netdev_0>;
 			};
 
 			mhi_qrtr {
@@ -436,9 +557,13 @@
 
 &pcie_rc0 {
 	reg = <0 0 0 0 0>;
+	#address-cells = <3>;
+	#size-cells = <2>;
 
 	mhi_1: qcom,mhi@0 {
 		reg = <0 0 0 0 0 >;
+
+		pci-ids = "17cb:0305", "17cb:0306";
 
 		/* controller specific configuration */
 		qcom,smmu-cfg = <0x3>;
@@ -450,13 +575,12 @@
 			<45 512 1200000000 650000000>;
 
 		/* mhi bus specific settings */
-		mhi,max-channels = <106>;
+		mhi,max-channels = <110>;
 		mhi,timeout = <2000>;
 
-		#address-cells = <1>;
-		#size-cells = <0>;
-
 		mhi_channels {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mhi_chan@0 {
 				reg = <0>;
 				label = "LOOPBACK";
@@ -757,8 +881,30 @@
 				mhi,num-elements = <512>;
 				mhi,event-ring = <5>;
 				mhi,chan-dir = <2>;
-				mhi,data-type = <1>;
+				mhi,data-type = <4>;
 				mhi,doorbell-mode = <3>;
+				mhi,ee = <0x4>;
+			};
+
+			mhi_chan@102 {
+				reg = <102>;
+				label = "IP_HW_ADPL";
+				mhi,event-ring = <6>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+				mhi,lpm-notify;
+			};
+
+			mhi_chan@103 {
+				reg = <103>;
+				label = "IP_HW_QDSS";
+				mhi,num-elements = <128>;
+				mhi,event-ring = <7>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <0>;
+				mhi,doorbell-mode = <2>;
 				mhi,ee = <0x4>;
 			};
 
@@ -782,9 +928,33 @@
 				mhi,offload-chan;
 				mhi,lpm-notify;
 			};
+
+			mhi_chan@107 {
+				reg = <107>;
+				label = "IP_HW_MHIP_1";
+				mhi,event-ring = <10>;
+				mhi,chan-dir = <1>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+			};
+
+			mhi_chan@108 {
+				reg = <108>;
+				label = "IP_HW_MHIP_1";
+				mhi,event-ring = <11>;
+				mhi,chan-dir = <2>;
+				mhi,data-type = <3>;
+				mhi,ee = <0x4>;
+				mhi,offload-chan;
+				mhi,lpm-notify;
+			};
 		};
 
 		mhi_events {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
 				mhi_event@0 {
 				mhi,num-elements = <32>;
 				mhi,intmod = <1>;
@@ -838,21 +1008,94 @@
 				mhi,hw-ev;
 				mhi,client-manage;
 			};
+
+			mhi_event@6 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <7>;
+				mhi,chan = <102>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@7 {
+				mhi,num-elements = <1024>;
+				mhi,intmod = <5>;
+				mhi,msi = <8>;
+				mhi,chan = <103>;
+				mhi,priority = <1>;
+				mhi,brstmode = <2>;
+				mhi,hw-ev;
+			};
+
+			mhi_event@8 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <9>;
+				mhi,chan = <105>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@9 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <10>;
+				mhi,chan = <106>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@10 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <11>;
+				mhi,chan = <107>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
+
+			mhi_event@11 {
+				mhi,num-elements = <0>;
+				mhi,intmod = <0>;
+				mhi,msi = <12>;
+				mhi,chan = <108>;
+				mhi,priority = <1>;
+				mhi,brstmode = <3>;
+				mhi,hw-ev;
+				mhi,client-manage;
+				mhi,offload;
+			};
 		};
 
 		mhi_devices {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mhi_netdev_2: mhi_rmnet@0 {
 				reg = <0x0>;
 				mhi,chan = "IP_HW0";
 				mhi,interface-name = "rmnet_mhi";
-				mhi,mru = <0x4000>;
+				mhi,mru = <0x8000>;
+				mhi,chan-skb;
 			};
 
-			mhi_netdev_3: mhi_rmnet@1 {
+			mhi_rmnet@1 {
 				reg = <0x1>;
-				mhi,chan = "IP_HW_ADPL";
-				mhi,interface-name = "rmnet_mhi";
-				mhi,mru = <0x4000>;
+				mhi,chan = "IP_HW0_RSC";
+				mhi,mru = <0x8000>;
+				mhi,rsc-parent = <&mhi_netdev_0>;
 			};
 		};
 	};

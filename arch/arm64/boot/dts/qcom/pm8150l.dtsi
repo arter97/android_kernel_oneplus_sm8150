@@ -16,6 +16,9 @@
 #include <dt-bindings/iio/qcom,spmi-vadc.h>
 
 &spmi_bus {
+	#address-cells = <2>;
+	#size-cells = <0>;
+
 	qcom,pm8150l@4 {
 		compatible = "qcom,spmi-pmic";
 		reg = <0x4 SPMI_USID>;
@@ -397,6 +400,9 @@
 		};
 
 		pm8150a_amoled: qcom,amoled {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
 			compatible = "qcom,qpnp-amoled-regulator";
 			status = "disabled";
 
@@ -432,7 +438,7 @@
 
 &thermal_zones {
 	pm8150l_temp_alarm: pm8150l_tz {
-		polling-delay-passive = <0>;
+		polling-delay-passive = <100>;
 		polling-delay = <0>;
 		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150l_tz>;

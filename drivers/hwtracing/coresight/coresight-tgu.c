@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017, 2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,7 @@
 #include <linux/coresight.h>
 
 #include "coresight-priv.h"
+#include "apss_tgu.h"
 
 #define tgu_writel(drvdata, val, off)	__raw_writel((val), drvdata->base + off)
 #define tgu_readl(drvdata, off)		__raw_readl(drvdata->base + off)
@@ -123,8 +124,10 @@ static ssize_t enable_tgu(struct device *dev,
 
 	/* Enable clock */
 	ret = pm_runtime_get_sync(drvdata->dev);
-	if (ret)
+	if (ret < 0) {
+		pm_runtime_put(drvdata->dev);
 		return ret;
+	}
 
 	spin_lock(&drvdata->spinlock);
 	/* Unlock the TGU LAR */
@@ -176,7 +179,6 @@ static ssize_t enable_tgu(struct device *dev,
 		/* Disable TGU to program the triggers */
 		tgu_writel(drvdata, 0, TGU_CONTROL);
 		TGU_LOCK(drvdata);
-		spin_unlock(&drvdata->spinlock);
 
 		pm_runtime_put(drvdata->dev);
 		dev_dbg(dev, "Coresight-TGU disabled\n");
@@ -202,8 +204,10 @@ static ssize_t reset_tgu(struct device *dev,
 	if (!drvdata->enable) {
 		/* Enable clock */
 		ret = pm_runtime_get_sync(drvdata->dev);
-		if (ret)
+		if (ret < 0) {
+			pm_runtime_put(drvdata->dev);
 			return ret;
+		}
 	}
 
 	spin_lock(&drvdata->spinlock);
@@ -332,7 +336,7 @@ static ssize_t tgu_set_timers(struct device *dev, struct device_attribute *attr,
 	unsigned long value;
 	int step;
 
-	if (drvdata->select_refcnt >= MAX_TIMER_COUNTER_SETS) {
+	if (drvdata->timer_refcnt >= MAX_TIMER_COUNTER_SETS) {
 		dev_err(drvdata->dev, " Too many groups are being configured");
 		return -EINVAL;
 	}
@@ -412,6 +416,7 @@ static int tgu_probe(struct amba_device *adev, const struct amba_id *id)
 	struct coresight_platform_data *pdata;
 	struct tgu_drvdata *drvdata;
 	struct coresight_desc *desc;
+	const char *name;
 
 	pdata = of_get_coresight_platform_data(dev, adev->dev.of_node);
 	if (IS_ERR(pdata))
@@ -499,6 +504,13 @@ static int tgu_probe(struct amba_device *adev, const struct amba_id *id)
 	if (IS_ERR(drvdata->csdev)) {
 		ret = PTR_ERR(drvdata->csdev);
 		goto err;
+	}
+
+	of_property_read_string(adev->dev.of_node, "coresight-name", &name);
+	if (!strcmp(name, "coresight-tgu-apss")) {
+		ret = register_interrupt_handler(adev->dev.of_node);
+		if (ret)
+			return ret;
 	}
 
 	pm_runtime_put(&adev->dev);

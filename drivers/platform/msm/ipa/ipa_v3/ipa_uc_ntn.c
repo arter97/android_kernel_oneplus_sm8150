@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -403,9 +403,18 @@ int ipa3_setup_uc_ntn_pipes(struct ipa_ntn_conn_in_params *in,
 	}
 
 	ipa_ep_idx_ul = ipa_get_ep_mapping(in->ul.client);
+	if (ipa_ep_idx_ul == IPA_EP_NOT_ALLOCATED ||
+		ipa_ep_idx_ul >= IPA3_MAX_NUM_PIPES) {
+		IPAERR("fail to alloc UL EP ipa_ep_idx_ul=%d\n",
+			ipa_ep_idx_ul);
+		return -EFAULT;
+	}
+
 	ipa_ep_idx_dl = ipa_get_ep_mapping(in->dl.client);
-	if (ipa_ep_idx_ul == -1 || ipa_ep_idx_dl == -1) {
-		IPAERR("fail to alloc EP.\n");
+	if (ipa_ep_idx_dl == IPA_EP_NOT_ALLOCATED ||
+		ipa_ep_idx_dl >= IPA3_MAX_NUM_PIPES) {
+		IPAERR("fail to alloc DL EP ipa_ep_idx_dl=%d\n",
+			ipa_ep_idx_dl);
 		return -EFAULT;
 	}
 
@@ -446,10 +455,18 @@ int ipa3_setup_uc_ntn_pipes(struct ipa_ntn_conn_in_params *in,
 		goto fail;
 	}
 
+	result = ipa3_enable_data_path(ipa_ep_idx_ul);
+	if (result) {
+		IPAERR("Enable data path failed res=%d pipe=%d.\n", result,
+			ipa_ep_idx_ul);
+		result = -EFAULT;
+		goto fail_smmu_unmap_ul;
+	}
+
 	if (ipa3_uc_send_ntn_setup_pipe_cmd(&in->ul, IPA_NTN_RX_DIR)) {
 		IPAERR("fail to send cmd to uc for ul pipe\n");
 		result = -EFAULT;
-		goto fail_smmu_map_ul;
+		goto fail_disable_dp_ul;
 	}
 	ipa3_install_dflt_flt_rules(ipa_ep_idx_ul);
 	outp->ul_uc_db_pa = IPA_UC_NTN_DB_PA_RX;
@@ -468,30 +485,30 @@ int ipa3_setup_uc_ntn_pipes(struct ipa_ntn_conn_in_params *in,
 	if (ipa3_cfg_ep(ipa_ep_idx_dl, &ep_dl->cfg)) {
 		IPAERR("fail to setup dl pipe cfg\n");
 		result = -EFAULT;
-		goto fail_smmu_map_ul;
+		goto fail_disable_dp_ul;
 	}
 
 	result = ipa3_smmu_map_uc_ntn_pipes(&in->dl, true);
 	if (result) {
 		IPAERR("failed to map SMMU for DL %d\n", result);
-		goto fail_smmu_map_ul;
+		goto fail_disable_dp_ul;
+	}
+
+	result = ipa3_enable_data_path(ipa_ep_idx_dl);
+	if (result) {
+		IPAERR("Enable data path failed res=%d pipe=%d.\n", result,
+			ipa_ep_idx_dl);
+		result = -EFAULT;
+		goto fail_smmu_unmap_dl;
 	}
 
 	if (ipa3_uc_send_ntn_setup_pipe_cmd(&in->dl, IPA_NTN_TX_DIR)) {
 		IPAERR("fail to send cmd to uc for dl pipe\n");
 		result = -EFAULT;
-		goto fail_smmu_map_dl;
+		goto fail_disable_dp_dl;
 	}
 	outp->dl_uc_db_pa = IPA_UC_NTN_DB_PA_TX;
 	ep_dl->uc_offload_state |= IPA_UC_OFFLOAD_CONNECTED;
-
-	result = ipa3_enable_data_path(ipa_ep_idx_dl);
-	if (result) {
-		IPAERR("Enable data path failed res=%d clnt=%d.\n", result,
-			ipa_ep_idx_dl);
-		result = -EFAULT;
-		goto fail_smmu_map_dl;
-	}
 
 	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
 	IPADBG("client %d (ep: %d) connected\n", in->dl.client,
@@ -499,9 +516,13 @@ int ipa3_setup_uc_ntn_pipes(struct ipa_ntn_conn_in_params *in,
 
 	return 0;
 
-fail_smmu_map_dl:
+fail_disable_dp_dl:
+	ipa3_disable_data_path(ipa_ep_idx_dl);
+fail_smmu_unmap_dl:
 	ipa3_smmu_map_uc_ntn_pipes(&in->dl, false);
-fail_smmu_map_ul:
+fail_disable_dp_ul:
+	ipa3_disable_data_path(ipa_ep_idx_ul);
+fail_smmu_unmap_ul:
 	ipa3_smmu_map_uc_ntn_pipes(&in->ul, false);
 fail:
 	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
@@ -586,6 +607,8 @@ int ipa3_tear_down_uc_offload_pipes(int ipa_ep_idx_ul,
 	}
 
 	/* teardown the UL pipe */
+	ipa3_disable_data_path(ipa_ep_idx_ul);
+
 	tear->params.ipa_pipe_number = ipa_ep_idx_ul;
 	result = ipa3_uc_send_cmd((u32)(cmd.phys_base),
 				IPA_CPU_2_HW_CMD_OFFLOAD_TEAR_DOWN,

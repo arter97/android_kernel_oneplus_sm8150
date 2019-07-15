@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,7 @@
 #include <linux/msm_gpi.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-geni-qcom.h>
+#include <soc/qcom/boot_stats.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
 #define SPI_XFER_TIMEOUT_MS	(250)
@@ -91,7 +92,7 @@
 #define TIMESTAMP_AFTER		BIT(3)
 #define POST_CMD_DELAY		BIT(4)
 
-#define SPI_CORE2X_VOTE		(7600)
+#define SPI_CORE2X_VOTE		(5000)
 /* GSI CONFIG0 TRE Params */
 /* Flags bit fields */
 #define GSI_LOOPBACK_EN		(BIT(0))
@@ -152,10 +153,12 @@ struct spi_geni_master {
 	struct completion tx_cb;
 	struct completion rx_cb;
 	bool qn_err;
+	bool disable_dma_mode;
 	int cur_xfer_mode;
 	int num_tx_eot;
 	int num_rx_eot;
 	int num_xfers;
+	bool slave_cross_connected;
 	void *ipc;
 	bool shared_se;
 	bool dis_autosuspend;
@@ -203,8 +206,14 @@ static void spi_slv_setup(struct spi_geni_master *mas)
 {
 	geni_write_reg(SPI_SLAVE_EN, mas->base, SE_SPI_SLAVE_EN);
 
-	geni_write_reg(1, mas->base, GENI_OUTPUT_CTRL);
-
+	if (mas->slave_cross_connected) {
+		geni_write_reg(GENI_IO_MUX_1_EN, mas->base, GENI_OUTPUT_CTRL);
+		geni_write_reg(IO1_SEL_TX | IO2_DATA_IN_SEL_PAD2 |
+						IO3_DATA_IN_SEL_PAD2,
+						mas->base, GENI_CFG_REG80);
+	} else {
+		geni_write_reg(GENI_IO_MUX_0_EN, mas->base, GENI_OUTPUT_CTRL);
+	}
 	geni_write_reg(START_TRIGGER, mas->base, SE_GENI_CFG_SEQ_START);
 	/* ensure data is written to hardware register */
 	wmb();
@@ -247,7 +256,7 @@ static int get_spi_clk_cfg(u32 speed_hz, struct spi_geni_master *mas,
 
 	res_freq = (sclk_freq / (*clk_div));
 
-	dev_dbg(mas->dev, "%s: req %u resultant %u sclk %lu, idx %d, div %d\n",
+	dev_dbg(mas->dev, "%s: req %u resultant %lu sclk %lu, idx %d, div %d\n",
 		__func__, speed_hz, res_freq, sclk_freq, *clk_idx, *clk_div);
 
 	ret = clk_set_rate(rsc->se_clk, sclk_freq);
@@ -1063,17 +1072,30 @@ static void setup_fifo_xfer(struct spi_transfer *xfer,
 		mas->rx_rem_bytes = xfer->len;
 	}
 
-	fifo_size =
-		(mas->tx_fifo_depth * mas->tx_fifo_width / mas->cur_word_len);
-	if (trans_len > fifo_size) {
-		if (mas->cur_xfer_mode != SE_DMA) {
-			mas->cur_xfer_mode = SE_DMA;
-			geni_se_select_mode(mas->base, mas->cur_xfer_mode);
-		}
+	/*
+	 * Controller has support to transfer data either in FIFO mode
+	 * or in SE_DMA mode. Either force the controller to choose FIFO
+	 * mode for transfers or select the mode dynamically based on
+	 * size of data.
+	 */
+	if (mas->disable_dma_mode) {
+		mas->cur_xfer_mode = FIFO_MODE;
+		geni_se_select_mode(mas->base, mas->cur_xfer_mode);
 	} else {
-		if (mas->cur_xfer_mode != FIFO_MODE) {
-			mas->cur_xfer_mode = FIFO_MODE;
-			geni_se_select_mode(mas->base, mas->cur_xfer_mode);
+		fifo_size = (mas->tx_fifo_depth *
+				mas->tx_fifo_width / mas->cur_word_len);
+		if (trans_len > fifo_size) {
+			if (mas->cur_xfer_mode != SE_DMA) {
+				mas->cur_xfer_mode = SE_DMA;
+				geni_se_select_mode(mas->base,
+						mas->cur_xfer_mode);
+			}
+		} else {
+			if (mas->cur_xfer_mode != FIFO_MODE) {
+				mas->cur_xfer_mode = FIFO_MODE;
+				geni_se_select_mode(mas->base,
+						mas->cur_xfer_mode);
+			}
 		}
 	}
 
@@ -1432,6 +1454,7 @@ static int spi_geni_probe(struct platform_device *pdev)
 	struct platform_device *wrapper_pdev;
 	struct device_node *wrapper_ph_node;
 	bool rt_pri, slave_en;
+	char boot_marker[40];
 
 	spi = spi_alloc_master(&pdev->dev, sizeof(struct spi_geni_master));
 	if (!spi) {
@@ -1439,6 +1462,10 @@ static int spi_geni_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to alloc spi struct\n");
 		goto spi_geni_probe_err;
 	}
+
+	snprintf(boot_marker, sizeof(boot_marker),
+			"M - DRIVER GENI_SPI Init");
+	place_marker(boot_marker);
 
 	platform_set_drvdata(pdev, spi);
 	geni_mas = spi_master_get_devdata(spi);
@@ -1492,11 +1519,16 @@ static int spi_geni_probe(struct platform_device *pdev)
 		goto spi_geni_probe_err;
 	}
 
-	ret = pinctrl_select_state(rsc->geni_pinctrl,
+	geni_mas->disable_dma_mode = of_property_read_bool(pdev->dev.of_node,
+			"qcom,disable-dma");
+	if (!geni_mas->disable_dma_mode) {
+		ret = pinctrl_select_state(rsc->geni_pinctrl,
 					rsc->geni_gpio_sleep);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to set sleep configuration\n");
-		goto spi_geni_probe_err;
+		if (ret) {
+			dev_err(&pdev->dev,
+					"Failed to set sleep configuration\n");
+			goto spi_geni_probe_err;
+		}
 	}
 
 	rsc->se_clk = devm_clk_get(&pdev->dev, "se-clk");
@@ -1580,6 +1612,8 @@ static int spi_geni_probe(struct platform_device *pdev)
 		spi->slave_abort = spi_slv_abort;
 	}
 
+	geni_mas->slave_cross_connected =
+		of_property_read_bool(pdev->dev.of_node, "slv-cross-connected");
 	spi->mode_bits = (SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_CS_HIGH);
 	spi->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	spi->num_chipselect = SPI_NUM_CHIPSELECT;
@@ -1608,6 +1642,10 @@ static int spi_geni_probe(struct platform_device *pdev)
 	}
 	sysfs_create_file(&(geni_mas->dev->kobj),
 				&dev_attr_spi_slave_state.attr);
+	snprintf(boot_marker, sizeof(boot_marker),
+			"M - DRIVER GENI_SPI_%d Ready", spi->bus_num);
+	place_marker(boot_marker);
+
 	return ret;
 spi_geni_probe_unmap:
 	devm_iounmap(&pdev->dev, geni_mas->base);

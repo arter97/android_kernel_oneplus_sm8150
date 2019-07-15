@@ -74,6 +74,8 @@
 
 #define IPAHAL_IPC_LOG_PAGES 50
 
+#define IPAHAL_PKT_STATUS_FLTRT_RULE_MISS_ID 0x3ff
+
 /*
  * struct ipahal_context - HAL global context data
  * @hw_type: IPA H/W type/version.

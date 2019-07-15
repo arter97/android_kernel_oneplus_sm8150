@@ -572,8 +572,7 @@ static int clk_update_vdd(struct clk_vdd_class *vdd_class)
 	for (i = 0; i < vdd_class->num_regulators; i++) {
 		pr_debug("Set Voltage level Min %d, Max %d\n", uv[new_base + i],
 				uv[max_lvl + i]);
-		rc = regulator_set_voltage(r[i], uv[new_base + i],
-			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
+		rc = regulator_set_voltage(r[i], uv[new_base + i], INT_MAX);
 		if (rc)
 			goto set_voltage_fail;
 
@@ -594,13 +593,11 @@ static int clk_update_vdd(struct clk_vdd_class *vdd_class)
 	return rc;
 
 enable_disable_fail:
-	regulator_set_voltage(r[i], uv[cur_base + i],
-			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
+	regulator_set_voltage(r[i], uv[cur_base + i], INT_MAX);
 
 set_voltage_fail:
 	for (i--; i >= 0; i--) {
-		regulator_set_voltage(r[i], uv[cur_base + i],
-		       vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
+		regulator_set_voltage(r[i], uv[cur_base + i], INT_MAX);
 		if (cur_lvl == 0 || cur_lvl == vdd_class->num_levels)
 			regulator_disable(r[i]);
 		else if (level == 0)
@@ -2074,10 +2071,13 @@ static int clk_core_set_rate_nolock(struct clk_core *core,
 	if ((core->flags & CLK_SET_RATE_GATE) && core->prepare_count)
 		return -EBUSY;
 
+	set_rate_nesting_count++;
+
 	/* calculate new rates and get the topmost changed clock */
 	top = clk_calc_new_rates(core, rate);
 	if (!top) {
 		ret = -EINVAL;
+		set_rate_nesting_count--;
 		goto pre_rate_change_err;
 	}
 
@@ -2088,12 +2088,12 @@ static int clk_core_set_rate_nolock(struct clk_core *core,
 				fail_clk->name, req_rate);
 		clk_propagate_rate_change(top, ABORT_RATE_CHANGE);
 		ret = -EBUSY;
+		set_rate_nesting_count--;
 		goto pre_rate_change_err;
 	}
 
 
 	/* change the rates */
-	set_rate_nesting_count++;
 	ret = clk_change_rate(top);
 	set_rate_nesting_count--;
 	if (ret) {
@@ -2758,7 +2758,7 @@ static void clk_summary_show_one(struct seq_file *s, struct clk_core *c,
 	if (!c)
 		return;
 
-	seq_printf(s, "%*s%-*s %7d %8d %8d %11lu %10lu %5d %6d\n",
+	seq_printf(s, "%*s%-*s %7d %8d %8lu %11lu %10d %5d\n",
 		   level * 3 + 1, "",
 		   30 - level * 3, c->name,
 		   c->enable_count, c->prepare_count, clk_core_get_rate(c),

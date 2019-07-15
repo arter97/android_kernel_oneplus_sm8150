@@ -15,7 +15,7 @@
 #include <linux/usb/ch9.h>
 
 #ifdef CONFIG_USB_F_NCM
-#include <function/u_ncm.h>
+#include "function/u_ncm.h"
 #endif
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
@@ -163,7 +163,7 @@ static int usb_string_copy(const char *s, char **s_copy)
 		if (!str)
 			return -ENOMEM;
 	}
-	strncpy(str, s, MAX_USB_STRING_WITH_NULL_LEN);
+	strlcpy(str, s, MAX_USB_STRING_WITH_NULL_LEN);
 	if (str[ret - 1] == '\n')
 		str[ret - 1] = '\0';
 	*s_copy = str;

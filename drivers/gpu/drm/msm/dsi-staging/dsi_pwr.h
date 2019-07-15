@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,6 +30,7 @@ struct dsi_parser_utils;
  * @max_voltage:     Maximum voltage in uV.
  * @enable_load:     Load, in uA, when enabled.
  * @disable_load:    Load, in uA, when disabled.
+ * @off_min_voltage: Minimum voltage in uV when regulator is disabled.
  * @pre_on_sleep:    Sleep, in ms, before enabling the regulator.
  * @post_on_sleep:   Sleep, in ms, after enabling the regulator.
  * @pre_off_sleep:   Sleep, in ms, before disabling the regulator.
@@ -42,6 +43,7 @@ struct dsi_vreg {
 	u32 max_voltage;
 	u32 enable_load;
 	u32 disable_load;
+	u32 off_min_voltage;
 	u32 pre_on_sleep;
 	u32 post_on_sleep;
 	u32 pre_off_sleep;
@@ -92,4 +94,22 @@ int dsi_pwr_get_dt_vreg_data(struct device *dev,
  * return: error code in case of failure or 0 for success.
  */
 int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable);
+
+/**
+ * dsi_pwr_panel_regulator_mode_set()
+ * set regulator mode for OLED panel
+ * @regs:       Pointer to set of regulators to enable or disable.
+ * @reg_name:	Panel regulator name
+ * @regulator_mode:	Regulator mode values, like:
+ *                  REGULATOR_MODE_INVALID
+ *                  REGULATOR_MODE_FAST
+ *                  REGULATOR_MODE_NORMAL
+ *                  REGULATOR_MODE_IDLE
+ *                  REGULATOR_MODE_STANDBY
+ *
+ * return: error code in case of failure or 0 for success.
+ */
+int dsi_pwr_panel_regulator_mode_set(struct dsi_regulator_info *regs,
+					const char *reg_name,
+					int regulator_mode);
 #endif /* _DSI_PWR_H_ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +15,7 @@
 #include "skeleton64.dtsi"
 #include <dt-bindings/clock/qcom,gcc-qcs405.h>
 #include <dt-bindings/clock/qcom,cpu-qcs405.h>
+#include <dt-bindings/clock/qcom,cmn-blk-pll.h>
 #include <dt-bindings/clock/qcom,rpmcc.h>
 #include <dt-bindings/regulator/qcom,rpm-smd-regulator.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -34,7 +35,7 @@
 		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7";
 	};
 
-	reserved-memory {
+	reserved_mem: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
@@ -59,25 +60,25 @@
 		wlan_fw_mem: wlan_fw_mem@86400000 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x86400000 0x0 0x1100000>;
+			reg = <0x0 0x86400000 0x0 0x1000000>;
 		};
 
 		adsp_fw_mem: adsp_fw_mem@87500000 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x87500000 0x0 0x1a00000>;
+			reg = <0x0 0x87400000 0x0 0x1400000>;
 		};
 
 		cdsp_fw_mem: cdsp_fw_mem@88f00000 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x88f00000 0x0 0x600000>;
+			reg = <0x0 0x88800000 0x0 0x600000>;
 		};
 
 		wlan_msa_mem: wlan_msa_region@89500000 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x89500000 0x0 0x100000>;
+			reg = <0x0 0x88E00000 0x0 0x100000>;
 		};
 
 		secure_mem: secure_region {
@@ -137,6 +138,7 @@
 		sdhc1 = &sdhc_1; /* SDC1 eMMC slot */
 		sdhc2 = &sdhc_2; /* SDC2 SD Card slot */
 		qpic_nand1 = &qnand_1;
+		pci-domain0 = &pcie0; /* PCIe0 domain */
 	};
 
 	soc: soc { };
@@ -315,6 +317,19 @@
 		#reset-cells = <1>;
 	};
 
+	clock_cmn_blk_pll: qcom,cmn_blk_pll@2f780 {
+		compatible = "qcom,cmn_blk_pll";
+		reg = <0x2f780 0x4>;
+		reg-names = "cmn_blk";
+		clocks = <&clock_gcc GCC_BIAS_PLL_MISC_RESET_CLK>,
+			<&clock_gcc GCC_BIAS_PLL_AHB_CLK>,
+			<&clock_gcc GCC_BIAS_PLL_AON_CLK>;
+		clock-names = "misc_reset_clk", "ahb_clk", "aon_clk";
+		resets = <&clock_gcc GCC_BIAS_PLL_BCR>;
+		reset-names = "cmn_blk_pll_reset";
+		#clock-cells = <1>;
+	};
+
 	clock_gcc_mdss: qcom,gcc-mdss@1800000 {
 		compatible = "qcom,gcc-mdss-qcs405";
 		reg = <0x1800000 0x80000>;
@@ -418,11 +433,6 @@
 		reg = <0x000b2000 0x1000>,
 		      <0x000bfc00 0x400>;
 
-		clk-enable;
-		clocks = <&clock_gcc GCC_DCC_CLK>,
-			<&clock_gcc GCC_DCC_XO_CLK>;
-		clock-names = "dcc_clk", "dcc_xo_clk";
-
 		reg-names = "dcc-base", "dcc-ram-base";
 		dcc-ram-offset = <0x400>;
 		qcom,curr-link-list = <1>;
@@ -511,6 +521,11 @@
 		diag_dload@c8 {
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 200>;
+		};
+
+		kaslr_offset@6d0 {
+			compatible = "qcom,msm-imem-kaslr_offset";
+			reg = <0x6d0 12>;
 		};
 	};
 
@@ -1006,6 +1021,74 @@
 		};
 	};
 
+	qcom_crypto: qcrypto@720000 {
+		 compatible = "qcom,qcrypto";
+		 reg = <0x720000 0x20000>,
+		     <0x704000 0x20000>;
+		 reg-names = "crypto-base","crypto-bam-base";
+		 interrupts = <0 206 0>;
+		 qcom,bam-pipe-pair = <2>;
+		 qcom,ce-hw-instance = <0>;
+		 qcom,ce-device = <0>;
+		 qcom,bam-ee = <0>;
+		 qcom,ce-hw-shared;
+		 qcom,clk-mgmt-sus-res;
+		 qcom,msm-bus,name = "qcrypto-noc";
+		 qcom,msm-bus,num-cases = <2>;
+		 qcom,msm-bus,num-paths = <1>;
+		 qcom,msm-bus,vectors-KBps =
+			 <55 512 0 0>,
+			 <55 512 393600 393600>;
+		clock-names =
+			"core_clk_src", "core_clk",
+			"iface_clk", "bus_clk";
+		clocks =
+			<&clock_rpmcc QCRYPTO_CE1_CLK>,
+			<&clock_rpmcc QCRYPTO_CE1_CLK>,
+			<&clock_rpmcc QCRYPTO_CE1_CLK>,
+			<&clock_rpmcc QCRYPTO_CE1_CLK>;
+		 qcom,use-sw-aes-cbc-ecb-ctr-algo;
+		 qcom,use-sw-aes-xts-algo;
+		 qcom,use-sw-aes-ccm-algo;
+		 qcom,use-sw-ahash-algo;
+		 qcom,use-sw-hmac-algo;
+		 qcom,use-sw-aead-algo;
+		 qcom,smmu-s1-enable;
+		 iommus = <&apps_smmu 0x0064 0x0011>,
+			<&apps_smmu 0x0074 0x0011>;
+	     };
+
+	qcom_cedev: qcedev@720000 {
+		compatible = "qcom,qcedev";
+		reg = <0x720000 0x20000>,
+		    <0x704000 0x20000>;
+		reg-names = "crypto-base","crypto-bam-base";
+		interrupts = <0 206 0>;
+		qcom,ce-device = <0>;
+		qcom,bam-ee = <0>;
+		qcom,ce-hw-shared;
+		qcom,clk-mgmt-sus-res;
+		qcom,bam-pipe-pair = <3>;
+		qcom,ce-hw-instance = <0>;
+		qcom,msm-bus,name = "qcedev-noc";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+			<55 512 0 0>,
+			<55 512 393600 393600>;
+		clock-names =
+			"core_clk_src", "core_clk",
+			"iface_clk", "bus_clk";
+		clocks =
+			<&clock_rpmcc QCEDEV_CE1_CLK>,
+			<&clock_rpmcc QCEDEV_CE1_CLK>,
+			<&clock_rpmcc QCEDEV_CE1_CLK>,
+			<&clock_rpmcc QCEDEV_CE1_CLK>;
+		qcom,smmu-s1-enable;
+		iommus = <&apps_smmu 0x0066 0x0011>,
+		       <&apps_smmu 0x0076 0x0011>;
+	    };
+
 	qcom_tzlog: tz-log@8600720 {
 		compatible = "qcom,tz-log";
 		reg = <0x08600720 0x2000>;
@@ -1060,7 +1143,11 @@
 		qcom,hlos-num-ce-hw-instances = <1>;
 		qcom,hlos-ce-hw-instance = <0>;
 		qcom,qsee-ce-hw-instance = <0>;
+		qcom,disk-encrypt-pipe-pair = <2>;
+		qcom,support-fde;
+		qcom,fde-key-size;
 		qcom,no-clock-support;
+		qcom,appsbl-qseecom-support;
 		qcom,msm-bus,name = "qseecom-noc";
 		qcom,msm-bus,num-cases = <4>;
 		qcom,msm-bus,num-paths = <1>;
@@ -1220,6 +1307,8 @@
 			<&clock_gcc GCC_SDCC2_APPS_CLK>;
 		clock-names = "iface_clk", "core_clk";
 
+		qcom,nonhotplug;
+
 		/* VDD is an external regulator eLDO5 */
 		vdd-io-supply = <&pms405_l11>;
 		qcom,vdd-io-voltage-level = <1800000 2950000>;
@@ -1265,14 +1354,15 @@
 
 		qcom,cpufreq-table =
 			 < 1094400 >,
-			 < 1248000 >;
+			 < 1248000 >,
+			 < 1401600 >;
 	};
 
 	ddr_bw_opp_table: ddr-bw-opp-table {
 		compatible = "operating-points-v2";
-		BW_OPP_ENTRY( 297, 4); /* 1132 MB/s */
-		BW_OPP_ENTRY( 595, 4); /* 2269 MB/s */
-		BW_OPP_ENTRY( 710, 4); /* 2708 MB/s */
+		BW_OPP_ENTRY( 297, 8); /* 2265 MB/s */
+		BW_OPP_ENTRY( 595, 8); /* 4539 MB/s */
+		BW_OPP_ENTRY( 710, 8); /* 5416 MB/s */
 	};
 
 	cpubw: qcom,cpubw {
@@ -1305,8 +1395,9 @@
 		qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
 		qcom,target-dev = <&cpu0_cpu_ddr_latfloor>;
 		qcom,core-dev-table =
-			< 1094400 MHZ_TO_MBPS( 297, 4) >,
-			< 1248000 MHZ_TO_MBPS( 597, 4) >;
+			< 1094400 MHZ_TO_MBPS( 297, 8) >,
+			< 1248000 MHZ_TO_MBPS( 597, 8) >,
+			< 1401600 MHZ_TO_MBPS( 710, 8) >;
 	};
 
 	emac_hw: qcom,emac@07A80000 {
@@ -1444,6 +1535,7 @@
 
 #include "qcs405-coresight.dtsi"
 #include "qcs405-usb.dtsi"
+#include "qcs405-pcie.dtsi"
 
 &i2c_5 {
 	smb1351_otg_supply: smb1351-charger@55 {

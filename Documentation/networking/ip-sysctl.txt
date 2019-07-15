@@ -402,6 +402,7 @@ tcp_min_rtt_wlen - INTEGER
 	minimum RTT when it is moved to a longer path (e.g., due to traffic
 	engineering). A longer window makes the filter more resistant to RTT
 	inflations such as transient congestion. The unit is seconds.
+	Possible values: 0 - 86400 (1 day)
 	Default: 300
 
 tcp_moderate_rcvbuf - BOOLEAN
@@ -1530,6 +1531,11 @@ accept_ra_mtu - BOOLEAN
 
 	Functional default: enabled if accept_ra is enabled.
 			    disabled if accept_ra is disabled.
+
+accept_ra_prefix_route - BOOLEAN
+	Set the prefix route for the autoconfigured interface address
+
+	Functional default: enabled
 
 accept_redirects - BOOLEAN
 	Accept Redirects.

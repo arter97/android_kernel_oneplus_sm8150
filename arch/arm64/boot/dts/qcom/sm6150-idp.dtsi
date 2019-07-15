@@ -19,6 +19,9 @@
 #include <dt-bindings/clock/qcom,gcc-sm6150.h>
 
 &qupv3_se3_i2c {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	status = "ok";
 	#include "smb1390.dtsi"
 	#include "smb1355.dtsi"
@@ -162,6 +165,7 @@
 	compatible = "qcom,ufs-phy-qmp-v3-660";
 
 	vdda-phy-supply = <&pm6150_l4>; /* 0.9v */
+	vdda-phy-always-on;
 	vdda-pll-supply = <&pm6150_l11>;
 	vdda-phy-max-microamp = <30000>;
 	vdda-pll-max-microamp = <12000>;
@@ -211,6 +215,10 @@
 &qupv3_se5_i2c {
 	status = "ok";
 	qcom,clk-freq-out = <1000000>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	nq@28 {
 		compatible = "qcom,nq-nci";
 		reg = <0x28>;

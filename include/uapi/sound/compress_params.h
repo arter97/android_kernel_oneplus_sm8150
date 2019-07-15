@@ -56,6 +56,9 @@
 
 #define SND_DEC_DDP_MAX_PARAMS 18
 
+/* Maximum PCM channels */
+#define MAX_PCM_DECODE_CHANNELS 32
+
 /* AUDIO CODECS SUPPORTED */
 #define MAX_NUM_CODECS 32
 #define MAX_NUM_CODEC_DESCRIPTORS 32
@@ -75,6 +78,11 @@
 /* Bit-0 - 1 : Enable Timestamp mode */
 /* Bit-0 - 0 : Disable Timestamp mode */
 #define COMPRESSED_TIMESTAMP_FLAG 0x0001
+
+/* Perf mode flag */
+/* Bit-1 - 1 : Enable perf mode */
+/* Bit-1 - 0 : Disable perf mode */
+#define COMPRESSED_PERF_MODE_FLAG 0x0002
 
 /* Codecs are listed linearly to allow for extensibility */
 #define SND_AUDIOCODEC_PCM                   ((__u32) 0x00000001)
@@ -107,7 +115,9 @@
 #define SND_AUDIOCODEC_DSD                   ((__u32) 0x00000022)
 #define SND_AUDIOCODEC_APTX                  ((__u32) 0x00000023)
 #define SND_AUDIOCODEC_TRUEHD                ((__u32) 0x00000024)
-#define SND_AUDIOCODEC_MAX                   SND_AUDIOCODEC_TRUEHD
+#define SND_AUDIOCODEC_MAT                   ((__u32) 0x00000025)
+#define SND_AUDIOCODEC_THD                   ((__u32) 0x00000026)
+#define SND_AUDIOCODEC_MAX                   SND_AUDIOCODEC_THD
 
 /*
  * Profile and modes are listed with bit masks. This allows for a
@@ -361,6 +371,13 @@ struct snd_dec_ddp {
 	__u32 params_value[SND_DEC_DDP_MAX_PARAMS];
 } __attribute__((packed, aligned(4)));
 
+#define SND_DEC_THD_MAX_PARAMS 8
+struct snd_dec_thd {
+	__u32 params_length;
+	__u32 params_id[SND_DEC_THD_MAX_PARAMS];
+	__u32 params_value[SND_DEC_THD_MAX_PARAMS];
+} __attribute__((packed, aligned(4)));
+
 struct snd_dec_flac {
 	__u16 sample_size;
 	__u16 min_blk_size;
@@ -407,6 +424,15 @@ struct snd_dec_aptx {
 	__u32 nap;
 };
 
+/** struct snd_dec_pcm - codec options for PCM format
+ * @num_channels: Number of channels
+ * @ch_map: Channel map for the above corresponding channels
+ */
+struct snd_dec_pcm {
+	__u32 num_channels;
+	__u8 ch_map[MAX_PCM_DECODE_CHANNELS];
+} __attribute__((packed, aligned(4)));
+
 union snd_codec_options {
 	struct snd_enc_wma wma;
 	struct snd_enc_vorbis vorbis;
@@ -419,6 +445,8 @@ union snd_codec_options {
 	struct snd_dec_alac alac;
 	struct snd_dec_ape ape;
 	struct snd_dec_aptx aptx_dec;
+	struct snd_dec_thd truehd;
+	struct snd_dec_pcm pcm_dec;
 };
 
 /** struct snd_codec_desc - description of codec capabilities

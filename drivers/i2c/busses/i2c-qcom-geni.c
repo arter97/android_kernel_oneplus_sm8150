@@ -28,6 +28,7 @@
 #include <linux/ipc_logging.h>
 #include <linux/dmaengine.h>
 #include <linux/msm_gpi.h>
+#include <soc/qcom/boot_stats.h>
 
 #define SE_I2C_TX_TRANS_LEN		(0x26C)
 #define SE_I2C_RX_TRANS_LEN		(0x270)
@@ -804,12 +805,16 @@ static int geni_i2c_probe(struct platform_device *pdev)
 	struct platform_device *wrapper_pdev;
 	struct device_node *wrapper_ph_node;
 	int ret;
+	char boot_marker[40];
 
 	gi2c = devm_kzalloc(&pdev->dev, sizeof(*gi2c), GFP_KERNEL);
 	if (!gi2c)
 		return -ENOMEM;
 
 	gi2c->dev = &pdev->dev;
+	snprintf(boot_marker, sizeof(boot_marker),
+				"M - DRIVER GENI_I2C Init");
+	place_marker(boot_marker);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
@@ -939,6 +944,9 @@ static int geni_i2c_probe(struct platform_device *pdev)
 	pm_runtime_enable(gi2c->dev);
 	i2c_add_adapter(&gi2c->adap);
 
+	snprintf(boot_marker, sizeof(boot_marker),
+				"M - DRIVER GENI_I2C_%d Ready", gi2c->adap.nr);
+	place_marker(boot_marker);
 	dev_dbg(gi2c->dev, "I2C probed\n");
 	return 0;
 }
@@ -956,6 +964,16 @@ static int geni_i2c_remove(struct platform_device *pdev)
 
 static int geni_i2c_resume_noirq(struct device *device)
 {
+	return 0;
+}
+
+static int geni_i2c_hib_resume_noirq(struct device *device)
+{
+	struct geni_i2c_dev *gi2c = dev_get_drvdata(device);
+
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+				    "%s\n", __func__);
+	gi2c->se_mode = UNINITIALIZED;
 	return 0;
 }
 
@@ -1073,6 +1091,8 @@ static const struct dev_pm_ops geni_i2c_pm_ops = {
 	.resume_noirq		= geni_i2c_resume_noirq,
 	.runtime_suspend	= geni_i2c_runtime_suspend,
 	.runtime_resume		= geni_i2c_runtime_resume,
+	.freeze			= geni_i2c_suspend_noirq,
+	.restore		= geni_i2c_hib_resume_noirq,
 };
 
 static const struct of_device_id geni_i2c_dt_match[] = {

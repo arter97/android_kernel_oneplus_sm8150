@@ -1042,6 +1042,11 @@ int msm_vdec_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		pdata = &property_val;
 		dprintk(VIDC_DBG, "Setting secure mode to: %d\n",
 				!!(inst->flags & VIDC_SECURE));
+		if (msm_comm_check_for_inst_overload(inst->core)) {
+			dprintk(VIDC_ERR,
+				"Secure Instance reached Max limit, rejecting session\n");
+			return -ENOTSUPP;
+		}
 		break;
 	case V4L2_CID_MPEG_VIDC_VIDEO_EXTRADATA:
 		property_id = HAL_PARAM_INDEX_EXTRADATA;
@@ -1224,7 +1229,8 @@ int msm_vdec_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 				HAL_BUFFER_OUTPUT2);
 			if (rc) {
 				dprintk(VIDC_ERR,
-					"%s: Failed to set opb buffer count to FW\n");
+					"%s: Failed to set opb buffer count to FW\n",
+					__func__);
 				break;
 			}
 

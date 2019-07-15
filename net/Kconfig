@@ -91,12 +91,6 @@ source "net/netlabel/Kconfig"
 
 endif # if INET
 
-config ANDROID_PARANOID_NETWORK
-	bool "Only allow certain groups to create sockets"
-	default y
-	help
-		none
-
 config NETWORK_SECMARK
 	bool "Security Marking"
 	help
@@ -241,6 +235,7 @@ source "net/l3mdev/Kconfig"
 source "net/qrtr/Kconfig"
 source "net/ncsi/Kconfig"
 source "net/rmnet_data/Kconfig"
+source "net/rmnet_usb/Kconfig"
 
 config RPS
 	bool

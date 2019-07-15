@@ -799,10 +799,18 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 	 * REJECT will give spurious warnings here.
 	 */
 
-	/* No external references means no one else could have
-	 * confirmed us.
+	/* Another skb with the same unconfirmed conntrack may
+	 * win the race. This may happen for bridge(br_flood)
+	 * or broadcast/multicast packets do skb_clone with
+	 * unconfirmed conntrack.
 	 */
-	WARN_ON(nf_ct_is_confirmed(ct));
+	if (unlikely(nf_ct_is_confirmed(ct))) {
+		WARN_ON_ONCE(1);
+		nf_conntrack_double_unlock(hash, reply_hash);
+		local_bh_enable();
+		return NF_DROP;
+	}
+
 	pr_debug("Confirming conntrack %pK\n", ct);
 	/* We have to check the DYING flag after unlink to prevent
 	 * a race against nf_ct_get_next_corpse() possibly called from
@@ -1580,7 +1588,7 @@ void __nf_ct_refresh_acct(struct nf_conn *ct,
 #if defined(CONFIG_IP_NF_TARGET_NATTYPE_MODULE)
 	nattype_ref_timer = rcu_dereference(nattype_refresh_timer);
 	if (nattype_ref_timer)
-		nattype_ref_timer(ct->nattype_entry, ct->timeout.expires);
+		nattype_ref_timer(ct->nattype_entry, ct->timeout);
 #endif
 
 acct:

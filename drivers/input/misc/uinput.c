@@ -39,8 +39,11 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/uinput.h>
+#include <linux/overflow.h>
 #include <linux/input/mt.h>
 #include "../input-compat.h"
+
+static DEFINE_MUTEX(uinput_glb_mutex);
 
 static int uinput_dev_event(struct input_dev *dev,
 			    unsigned int type, unsigned int code, int value)
@@ -356,7 +359,7 @@ static int uinput_open(struct inode *inode, struct file *file)
 static int uinput_validate_absinfo(struct input_dev *dev, unsigned int code,
 				   const struct input_absinfo *abs)
 {
-	int min, max;
+	int min, max, range;
 
 	min = abs->minimum;
 	max = abs->maximum;
@@ -368,7 +371,7 @@ static int uinput_validate_absinfo(struct input_dev *dev, unsigned int code,
 		return -EINVAL;
 	}
 
-	if (abs->flat > max - min) {
+	if (!check_sub_overflow(max, min, &range) && abs->flat > range) {
 		printk(KERN_DEBUG
 		       "%s: abs_flat #%02x out of range: %d (min:%d/max:%d)\n",
 		       UINPUT_NAME, code, abs->flat, min, max);
@@ -675,9 +678,17 @@ static unsigned int uinput_poll(struct file *file, poll_table *wait)
 static int uinput_release(struct inode *inode, struct file *file)
 {
 	struct uinput_device *udev = file->private_data;
+	int retval;
+
+	retval = mutex_lock_interruptible(&uinput_glb_mutex);
+	if (retval)
+		return retval;
 
 	uinput_destroy_device(udev);
+	file->private_data = NULL;
 	kfree(udev);
+
+	mutex_unlock(&uinput_glb_mutex);
 
 	return 0;
 }
@@ -809,7 +820,7 @@ static long uinput_ioctl_handler(struct file *file, unsigned int cmd,
 				 unsigned long arg, void __user *p)
 {
 	int			retval;
-	struct uinput_device	*udev = file->private_data;
+	struct uinput_device	*udev;
 	struct uinput_ff_upload ff_up;
 	struct uinput_ff_erase  ff_erase;
 	struct uinput_request   *req;
@@ -817,9 +828,19 @@ static long uinput_ioctl_handler(struct file *file, unsigned int cmd,
 	const char		*name;
 	unsigned int		size;
 
-	retval = mutex_lock_interruptible(&udev->mutex);
+	retval = mutex_lock_interruptible(&uinput_glb_mutex);
 	if (retval)
 		return retval;
+
+	udev = file->private_data;
+	if (!udev) {
+		retval = -EINVAL;
+		goto unlock_glb_mutex;
+	}
+
+	retval = mutex_lock_interruptible(&udev->mutex);
+	if (retval)
+		goto unlock_glb_mutex;
 
 	if (!udev->dev) {
 		retval = uinput_allocate_device(udev);
@@ -999,8 +1020,12 @@ static long uinput_ioctl_handler(struct file *file, unsigned int cmd,
 	}
 
 	retval = -EINVAL;
+
  out:
 	mutex_unlock(&udev->mutex);
+
+ unlock_glb_mutex:
+	mutex_unlock(&uinput_glb_mutex);
 	return retval;
 }
 

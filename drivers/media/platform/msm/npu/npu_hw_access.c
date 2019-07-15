@@ -33,8 +33,7 @@ uint32_t npu_core_reg_read(struct npu_device *npu_dev, uint32_t off)
 {
 	uint32_t ret = 0;
 
-	ret = readl_relaxed(npu_dev->core_io.base + off);
-	__iormb();
+	ret = readl(npu_dev->core_io.base + off);
 	return ret;
 }
 
@@ -48,8 +47,7 @@ uint32_t npu_bwmon_reg_read(struct npu_device *npu_dev, uint32_t off)
 {
 	uint32_t ret = 0;
 
-	ret = readl_relaxed(npu_dev->bwmon_io.base + off);
-	__iormb();
+	ret = readl(npu_dev->bwmon_io.base + off);
 	return ret;
 }
 
@@ -64,10 +62,8 @@ uint32_t npu_qfprom_reg_read(struct npu_device *npu_dev, uint32_t off)
 {
 	uint32_t ret = 0;
 
-	if (npu_dev->qfprom_io.base) {
-		ret = readl_relaxed(npu_dev->qfprom_io.base + off);
-		__iormb();
-	}
+	if (npu_dev->qfprom_io.base)
+		ret = readl(npu_dev->qfprom_io.base + off);
 
 	return ret;
 }
@@ -201,7 +197,7 @@ static struct npu_ion_buf *npu_alloc_npu_ion_buffer(struct npu_client
 
 	if (ret_val) {
 		/* mapped already, treat as invalid request */
-		pr_err("ion buf %x has been mapped\n");
+		pr_err("ion buf has been mapped\n");
 		ret_val = NULL;
 	} else {
 		ret_val = kzalloc(sizeof(*ret_val), GFP_KERNEL);
@@ -361,7 +357,7 @@ void npu_mem_unmap(struct npu_client *client, int buf_hdl,  uint64_t addr)
 	}
 
 	if (ion_buf->iova != addr)
-		pr_warn("unmap address %lu doesn't match %lu\n", addr,
+		pr_warn("unmap address %llu doesn't match %llu\n", addr,
 			ion_buf->iova);
 
 	if (ion_buf->table)

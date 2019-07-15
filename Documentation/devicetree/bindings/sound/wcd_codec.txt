@@ -79,6 +79,9 @@ Required properties:
 				     enumeration address.
 
 Optional properties:
+ - qcom,cdc-ext-clk-rate - Specifies the clock rate of external crystal which
+			   is sourced to codec mclk in HZ. This should be either
+			   same as qcom,cdc-mclk-clk-rate or its double.
  - cdc-dmic-sample-rate: Specifies the sample rate of digital mic in HZ. The
 			 values for 9.6MHZ mclk can be 2400000 Hz, 3200000 Hz
 			 and 4800000 Hz.  The values for 12.288MHz mclk can be
@@ -536,6 +539,10 @@ Required properties:
  - clocks : clock handles defined for TX macro
  - qcom,tx-swr-gpios: phandle for SWR data and clock GPIOs of TX macro
  - qcom,tx-dmic-sample-rate: Sample rate defined for DMICs connected to TX macro
+
+Optional Properties:
+ - qcom,swr-wakeup-irq: Specifies whether the interrupt line is on GPIO
+			or GQIC
 
 Example:
 
