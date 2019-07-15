@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,6 +19,7 @@
 #include <linux/uaccess.h>
 #include <linux/rmnet_ipa_fd_ioctl.h>
 #include "ipa_qmi_service.h"
+#include "ipa_i.h"
 
 #define DRIVER_NAME "wwan_ioctl"
 
@@ -74,13 +75,15 @@ static long ipa3_wan_ioctl(struct file *filp,
 		unsigned int cmd,
 		unsigned long arg)
 {
-	int retval = 0, rc = 0;
+	int retval = 0, rc = 0, rmv_offload_req__msg_size = 0;
 	u32 pyld_sz;
 	u8 *param = NULL;
 
 	IPAWANDBG("device %s got ioctl events :>>>\n",
 		DRIVER_NAME);
 
+	rmv_offload_req__msg_size =
+		sizeof(struct ipa_remove_offload_connection_req_msg_v01);
 	if (!ipa3_process_ioctl) {
 
 		if ((cmd == WAN_IOC_SET_LAN_CLIENT_INFO) ||
@@ -141,6 +144,59 @@ static long ipa3_wan_ioctl(struct file *filp,
 			break;
 		}
 		if (copy_to_user((u8 *)arg, param, pyld_sz)) {
+			retval = -EFAULT;
+			break;
+		}
+		break;
+
+	case WAN_IOC_ADD_OFFLOAD_CONNECTION:
+		IPAWANDBG("device %s got WAN_IOC_ADD_OFFLOAD_CONNECTION :>>>\n",
+		DRIVER_NAME);
+		pyld_sz = sizeof(struct ipa_add_offload_connection_req_msg_v01);
+		param = kzalloc(pyld_sz, GFP_KERNEL);
+		if (!param) {
+			retval = -ENOMEM;
+			break;
+		}
+		if (copy_from_user(param, (void __user *)arg, pyld_sz)) {
+			retval = -EFAULT;
+			break;
+		}
+		if (ipa3_qmi_add_offload_request_send(
+			(struct ipa_add_offload_connection_req_msg_v01 *)
+			param)) {
+			IPAWANDBG("IPACM->Q6 add offload connection failed\n");
+			retval = -EFAULT;
+			break;
+		}
+		if (copy_to_user((void __user *)arg, param, pyld_sz)) {
+			retval = -EFAULT;
+			break;
+		}
+		break;
+
+	case WAN_IOC_RMV_OFFLOAD_CONNECTION:
+		IPAWANDBG("device %s got WAN_IOC_RMV_OFFLOAD_CONNECTION :>>>\n",
+		DRIVER_NAME);
+		pyld_sz =
+			rmv_offload_req__msg_size;
+		param = kzalloc(pyld_sz, GFP_KERNEL);
+		if (!param) {
+			retval = -ENOMEM;
+			break;
+		}
+		if (copy_from_user(param, (void __user *)arg, pyld_sz)) {
+			retval = -EFAULT;
+			break;
+		}
+		if (ipa3_qmi_rmv_offload_request_send(
+			(struct ipa_remove_offload_connection_req_msg_v01 *)
+				param)) {
+			IPAWANDBG("IPACM->Q6 add offload connection failed\n");
+			retval = -EFAULT;
+			break;
+		}
+		if (copy_to_user((void __user *)arg, param, pyld_sz)) {
 			retval = -EFAULT;
 			break;
 		}
@@ -389,6 +445,11 @@ static long ipa3_wan_ioctl(struct file *filp,
 			break;
 		}
 
+		if (ipa_mpm_notify_wan_state(
+			(struct wan_ioctl_notify_wan_state *)param)) {
+			IPAWANERR("WAN_IOC_NOTIFY_WAN_STATE failed\n");
+			retval = -EPERM;
+		}
 		break;
 	case WAN_IOC_ENABLE_PER_CLIENT_STATS:
 		IPAWANDBG_LOW("got WAN_IOC_ENABLE_PER_CLIENT_STATS :>>>\n");
@@ -421,9 +482,12 @@ static long ipa3_wan_ioctl(struct file *filp,
 			retval = -EFAULT;
 			break;
 		}
-
-		retval = rmnet_ipa3_query_per_client_stats(
-			(struct wan_ioctl_query_per_client_stats *)param);
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5)
+			retval = rmnet_ipa3_query_per_client_stats_v2(
+			  (struct wan_ioctl_query_per_client_stats *)param);
+		else
+			retval = rmnet_ipa3_query_per_client_stats(
+			  (struct wan_ioctl_query_per_client_stats *)param);
 		if (retval) {
 			IPAWANERR("WAN_IOC_QUERY_PER_CLIENT_STATS failed\n");
 			break;

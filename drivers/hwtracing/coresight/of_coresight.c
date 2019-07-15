@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, 2017-2018 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012, 2017-2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -84,6 +84,12 @@ static int of_coresight_alloc_memory(struct device *dev,
 	if (!pdata->outports)
 		return -ENOMEM;
 
+	pdata->source_names = devm_kzalloc(dev, pdata->nr_outport *
+					sizeof(*pdata->source_names),
+					GFP_KERNEL);
+	if (!pdata->source_names)
+		return -ENOMEM;
+
 	/* Children connected to this component via @outports */
 	pdata->child_names = devm_kzalloc(dev, pdata->nr_outport *
 					  sizeof(*pdata->child_names),
@@ -107,16 +113,68 @@ int of_coresight_get_cpu(const struct device_node *node)
 	struct device_node *dn;
 
 	dn = of_parse_phandle(node, "cpu", 0);
-	/* Affinity defaults to CPU0 */
+	/* Affinity defaults to invalid */
 	if (!dn)
-		return 0;
+		return -ENODEV;
 	cpu = of_cpu_node_to_id(dn);
 	of_node_put(dn);
 
-	/* Affinity to CPU0 if no cpu nodes are found */
-	return (cpu < 0) ? 0 : cpu;
+	return cpu;
 }
 EXPORT_SYMBOL_GPL(of_coresight_get_cpu);
+
+static struct coresight_reg_clk *
+of_coresight_get_reg_clk(struct device *dev, const struct device_node *node)
+{
+	struct coresight_reg_clk *reg_clk;
+	const char *clk_name, *reg_name;
+	int nr_reg, nr_clk, i, ret;
+
+	nr_reg = of_property_count_strings(node, "qcom,proxy-regs");
+	nr_clk = of_property_count_strings(node, "qcom,proxy-clks");
+	if (!nr_reg && !nr_clk)
+		return NULL;
+
+	reg_clk = devm_kzalloc(dev, sizeof(*reg_clk), GFP_KERNEL);
+	if (!reg_clk)
+		return ERR_PTR(-ENOMEM);
+
+	reg_clk->nr_reg = nr_reg;
+	reg_clk->nr_clk = nr_clk;
+	if (nr_reg > 0) {
+		reg_clk->reg = devm_kzalloc(dev, nr_reg *
+			sizeof(reg_clk->reg), GFP_KERNEL);
+		if (!reg_clk->reg)
+			return ERR_PTR(-ENOMEM);
+
+		for (i = 0; i < nr_reg; i++) {
+			ret = of_property_read_string_index(node,
+				"qcom,proxy-regs", i, &reg_name);
+			if (ret)
+				return ERR_PTR(ret);
+			reg_clk->reg[i] = devm_regulator_get(dev, reg_name);
+			if (IS_ERR(reg_clk->reg[i]))
+				return ERR_PTR(-EINVAL);
+		}
+	}
+	if (nr_clk > 0) {
+		reg_clk->clk = devm_kzalloc(dev, nr_clk *
+			sizeof(reg_clk->clk), GFP_KERNEL);
+		if (!reg_clk->clk)
+			return ERR_PTR(-ENOMEM);
+
+		for (i = 0; i < nr_clk; i++) {
+			ret = of_property_read_string_index(node,
+				"qcom,proxy-clks", i, &clk_name);
+			if (ret)
+				return ERR_PTR(ret);
+			reg_clk->clk[i] = devm_clk_get(dev, clk_name);
+			if (IS_ERR(reg_clk->clk[i]))
+				return ERR_PTR(-EINVAL);
+		}
+	}
+	return reg_clk;
+}
 
 struct coresight_platform_data *
 of_get_coresight_platform_data(struct device *dev,
@@ -129,6 +187,7 @@ of_get_coresight_platform_data(struct device *dev,
 	struct device_node *ep = NULL;
 	struct device_node *rparent = NULL;
 	struct device_node *rport = NULL;
+	struct device_node *sn = NULL;
 
 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -193,11 +252,24 @@ of_get_coresight_platform_data(struct device *dev,
 				pdata->child_names[i] = dev_name(rdev);
 			pdata->child_ports[i] = rendpoint.id;
 
+			pdata->source_names[i] = NULL;
+			sn = of_parse_phandle(ep, "source", 0);
+			if (sn) {
+				ret = of_property_read_string(sn,
+						"coresight-name",
+						&pdata->source_names[i]);
+				of_node_put(sn);
+			}
+
 			i++;
 		} while (ep);
 	}
 
 	pdata->cpu = of_coresight_get_cpu(node);
+
+	pdata->reg_clk = of_coresight_get_reg_clk(dev, node);
+	if (IS_ERR(pdata->reg_clk))
+		return (void *)(pdata->reg_clk);
 
 	return pdata;
 }

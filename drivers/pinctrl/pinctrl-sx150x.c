@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
  * Copyright (c) 2016, BayLibre, SAS. All rights reserved.
  * Author: Neil Armstrong <narmstrong@baylibre.com>
  *
@@ -1166,7 +1168,6 @@ static int sx150x_probe(struct i2c_client *client,
 	}
 
 	/* Register GPIO controller */
-	pctl->gpio.label = devm_kstrdup(dev, client->name, GFP_KERNEL);
 	pctl->gpio.base = -1;
 	pctl->gpio.ngpio = pctl->data->npins;
 	pctl->gpio.get_direction = sx150x_gpio_get_direction;
@@ -1180,6 +1181,10 @@ static int sx150x_probe(struct i2c_client *client,
 	pctl->gpio.of_node = dev->of_node;
 #endif
 	pctl->gpio.can_sleep = true;
+	pctl->gpio.label = devm_kstrdup(dev, client->name, GFP_KERNEL);
+	if (!pctl->gpio.label)
+		return -ENOMEM;
+
 	/*
 	 * Setting multiple pins is not safe when all pins are not
 	 * handled by the same regmap register. The oscio pin (present
@@ -1200,13 +1205,15 @@ static int sx150x_probe(struct i2c_client *client,
 
 	/* Add Interrupt support if an irq is specified */
 	if (client->irq > 0) {
-		pctl->irq_chip.name = devm_kstrdup(dev, client->name,
-						   GFP_KERNEL);
 		pctl->irq_chip.irq_mask = sx150x_irq_mask;
 		pctl->irq_chip.irq_unmask = sx150x_irq_unmask;
 		pctl->irq_chip.irq_set_type = sx150x_irq_set_type;
 		pctl->irq_chip.irq_bus_lock = sx150x_irq_bus_lock;
 		pctl->irq_chip.irq_bus_sync_unlock = sx150x_irq_bus_sync_unlock;
+		pctl->irq_chip.name = devm_kstrdup(dev, client->name,
+						   GFP_KERNEL);
+		if (!pctl->irq_chip.name)
+			return -ENOMEM;
 
 		pctl->irq.masked = ~0;
 		pctl->irq.sense = 0;
@@ -1246,10 +1253,47 @@ static int sx150x_probe(struct i2c_client *client,
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int sx150x_restore(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct sx150x_pinctrl *pctl = i2c_get_clientdata(client);
+	int ret;
+
+	ret = sx150x_init_hw(pctl);
+	if (ret)
+		return ret;
+
+	ret = pinctrl_force_default(pctl->pctldev);
+	if (ret) {
+		dev_err(dev, "Failed to enable pinctrl device\n");
+		return ret;
+	}
+
+	if (client->irq > 0) {
+		mutex_lock(&pctl->lock);
+		regmap_write(pctl->regmap,
+				pctl->data->reg_irq_mask, pctl->irq.masked);
+		regmap_write(pctl->regmap,
+				pctl->data->reg_sense, pctl->irq.sense);
+		mutex_unlock(&pctl->lock);
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops sx150x_pm = {
+	.restore = sx150x_restore,
+};
+#endif
+
 static struct i2c_driver sx150x_driver = {
 	.driver = {
 		.name = "sx150x-pinctrl",
 		.of_match_table = of_match_ptr(sx150x_of_match),
+#ifdef CONFIG_PM_SLEEP
+		.pm = &sx150x_pm,
+#endif
 	},
 	.probe    = sx150x_probe,
 	.id_table = sx150x_id,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -271,7 +271,7 @@
 			reg = <0x1a00 0x100>;
 			regulator-name = "pms405_s3";
 			regulator-min-microvolt = <1048000>;
-			regulator-max-microvolt = <1352000>;
+			regulator-max-microvolt = <1384000>;
 		};
 	};
 };
@@ -314,7 +314,7 @@
 		regulator-max-microvolt = <3>;
 
 		qcom,cpr-fuse-corners = <3>;
-		qcom,cpr-voltage-ceiling = <1224000 1288000 1352000>;
+		qcom,cpr-voltage-ceiling = <1224000 1288000 1384000>;
 		qcom,cpr-voltage-floor =   <1048000 1048000 1088000>;
 		vdd-apc-supply = <&pms405_s3>;
 
@@ -361,5 +361,23 @@
 		qcom,cpr-quot-adjust-scaling-factor-max = <0 1400 1400>;
 		qcom,cpr-voltage-scaling-factor-max = <0 2000 2000>;
 		qcom,cpr-scaled-init-voltage-as-ceiling;
+		qcom,cpr-quotient-adjustment =
+			<0	(-20)	0>;
+		qcom,cpr-enable;
+	};
+};
+
+&i2c_2 {
+	/* I2C based external buck for APC */
+	hl7503_vreg: hl7503-regulator@60 {
+		status = "disabled";
+		compatible = "halo,hl7503";
+		reg = <0x60>;
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1387500>;
+		regulator-ramp-delay = <500>;
+		regulator-always-on;
+		fcs,suspend-voltage-selector = <0>;
+		fcs,disable-suspend;
 	};
 };

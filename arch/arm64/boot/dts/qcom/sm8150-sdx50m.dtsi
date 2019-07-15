@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -52,6 +52,26 @@
 		mhi_chan@101 {
 			status = "disabled";
 		};
+
+		mhi_chan@102 {
+			status = "disabled";
+		};
+
+		mhi_chan@103 {
+			status = "disabled";
+		};
+
+		mhi_chan@104 {
+			mhi,offload-chan;
+		};
+
+		mhi_chan@107 {
+			status = "disabled";
+		};
+
+		mhi_chan@108 {
+			status = "disabled";
+		};
 	};
 
 	mhi_events {
@@ -77,6 +97,30 @@
 			mhi,hw-ev;
 			mhi,client-manage;
 			mhi,offload;
+		};
+
+		mhi_events@6 {
+			status = "disabled";
+		};
+
+		mhi_events@7 {
+			status = "disabled";
+		};
+
+		mhi_events@8 {
+			status = "disabled";
+		};
+
+		mhi_events@9 {
+			status = "disabled";
+		};
+
+		mhi_events@10 {
+			status = "disabled";
+		};
+
+		mhi_events@11 {
+			status = "disabled";
 		};
 	};
 };
@@ -102,6 +146,22 @@
 		mhi_chan@101 {
 			status = "disabled";
 		};
+
+		mhi_chan@102 {
+			status = "disabled";
+		};
+
+		mhi_chan@103 {
+			status = "disabled";
+		};
+
+		mhi_chan@107 {
+			status = "disabled";
+		};
+
+		mhi_chan@108 {
+			status = "disabled";
+		};
 	};
 
 	mhi_events {
@@ -127,6 +187,30 @@
 			mhi,hw-ev;
 			mhi,client-manage;
 			mhi,offload;
+		};
+
+		mhi_events@6 {
+			status = "disabled";
+		};
+
+		mhi_events@7 {
+			status = "disabled";
+		};
+
+		mhi_events@8 {
+			status = "disabled";
+		};
+
+		mhi_events@9 {
+			status = "disabled";
+		};
+
+		mhi_events@10 {
+			status = "disabled";
+		};
+
+		mhi_events@11 {
+			status = "disabled";
 		};
 	};
 };
@@ -165,6 +249,10 @@
 };
 
 &soc {
+	ipa_hw: qcom,ipa@1e00000 {
+		qcom,ipa-mhi-proxy;
+	};
+
 	imp: qcom,ipa-mhi-proxy {
 		compatible = "qcom,ipa-mhi-proxy";
 		qcom,mhi-chdb-base = <0x40300300>;
@@ -486,6 +574,9 @@
 };
 
 &reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
 	pil_buffer_p2_mem: pil_buffer_p2_region@a0000000 {
 		compatible = "removed-dma-pool";
 		no-map;
@@ -504,5 +595,11 @@
 		 alignment = <0x0 0x400000>;
 		 size = <0x0 0x01000000>;
 		 no-map;
+	};
+};
+
+&usb1 {
+	dwc3@a800000 {
+		snps,bus-suspend-enable;
 	};
 };

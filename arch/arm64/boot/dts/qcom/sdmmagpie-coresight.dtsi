@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -251,6 +251,15 @@
 
 			port@1 {
 				reg = <4>;
+				funnel_in0_in_tpdm_lpass: endpoint {
+					slave-mode;
+					remote-endpoint =
+						<&tpdm_lpass_out_funnel_in0>;
+				};
+			};
+
+			port@2 {
+				reg = <4>;
 				funnel_in0_in_audio_etm0: endpoint {
 					slave-mode;
 					remote-endpoint =
@@ -258,7 +267,7 @@
 				};
 			};
 
-			port@2 {
+			port@3 {
 				reg = <6>;
 				funnel_in0_in_funnel_qatb: endpoint {
 					slave-mode;
@@ -267,7 +276,7 @@
 				};
 			};
 
-			port@3 {
+			port@4 {
 				reg = <7>;
 				funnel_in0_in_stm: endpoint {
 					slave-mode;
@@ -1186,6 +1195,7 @@
 		reg = <0x7040000 0x1000>;
 		cpu = <&CPU0>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm0";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1205,6 +1215,7 @@
 		reg = <0x7140000 0x1000>;
 		cpu = <&CPU1>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm1";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1224,6 +1235,7 @@
 		reg = <0x7240000 0x1000>;
 		cpu = <&CPU2>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm2";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1243,6 +1255,7 @@
 		reg = <0x7340000 0x1000>;
 		cpu = <&CPU3>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm3";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1262,6 +1275,7 @@
 		reg = <0x7440000 0x1000>;
 		cpu = <&CPU4>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm4";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1281,6 +1295,7 @@
 		reg = <0x7540000 0x1000>;
 		cpu = <&CPU5>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm5";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1300,6 +1315,7 @@
 		reg = <0x7640000 0x1000>;
 		cpu = <&CPU6>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm6";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1319,6 +1335,7 @@
 		reg = <0x7740000 0x1000>;
 		cpu = <&CPU7>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm7";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -1437,6 +1454,20 @@
 					remote-endpoint =
 					<&tpdm_wcss_out_funnel_dl_south_1>;
 				};
+			};
+		};
+	};
+
+	tpdm_lpass: dummy_source {
+		compatible = "qcom,coresight-dummy";
+
+		coresight-name = "coresight-tpdm-lpass";
+		qcom,dummy-source;
+
+		port {
+			tpdm_lpass_out_funnel_in0: endpoint {
+				remote-endpoint =
+					<&funnel_in0_in_tpdm_lpass>;
 			};
 		};
 	};
@@ -1610,6 +1641,34 @@
 					remote-endpoint =
 						<&tpdm_center_out_tpda>;
 				};
+			};
+
+			port@14 {
+				reg = <17>;
+				tpda_in_tpdm_qdss: endpoint {
+					slave-mode;
+					remote-endpoint =
+						<&tpdm_qdss_out_tpda>;
+				};
+			};
+		};
+	};
+
+	tpdm_qdss: tpdm@6006000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x0003b968>;
+		reg = <0x6006000 0x1000>;
+		reg-names = "tpdm-base";
+
+		coresight-name = "coresight-tpdm-qdss";
+
+		clocks = <&clock_aop QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		port {
+			tpdm_qdss_out_tpda: endpoint {
+				remote-endpoint =
+					<&tpda_in_tpdm_qdss>;
 			};
 		};
 	};
@@ -1911,10 +1970,18 @@
 
 		coresight-name = "coresight-funnel-gfx";
 
-		clocks = <&clock_aop QDSS_CLK>;
-		clock-names = "apb_pclk";
+		clocks = <&clock_aop QDSS_CLK>,
+			<&clock_gpucc GPU_CC_CX_APB_CLK>;
+		clock-names = "apb_pclk", "gpu_apb_clk";
+		qcom,proxy-clks = "gpu_apb_clk";
 
 		status = "disabled";
+		/* GDSC regulator names */
+		regulator-names = "vddcx", "vdd";
+		/* GDSC oxili regulators */
+		vddcx-supply = <&gpu_cx_gdsc>;
+		vdd-supply = <&gpu_gx_gdsc>;
+		qcom,proxy-regs = "vddcx", "vdd";
 
 		ports {
 			#address-cells = <1>;
@@ -1945,10 +2012,20 @@
 		reg = <0x6940000 0x1000>;
 		reg-names = "tpdm-base";
 
-		coresight-name = "coresight-tpdm-gfx";
+		coresight-name = "coresight-tpdm-gpu";
 
-		clocks = <&clock_aop QDSS_CLK>;
-		clock-names = "apb_pclk";
+		clocks = <&clock_aop QDSS_CLK>,
+			<&clock_gpucc GPU_CC_CX_APB_CLK>;
+		clock-names = "apb_pclk", "gpu_apb_clk";
+		qcom,tpdm-clks = "gpu_apb_clk";
+
+		status = "disabled";
+		/* GDSC regulator names */
+		regulator-names = "vddcx", "vdd";
+		/* GDSC oxili regulators */
+		vddcx-supply = <&gpu_cx_gdsc>;
+		vdd-supply = <&gpu_gx_gdsc>;
+		qcom,tpdm-regs = "vddcx", "vdd";
 
 		qcom,msr-fix-req;
 
@@ -2050,10 +2127,10 @@
 		};
 	};
 
-	tpdm_center: tpdm@6c28000 {
+	tpdm_center: tpdm@6b44000 {
 		compatible = "arm,primecell";
 		arm,primecell-periphid = <0x0003b968>;
-		reg = <0x6c28000 0x1000>;
+		reg = <0x6b44000 0x1000>;
 		reg-names = "tpdm-base";
 
 		coresight-name = "coresight-tpdm-center";

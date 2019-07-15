@@ -10,6 +10,12 @@
  * GNU General Public License for more details.
  */
 
+/ {
+	aliases {
+		i2c7 = &qupv3_se20_i2c;
+	};
+};
+
 /* Remove regulator nodes specific to SA8155 */
 &soc {
 	/delete-node/ regulator-pm8150-s4;
@@ -57,29 +63,6 @@
 	/delete-node/ rpmh-regulator-ldof2;
 	/delete-node/ rpmh-regulator-ldof5;
 	/delete-node/ rpmh-regulator-ldof6;
-
-	bluetooth: bt_qca6174 {
-		compatible = "qca,qca6174";
-		pinctrl-names = "default";
-		pinctrl-0 = <&bt_en_active>;
-		/* BT_EN */
-		qca,bt-reset-gpio = <&tlmm 172 0>;
-		/* PWR_CTR1_VDD_PA */
-		qca,bt-vdd-pa-supply = <&vreg_conn_pa>;
-		/* PWR_CTR2_VDD_1P8 */
-		qca,bt-chip-pwd-supply = <&vreg_conn_1p8>;
-		qca,bt-vdd-vl-supply = <&pm8150_1_s6>;
-		qca,bt-vdd-vm-supply = <&pm8150_2_s4>;
-		qca,bt-vdd-5c-supply = <&pm8150_2_s5>;
-		qca,bt-vdd-vh-supply = <&pm8150_2_l15>;
-
-		qca,bt-vdd-vl-voltage-level = <1055000 1055000>;
-		qca,bt-vdd-vm-voltage-level = <1350000 1350000>;
-		qca,bt-vdd-5c-voltage-level = <2040000 2040000>;
-		qca,bt-vdd-vh-voltage-level = <1900000 1900000>;
-
-		status = "disabled";
-	};
 };
 
 /* Add regulator nodes specific to SA8155 */
@@ -114,6 +97,11 @@
 };
 
 &pcie1 {
+	vreg-1.8-supply = <&pm8150_2_l8>;
+	vreg-0.9-supply = <&pm8150_2_l18>;
+};
+
+&pcie_ep {
 	vreg-1.8-supply = <&pm8150_2_l8>;
 	vreg-0.9-supply = <&pm8150_2_l18>;
 };
@@ -200,6 +188,11 @@
 &clock_scc {
 	vdd_scc_cx-supply = <&VDD_CX_LEVEL>;
 	status = "ok";
+};
+
+&msm_cdsp_rm {
+	/delete-property/ qcom,compute-cx-limit-en;
+	/delete-property/ qcom,compute-priority-mode;
 };
 
 &thermal_zones {
@@ -343,290 +336,151 @@
 			/delete-node/ mmcx_vdd_cdev;
 		};
 	};
-};
 
-&tlmm {
-	ioexp_intr_active: ioexp_intr_active {
-		mux {
-			pins = "gpio48";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio48";
-			drive-strength = <2>;
-			bias-pull-up;
-		};
-	};
-
-	ioexp_reset_active: ioexp_reset_active {
-		mux {
-			pins = "gpio30";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio30";
-			drive-strength = <2>;
-			bias-disable;
-			output-high;
-		};
-	};
-};
-
-&sde_dp {
-	qcom,ext-disp = <&ext_disp>;
-	qcom,dp-hpd-gpio = <&ioexp 8 0>;
-
-	pinctrl-names = "mdss_dp_active", "mdss_dp_sleep";
-	pinctrl-0 = <&dp_hpd_cfg_pins>;
-	pinctrl-1 = <&dp_hpd_cfg_pins>;
-
-	qcom,core-supply-entries {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		qcom,core-supply-entry@0 {
-			reg = <0>;
-			qcom,supply-name = "refgen";
-			qcom,supply-min-voltage = <0>;
-			qcom,supply-max-voltage = <0>;
-			qcom,supply-enable-load = <0>;
-			qcom,supply-disable-load = <0>;
-		};
-	};
-};
-
-&qupv3_se15_i2c {
-	status = "ok";
-
-	pinctrl-0 = <&qupv3_se15_i2c_active
-		&ioexp_intr_active
-		&ioexp_reset_active>;
-
-	ioexp: gpio@3e {
-		#gpio-cells = <2>;
-		#interrupt-cells = <2>;
-		compatible = "semtech,sx1509q";
-		reg = <0x3e>;
-		interrupt-parent = <&tlmm>;
-		interrupts = <48 0>;
-		gpio-controller;
-		interrupt-controller;
-		semtech,probe-reset;
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&dsi1_hpd_cfg_pins
-			&dsi1_cdet_cfg_pins
-			&dsi2_hpd_cfg_pins
-			&dsi2_cdet_cfg_pins>;
-
-		dsi1_hpd_cfg_pins: gpio0-cfg {
-			pins = "gpio0";
-			bias-pull-up;
-		};
-
-		dsi1_cdet_cfg_pins: gpio1-cfg {
-			pins = "gpio1";
-			bias-pull-down;
-		};
-
-		dsi2_hpd_cfg_pins: gpio2-cfg {
-			pins = "gpio2";
-			bias-pull-up;
-		};
-
-		dsi2_cdet_cfg_pins: gpio3-cfg {
-			pins = "gpio3";
-			bias-pull-down;
-		};
-
-		dp_hpd_cfg_pins: gpio8-cfg {
-			pins = "gpio8";
-			bias-pull-down;
-		};
-	};
-
-	i2c-mux@77 {
-		compatible = "nxp,pca9542";
-		reg = <0x77>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		i2c@0 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0>;
-
-			anx_7625_1: anx7625@2c {
-				compatible = "analogix,anx7625";
-				reg = <0x2c>;
-				interrupt-parent = <&ioexp>;
-				interrupts = <0 0>;
-				cbl_det-gpio = <&ioexp 1 0>;
-				power_en-gpio = <&tlmm 47 0>;
-				reset_n-gpio = <&tlmm 49 0>;
-			};
-		};
-
-		i2c@1 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <1>;
-
-			anx_7625_2: anx7625@2c {
-				compatible = "analogix,anx7625";
-				reg = <0x2c>;
-				interrupt-parent = <&ioexp>;
-				interrupts = <2 0>;
-				cbl_det-gpio = <&ioexp 3 0>;
-				power_en-gpio = <&tlmm 87 0>;
-				reset_n-gpio = <&tlmm 29 0>;
-			};
-		};
-	};
-};
-
-&anx_7625_1 {
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@0 {
-			reg = <0>;
-			anx_7625_1_in: endpoint {
-				remote-endpoint = <&dsi_anx_7625_1_out>;
-			};
-		};
-	};
-};
-
-&anx_7625_2 {
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@0 {
-			reg = <0>;
-			anx_7625_2_in: endpoint {
-				remote-endpoint = <&dsi_anx_7625_2_out>;
-			};
-		};
-	};
-};
-
-#include "dsi-panel-ext-bridge-1080p.dtsi"
-
-&soc {
-	dsi_anx_7625_1: qcom,dsi-display@17 {
-		label = "dsi_anx_7625_1";
-		qcom,dsi-display-active;
-		qcom,display-type = "primary";
-
-		qcom,dsi-ctrl-num = <0>;
-		qcom,dsi-phy-num = <0>;
-		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-
-		qcom,dsi-panel = <&dsi_ext_bridge_1080p>;
-	};
-
-	dsi_anx_7625_2: qcom,dsi-display@18 {
-		label = "dsi_anx_7625_2";
-		qcom,dsi-display-active;
-		qcom,display-type = "secondary";
-
-		qcom,dsi-ctrl-num = <1>;
-		qcom,dsi-phy-num = <1>;
-		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
-
-		qcom,dsi-panel = <&dsi_ext_bridge_1080p>;
-	};
-
-	dsi_dp1: qcom,dsi-display@1 {
-		compatible = "qcom,dsi-display";
-		label = "primary";
-
-		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
-		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
-
-		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
-			 <&mdss_dsi0_pll PCLK_MUX_0_CLK>,
-			 <&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
-			 <&mdss_dsi1_pll PCLK_MUX_1_CLK>;
-		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
-			      "mux_byte_clk1", "mux_pixel_clk1";
-
-		qcom,dsi-display-list =
-			<&dsi_anx_7625_1>;
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			port@0 {
-				reg = <0>;
-				dsi_anx_7625_1_out: endpoint {
-					remote-endpoint = <&anx_7625_1_in>;
-				};
+	lmh-dcvs-01 {
+		trips {
+			active-config {
+				temperature = <105000>;
+				hysteresis = <40000>;
 			};
 		};
 	};
 
-	dsi_dp2: qcom,dsi-display@2 {
-		compatible = "qcom,dsi-display";
-		label = "secondary";
-
-		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
-		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
-
-		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
-			 <&mdss_dsi0_pll PCLK_MUX_0_CLK>,
-			 <&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
-			 <&mdss_dsi1_pll PCLK_MUX_1_CLK>;
-		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
-			      "mux_byte_clk1", "mux_pixel_clk1";
-
-		qcom,dsi-display-list =
-			<&dsi_anx_7625_2>;
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			port@0 {
-				reg = <0>;
-				dsi_anx_7625_2_out: endpoint {
-					remote-endpoint = <&anx_7625_2_in>;
-				};
+	lmh-dcvs-00 {
+		trips {
+			active-config {
+				temperature = <105000>;
+				hysteresis = <40000>;
 			};
 		};
 	};
 
-	refgen: refgen-regulator@88e7000 {
-		compatible = "qcom,refgen-regulator";
-		reg = <0x88e7000 0x60>;
-		regulator-name = "refgen";
-		regulator-enable-ramp-delay = <5>;
-	};
-
-	sde_wb: qcom,wb-display@0 {
-		compatible = "qcom,wb-display";
-		cell-index = <0>;
-		label = "wb_display";
-	};
-
-	ext_disp: qcom,msm-ext-disp {
-		compatible = "qcom,msm-ext-disp";
-
-		ext_disp_audio_codec: qcom,msm-ext-disp-audio-codec-rx {
-			compatible = "qcom,msm-ext-disp-audio-codec-rx";
+	gpuss-max-step {
+		trips {
+			gpu-trip0 {
+				temperature = <100000>;
+			};
 		};
 	};
-};
 
-&mdss_dsi_phy0 {
-	qcom,panel-force-clock-lane-hs;
-};
+	pop-mem-step {
+		status = "disabled";
+	};
 
-&mdss_dsi_phy1 {
-	qcom,panel-force-clock-lane-hs;
+	npu-step {
+		trips {
+			npu-trip0 {
+				temperature = <105000>;
+			};
+		};
+	};
+
+	cpu-0-0-step {
+		trips {
+			cpu00-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-0-1-step {
+		trips {
+			cpu01-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-0-2-step {
+		trips {
+			cpu02-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-0-3-step {
+		trips {
+			cpu03-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-0-step {
+		trips {
+			cpu10-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-1-step {
+		trips {
+			cpu11-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-2-step {
+		trips {
+			cpu12-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-3-step {
+		trips {
+			cpu13-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-4-step {
+		trips {
+			cpu14-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-5-step {
+		trips {
+			cpu15-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-6-step {
+		trips {
+			cpu16-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	cpu-1-7-step {
+		trips {
+			cpu17-config {
+				temperature = <115000>;
+			};
+		};
+	};
+
+	q6-hvx-step {
+		trips {
+			q6-hvx-step0 {
+				temperature = <105000>;
+			};
+			q6-hvx-step1 {
+				temperature = <115000>;
+			};
+		};
+	};
 };
 
 &mdss_dsi0_pll {
@@ -638,7 +492,6 @@
 };
 
 &mdss_mdp {
-	connectors = <&sde_rscc &dsi_dp1 &dsi_dp2 &sde_dp &sde_wb>;
 	qcom,sde-mixer-display-pref = "primary", "none", "none",
 				"none", "none", "none";
 };
@@ -699,7 +552,8 @@
 			"dev-emac-rgmii_rxc_state",
 			"dev-emac-rgmii_rx_ctl_state",
 			"dev-emac-phy_intr",
-			"dev-emac-phy_reset_state";
+			"dev-emac-phy_reset_state",
+			"dev-emac_pin_pps_0";
 
 		pinctrl-0 = <&emac_mdc>;
 		pinctrl-1 = <&emac_mdio>;
@@ -719,6 +573,7 @@
 		pinctrl-13 = <&emac_rgmii_rx_ctl>;
 		pinctrl-14 = <&emac_phy_intr>;
 		pinctrl-15 = <&emac_phy_reset_state>;
+		pinctrl-16 = <&emac_pin_pps_0>;
 
 		io-macro-info {
 			io-macro-bypass-mode = <0>;
@@ -731,35 +586,23 @@
 		};
 	};
 
-	cnss_pcie: qcom,cnss {
-		compatible = "qcom,cnss";
-		wlan-en-gpio = <&tlmm 169 0>;
-		vdd-wlan-supply = <&vreg_wlan>;
-		vdd-wlan-ctrl1-supply = <&vreg_conn_pa>;
-		vdd-wlan-ctrl2-supply = <&vreg_conn_1p8>;
-		reg = <0x10000000 0x10000000>,
-			<0x20000000 0x10000>;
-		reg-names = "smmu_iova_base", "smmu_iova_ipa";
-		qcom,notify-modem-status;
-		pinctrl-names = "wlan_en_active", "wlan_en_sleep";
-		pinctrl-0 = <&cnss_wlan_en_active>;
-		pinctrl-1 = <&cnss_wlan_en_sleep>;
-		qcom,wlan-rc-num = <0>;
-		qcom,wlan-ramdump-dynamic = <0x200000>;
+	qcom,rmnet-ipa {
+		status="disabled";
+	};
 
-		qcom,msm-bus,name = "msm-cnss";
-		qcom,msm-bus,num-cases = <4>;
-		qcom,msm-bus,num-paths = <2>;
-		qcom,msm-bus,vectors-KBps =
-				<45 512 0 0>, <1 512 0 0>,
-				/* Upto 200 Mbps */
-				<45 512 41421 655360>, <1 512 41421 655360>,
-				/* Upto 400 Mbps */
-				<45 512 98572 655360>, <1 512 98572 1600000>,
-				/* Upto 800 Mbps */
-				<45 512 207108 1146880>, <1 512 207108 3124992>;
-		qcom,smmu-s1-enable;
+	qfprom: qfprom@780130 {
+		compatible = "qcom,qfprom";
+		reg = <0x00780130 0x4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		read-only;
+		ranges;
 	};
 };
 
+&ipa_hw {
+	status="disabled";
+};
+
 #include "sa8155-audio.dtsi"
+#include "sa8155-camera-sensor.dtsi"

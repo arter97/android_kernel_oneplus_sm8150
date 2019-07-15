@@ -158,6 +158,12 @@ static int dp_parser_misc(struct dp_parser *parser)
 	if (data && (len == DP_MAX_PHY_LN)) {
 		for (i = 0; i < len; i++)
 			parser->l_map[i] = data[i];
+	} else {
+		pr_debug("Incorrect mapping, configure default\n");
+		parser->l_map[0] = DP_PHY_LN0;
+		parser->l_map[1] = DP_PHY_LN1;
+		parser->l_map[2] = DP_PHY_LN2;
+		parser->l_map[3] = DP_PHY_LN3;
 	}
 
 	data = of_get_property(of_node, "qcom,pn-swap-lane-map", &len);
@@ -175,6 +181,12 @@ static int dp_parser_misc(struct dp_parser *parser)
 		"qcom,max-lclk-frequency-khz", &parser->max_lclk_khz);
 	if (rc)
 		parser->max_lclk_khz = DP_MAX_LINK_CLK_KHZ;
+
+	rc = of_property_read_u32(of_node,
+		"qcom,max-hdisplay", &parser->max_hdisplay);
+
+	rc = of_property_read_u32(of_node,
+		"qcom,max-vdisplay", &parser->max_vdisplay);
 
 	return 0;
 }
@@ -205,14 +217,13 @@ static int dp_parser_msm_hdcp_dev(struct dp_parser *parser)
 
 static int dp_parser_pinctrl(struct dp_parser *parser)
 {
-	int rc = 0;
 	struct dp_pinctrl *pinctrl = &parser->pinctrl;
 
 	pinctrl->pin = devm_pinctrl_get(&parser->pdev->dev);
 
 	if (IS_ERR_OR_NULL(pinctrl->pin)) {
-		pr_debug("failed to get pinctrl, rc=%d\n", rc);
-		goto error;
+		pr_debug("failed to get pinctrl\n");
+		return 0;
 	}
 
 	if (parser->no_aux_switch && parser->lphw_hpd) {
@@ -236,20 +247,18 @@ static int dp_parser_pinctrl(struct dp_parser *parser)
 	pinctrl->state_active = pinctrl_lookup_state(pinctrl->pin,
 					"mdss_dp_active");
 	if (IS_ERR_OR_NULL(pinctrl->state_active)) {
-		rc = PTR_ERR(pinctrl->state_active);
-		pr_err("failed to get pinctrl active state, rc=%d\n", rc);
-		goto error;
+		pinctrl->state_active = NULL;
+		pr_debug("failed to get pinctrl active state\n");
 	}
 
 	pinctrl->state_suspend = pinctrl_lookup_state(pinctrl->pin,
 					"mdss_dp_sleep");
 	if (IS_ERR_OR_NULL(pinctrl->state_suspend)) {
-		rc = PTR_ERR(pinctrl->state_suspend);
-		pr_err("failed to get pinctrl suspend state, rc=%d\n", rc);
-		goto error;
+		pinctrl->state_suspend = NULL;
+		pr_debug("failed to get pinctrl suspend state\n");
 	}
-error:
-	return rc;
+
+	return 0;
 }
 
 static int dp_parser_gpio(struct dp_parser *parser)
@@ -713,12 +722,19 @@ static int dp_parser_catalog(struct dp_parser *parser)
 static int dp_parser_mst(struct dp_parser *parser)
 {
 	struct device *dev = &parser->pdev->dev;
+	int i;
 
 	parser->has_mst = of_property_read_bool(dev->of_node,
 			"qcom,mst-enable");
 	parser->has_mst_sideband = parser->has_mst;
 
 	pr_err("mst parsing successful. mst:%d\n", parser->has_mst);
+
+	for (i = 0; i < MAX_DP_MST_STREAMS; i++) {
+		of_property_read_u32_index(dev->of_node,
+				"qcom,mst-fixed-topology-ports", i,
+				&parser->mst_fixed_port[i]);
+	}
 
 	return 0;
 }

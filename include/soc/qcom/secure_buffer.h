@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -42,6 +42,7 @@ enum vmid {
 	VMID_CP_SPSS_SP_SHARED = 0x22,
 	VMID_CP_SPSS_HLOS_SHARED = 0x24,
 	VMID_CP_CDSP = 0x2A,
+	VMID_CP_DSP_EXT = 0x2E,
 	VMID_LAST,
 	VMID_INVAL = -1
 };
@@ -66,6 +67,12 @@ int try_hyp_assign_table(struct sg_table *table,
 extern int hyp_assign_phys(phys_addr_t addr, u64 size,
 			u32 *source_vmlist, int source_nelems,
 			int *dest_vmids, int *dest_perms, int dest_nelems);
+
+
+extern int cma_hyp_assign_phys(struct device *dev, u32 *source_vm_list,
+				int source_nelems, int *dest_vmids,
+					int *dest_perms, int dest_nelems);
+
 bool msm_secure_v2_is_supported(void);
 const char *msm_secure_vmid_to_string(int secure_vmid);
 #else
@@ -98,6 +105,13 @@ static inline int try_hyp_assign_table(struct sg_table *table,
 static inline int hyp_assign_phys(phys_addr_t addr, u64 size,
 			u32 *source_vmlist, int source_nelems,
 			int *dest_vmids, int *dest_perms, int dest_nelems)
+{
+	return -EINVAL;
+}
+
+static inline int cma_hyp_assign_phys(struct device *dev, u32 *source_vm_list,
+				int source_nelems, int *dest_vmids,
+					int *dest_perms, int dest_nelems)
 {
 	return -EINVAL;
 }

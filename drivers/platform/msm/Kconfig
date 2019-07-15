@@ -128,6 +128,15 @@ config IPA3
 	  Kernel and user-space processes can call the IPA driver
 	  to configure IPA core.
 
+config IPA_DEBUG
+	bool "IPA DEBUG for non-perf build"
+	depends on IPA3
+	help
+	  This driver support more debug info for non-perf build.
+	  If you use the non-perf build and want to have more debug
+	  info enabled, then this flag can be enabled.
+	  It is not suggested to enable this flag for perf build.
+
 config IPA_WDI_UNIFIED_API
 	bool "IPA WDI unified API support"
 	depends on IPA3
@@ -137,6 +146,36 @@ config IPA_WDI_UNIFIED_API
 	  It is designed to support IPA HW accelerating path for WLAN use case.
 	  The IPA WDI unified API supports all WDI versions through a unified
 	  interface.
+
+config IPA_ETH
+	bool "IPA Ethernet Offload Sub-system support"
+	depends on IPA3
+	help
+	  Enables IPA Ethernet Offload Subsystem for offloading PCI based
+	  ethernet devices to IPA. The offload subsystem still require a
+	  compatible network driver to register with it and a corresponding
+	  offload driver to manage one of more offload data paths that uses
+	  the network device.
+
+config IPA_ETH_NOAUTO
+	bool "Disable automatic offload initialization of interfaces"
+	depends on IPA_ETH
+	help
+	  Enabling this option prevents automatic initialization of offload on
+	  ethernet interfaces. Debugfs control interface will instead be used
+	  to enable offloading. This feature is meant only for debugging.
+	  If unsure, say N.
+
+config IPA_ETH_DEBUG
+	bool "Enable addtional debug logging in the offload sub-system"
+	depends on IPA_ETH
+	help
+	  Enabling this option increases the number of messages logged by the offload
+	  sub-system for aiding debugging. Additional debug messages are logged into
+	  IPC log as well as kernel log using dynamic debug.
+	  If unsure, say N.
+
+source "drivers/platform/msm/ipa/ipa_v3/ethernet/aquantia/Kconfig"
 
 config RMNET_IPA3
 	tristate "IPA3 RMNET WWAN Network Device"
@@ -176,6 +215,15 @@ config IPA3_MHI_PROXY
 	  the MHI device without AP involvement, with the exception of
 	  power management.
 
+config IPA3_MHI_PRIME_MANAGER
+	tristate "IPA3 MHI Prime Manager driver"
+	depends on IPA3
+	help
+	  This driver functionality is to setup MHI Prime channels between Host and
+	  Modem and enable the ability for MHI Prime communication.
+	  Once the configuration is set up modem will communicate directly with
+	  the Host without AP involvement for tethering data offload.
+
 config IPA_UT
 	tristate "IPA Unit-Test Framework and Test Suites"
 	depends on IPA3 && DEBUG_FS
@@ -212,4 +260,32 @@ config IPA_EMULATION
 	help
 	  This option is used only when building the X86 version of
 	  the IPA/GSI driver. Never set this when building for ARM.
+
+config IPA3_REGDUMP
+	bool "Dump or collect IPA/GSI register values on Linux crash"
+	depends on IPA3
+	help
+	  This option is to be used when the saving of IPA/GSI
+	  register state is desired upon system crash.
+
+choice
+	prompt "Platform whose registers are to be dumped/collected"
+	depends on IPA3_REGDUMP
+
+config IPA3_REGDUMP_SM8150
+	bool "The sm8150 platform"
+	depends on IPA3_REGDUMP
+	depends on ARCH_SM8150
+	help
+	  The sm8150 platform's registers will be dumped/collected.
+
+endchoice
+
+config IPA3_REGDUMP_NUM_EXTRA_ENDP_REGS
+	int "The number of extra endp registers for remaining pipes"
+	depends on IPA3_REGDUMP
+	default 0
+	help
+	  If the platform has extra endpoint registers for remaining
+	  pipes, please express how many here.
 endmenu

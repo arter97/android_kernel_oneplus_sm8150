@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -233,17 +233,28 @@ static struct clk_fixed_factor gpll0_out_aux2 = {
 	},
 };
 
-static struct clk_alpha_pll gpll6_out_main = {
+static struct clk_alpha_pll gpll6_out_early = {
 	.offset = 0x13000,
 	.clkr = {
 		.enable_reg = 0x52000,
 		.enable_mask = BIT(6),
 		.hw.init = &(struct clk_init_data){
-			.name = "gpll6_out_main",
+			.name = "gpll6_out_early",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
 			.ops = &clk_alpha_pll_ops,
 		},
+	},
+};
+
+static struct clk_fixed_factor gpll6_out_main = {
+	.mult = 1,
+	.div = 2,
+	.hw.init = &(struct clk_init_data){
+		.name = "gpll6_out_main",
+		.parent_names = (const char *[]){ "gpll6_out_early" },
+		.num_parents = 1,
+		.ops = &clk_fixed_factor_ops,
 	},
 };
 
@@ -261,17 +272,28 @@ static struct clk_alpha_pll gpll7_out_main = {
 	},
 };
 
-static struct clk_alpha_pll gpll8_out_main = {
+static struct clk_alpha_pll gpll8_out_early = {
 	.offset = 0x1b000,
 	.clkr = {
 		.enable_reg = 0x52000,
 		.enable_mask = BIT(8),
 		.hw.init = &(struct clk_init_data){
-			.name = "gpll8_out_main",
+			.name = "gpll8_out_early",
 			.parent_names = (const char *[]){ "bi_tcxo" },
 			.num_parents = 1,
 			.ops = &clk_alpha_pll_ops,
 		},
+	},
+};
+
+static struct clk_fixed_factor gpll8_out_main = {
+	.mult = 1,
+	.div = 2,
+	.hw.init = &(struct clk_init_data){
+		.name = "gpll8_out_main",
+		.parent_names = (const char *[]){ "gpll8_out_early" },
+		.num_parents = 1,
+		.ops = &clk_fixed_factor_ops,
 	},
 };
 
@@ -1942,6 +1964,7 @@ static struct clk_branch gcc_pcie_0_mstr_axi_clk = {
 };
 
 static struct clk_branch gcc_pcie_0_pipe_clk = {
+	.halt_reg = 0x6b024,
 	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x5200c,
@@ -3220,6 +3243,97 @@ static struct clk_branch gcc_usb2_sec_clkref_clk = {
 	},
 };
 
+static struct clk_branch gcc_sdr_core_clk = {
+	.halt_reg = 0x46004,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46004,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_core_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_wr0_mem_clk = {
+	.halt_reg = 0x46008,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46008,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_wr0_mem_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_wr1_mem_clk = {
+	.halt_reg = 0x46010,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46010,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_wr1_mem_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_wr2_mem_clk = {
+	.halt_reg = 0x46018,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46018,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_wr2_mem_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_csr_hclk = {
+	.halt_reg = 0x46020,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46020,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_csr_hclk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_pri_mi2s_clk = {
+	.halt_reg = 0x46024,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46024,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_pri_mi2s_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
+static struct clk_branch gcc_sdr_sec_mi2s_clk = {
+	.halt_reg = 0x46028,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x46028,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_sdr_sec_mi2s_clk",
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
 /* Measure-only clock for ddrss_gcc_debug_clk. */
 static struct clk_dummy measure_only_mccc_clk = {
 	.rrate = 1000,
@@ -3258,6 +3372,8 @@ static struct clk_dummy measure_only_snoc_clk = {
 
 struct clk_hw *gcc_sm6150_hws[] = {
 	[GPLL0_OUT_AUX2] = &gpll0_out_aux2.hw,
+	[GPLL6_OUT_MAIN] = &gpll6_out_main.hw,
+	[GPLL8_OUT_MAIN] = &gpll8_out_main.hw,
 	[MEASURE_ONLY_MMCC_CLK] = &measure_only_mccc_clk.hw,
 	[MEASURE_ONLY_CNOC_CLK] = &measure_only_cnoc_clk.hw,
 	[MEASURE_ONLY_IPA_2X_CLK] = &measure_only_ipa_2x_clk.hw,
@@ -3433,13 +3549,20 @@ static struct clk_regmap *gcc_sm6150_clocks[] = {
 	[GCC_VSENSOR_CLK_SRC] = &gcc_vsensor_clk_src.clkr,
 	[GCC_WCSS_VS_CLK] = &gcc_wcss_vs_clk.clkr,
 	[GPLL0_OUT_MAIN] = &gpll0_out_main.clkr,
-	[GPLL6_OUT_MAIN] = &gpll6_out_main.clkr,
+	[GPLL6_OUT_EARLY] = &gpll6_out_early.clkr,
 	[GPLL7_OUT_MAIN] = &gpll7_out_main.clkr,
-	[GPLL8_OUT_MAIN] = &gpll8_out_main.clkr,
+	[GPLL8_OUT_EARLY] = &gpll8_out_early.clkr,
 	[GCC_RX1_USB2_CLKREF_CLK] = &gcc_rx1_usb2_clkref_clk.clkr,
 	[GCC_RX3_USB2_CLKREF_CLK] = &gcc_rx3_usb2_clkref_clk.clkr,
 	[GCC_USB2_PRIM_CLKREF_CLK] = &gcc_usb2_prim_clkref_clk.clkr,
 	[GCC_USB2_SEC_CLKREF_CLK] = &gcc_usb2_sec_clkref_clk.clkr,
+	[GCC_SDR_CORE_CLK] = &gcc_sdr_core_clk.clkr,
+	[GCC_SDR_WR0_MEM_CLK] = &gcc_sdr_wr0_mem_clk.clkr,
+	[GCC_SDR_WR1_MEM_CLK] = &gcc_sdr_wr1_mem_clk.clkr,
+	[GCC_SDR_WR2_MEM_CLK] = &gcc_sdr_wr2_mem_clk.clkr,
+	[GCC_SDR_CSR_HCLK] = &gcc_sdr_csr_hclk.clkr,
+	[GCC_SDR_PRI_MI2S_CLK] = &gcc_sdr_pri_mi2s_clk.clkr,
+	[GCC_SDR_SEC_MI2S_CLK] = &gcc_sdr_sec_mi2s_clk.clkr,
 };
 
 static const struct qcom_reset_map gcc_sm6150_resets[] = {
@@ -3499,13 +3622,23 @@ static const struct qcom_cc_desc gcc_sm6150_desc = {
 
 static const struct of_device_id gcc_sm6150_match_table[] = {
 	{ .compatible = "qcom,gcc-sm6150" },
+	{ .compatible = "qcom,gcc-sa6155" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, gcc_sm6150_match_table);
 
+static void gcc_sm6150_fixup_sa6155(struct platform_device *pdev)
+{
+	vdd_cx.num_levels = VDD_NUM_SA6155;
+	vdd_cx.cur_level = VDD_NUM_SA6155;
+	vdd_cx_ao.num_levels = VDD_NUM_SA6155;
+	vdd_cx_ao.cur_level = VDD_NUM_SA6155;
+}
+
 static int gcc_sm6150_probe(struct platform_device *pdev)
 {
 	struct regmap *regmap;
+	int is_sa6155;
 	int ret;
 
 	vdd_cx.regulator[0] = devm_regulator_get(&pdev->dev, "vdd_cx");
@@ -3523,6 +3656,11 @@ static int gcc_sm6150_probe(struct platform_device *pdev)
 				"Unable to get vdd_cx_ao regulator\n");
 		return PTR_ERR(vdd_cx_ao.regulator[0]);
 	}
+
+	is_sa6155 = of_device_is_compatible(pdev->dev.of_node,
+						"qcom,gcc-sa6155");
+	if (is_sa6155)
+		gcc_sm6150_fixup_sa6155(pdev);
 
 	regmap = qcom_cc_map(pdev, &gcc_sm6150_desc);
 	if (IS_ERR(regmap)) {

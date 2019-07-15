@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -88,7 +88,7 @@ static int adc_tm_register_tzd(struct adc_tm_chip *adc_tm, int dt_chan_num,
 					&adc_tm->sensor[i], &adc_tm_ops_iio);
 
 			if (IS_ERR(tzd)) {
-				pr_err("Error registering TZ zone:%d for dt_ch:%d\n",
+				pr_err("Error registering TZ zone:%ld for dt_ch:%d\n",
 					PTR_ERR(tzd), adc_tm->sensor[i].adc_ch);
 				continue;
 			}
@@ -424,10 +424,30 @@ static int adc_tm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int adc_tm_suspend_noirq(struct device *dev)
+{
+	struct adc_tm_chip *adc_tm = dev_get_drvdata(dev);
+	int i = 0;
+
+	while (i < adc_tm->dt_channels) {
+		if (adc_tm->sensor[i].req_wq) {
+			pr_debug("flushing queue for sensor %d\n", i);
+			flush_workqueue(adc_tm->sensor[i].req_wq);
+		}
+		i++;
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops adc_tm_pm_ops = {
+	.suspend_noirq	= adc_tm_suspend_noirq,
+};
+
 static struct platform_driver adc_tm_driver = {
 	.driver = {
 		.name = "qcom,adc-tm",
 		.of_match_table	= adc_tm_match_table,
+		.pm		= &adc_tm_pm_ops,
 	},
 	.probe = adc_tm_probe,
 	.remove = adc_tm_remove,

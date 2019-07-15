@@ -258,6 +258,7 @@ struct arm_smmu_device {
 #define ARM_SMMU_OPT_STATIC_CB		(1 << 6)
 #define ARM_SMMU_OPT_DISABLE_ATOS	(1 << 7)
 #define ARM_SMMU_OPT_MIN_IOVA_ALIGN	(1 << 8)
+#define ARM_SMMU_OPT_NO_DYNAMIC_ASID	(1 << 9)
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -398,6 +399,7 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ ARM_SMMU_OPT_STATIC_CB, "qcom,enable-static-cb"},
 	{ ARM_SMMU_OPT_DISABLE_ATOS, "qcom,disable-atos" },
 	{ ARM_SMMU_OPT_MIN_IOVA_ALIGN, "qcom,min-iova-align" },
+	{ ARM_SMMU_OPT_NO_DYNAMIC_ASID, "qcom,no-dynamic-asid" },
 	{ 0, NULL},
 };
 
@@ -520,11 +522,6 @@ static void arm_smmu_secure_domain_unlock(struct arm_smmu_domain *smmu_domain)
 {
 	if (arm_smmu_is_master_side_secure(smmu_domain))
 		mutex_unlock(&smmu_domain->assign_lock);
-}
-
-static bool arm_smmu_opt_hibernation(struct arm_smmu_device *smmu)
-{
-	return IS_ENABLED(CONFIG_HIBERNATION);
 }
 
 #ifdef CONFIG_ARM_SMMU_SELFTEST
@@ -1103,7 +1100,7 @@ static int __arm_smmu_tlb_sync(struct arm_smmu_device *smmu,
 				void __iomem *sync, void __iomem *status)
 {
 	unsigned int spin_cnt, delay;
-	u32 sync_inv_ack, tbu_pwr_status;
+	u32 sync_inv_ack, tbu_pwr_status, sync_inv_progress;
 
 	writel_relaxed(0, sync);
 	for (delay = 1; delay < TLB_LOOP_TIMEOUT; delay *= 2) {
@@ -1118,10 +1115,13 @@ static int __arm_smmu_tlb_sync(struct arm_smmu_device *smmu,
 				     ARM_SMMU_STATS_SYNC_INV_TBU_ACK));
 	tbu_pwr_status = scm_io_read((unsigned long)(smmu->phys_addr +
 				     ARM_SMMU_TBU_PWR_STATUS));
+	sync_inv_progress = scm_io_read((unsigned long)(smmu->phys_addr +
+					ARM_SMMU_MMU2QSS_AND_SAFE_WAIT_CNTR));
 	trace_tlbsync_timeout(smmu->dev, 0);
 	dev_err_ratelimited(smmu->dev,
-			    "TLB sync timed out -- SMMU may be deadlocked ack 0x%x pwr 0x%x\n",
-			    sync_inv_ack, tbu_pwr_status);
+			    "TLB sync timed out -- SMMU may be deadlocked ack 0x%x pwr 0x%x sync and invalidation progress 0x%x\n",
+			    sync_inv_ack, tbu_pwr_status, sync_inv_progress);
+	BUG_ON(IS_ENABLED(CONFIG_IOMMU_TLBSYNC_DEBUG));
 	return -EINVAL;
 }
 
@@ -1842,7 +1842,7 @@ static int arm_smmu_init_asid(struct iommu_domain *domain,
 	bool dynamic = is_dynamic_domain(domain);
 	int ret;
 
-	if (!dynamic) {
+	if (!dynamic || (smmu->options & ARM_SMMU_OPT_NO_DYNAMIC_ASID)) {
 		cfg->asid = cfg->cbndx + 1;
 	} else {
 		mutex_lock(&smmu->idr_mutex);
@@ -1907,14 +1907,6 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 		dev_err(smmu->dev, "dynamic domains not supported\n");
 		ret = -EPERM;
 
-		goto out_unlock;
-	}
-
-	if (arm_smmu_has_secure_vmid(smmu_domain) &&
-	    arm_smmu_opt_hibernation(smmu)) {
-		dev_err(smmu->dev,
-			"Secure usecases not supported with hibernation\n");
-		ret = -EPERM;
 		goto out_unlock;
 	}
 
@@ -4373,7 +4365,7 @@ static int arm_smmu_init_bus_scaling(struct arm_smmu_power_resources *pwr)
 	pwr->bus_client = msm_bus_scale_register_client(pwr->bus_dt_data);
 	if (!pwr->bus_client) {
 		dev_err(dev, "Bus client registration failed\n");
-		return -EINVAL;
+		return -EPROBE_DEFER;
 	}
 
 	return 0;

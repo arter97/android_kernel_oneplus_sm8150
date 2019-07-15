@@ -33,6 +33,7 @@
 #include <linux/genhd.h>
 #include <linux/ktime.h>
 #include <trace/events/power.h>
+#include <soc/qcom/boot_stats.h>
 
 #include "power.h"
 
@@ -258,6 +259,11 @@ void swsusp_show_speed(ktime_t start, ktime_t stop,
 		(kps % 1000) / 10);
 }
 
+__weak int arch_resume_nosmt(void)
+{
+	return 0;
+}
+
 /**
  * create_image - Create a hibernation image.
  * @platform_mode: Whether or not to use the platform driver.
@@ -321,6 +327,10 @@ static int create_image(int platform_mode)
 
  Enable_cpus:
 	enable_nonboot_cpus();
+
+	/* Allow architectures to do nosmt-specific post-resume dances */
+	if (!in_suspend)
+		error = arch_resume_nosmt();
 
  Platform_finish:
 	platform_finish(platform_mode);
@@ -740,6 +750,7 @@ int hibernate(void)
 		in_suspend = 0;
 		pm_restore_gfp_mask();
 	} else {
+		place_marker("PM: Image restored!");
 		pm_pr_dbg("Image restored successfully.\n");
 	}
 
@@ -763,6 +774,7 @@ int hibernate(void)
 	atomic_inc(&snapshot_device_available);
  Unlock:
 	unlock_system_sleep();
+	place_marker("PM: Hibernation Exit!");
 	pr_info("hibernation exit\n");
 
 	return error;
@@ -885,6 +897,7 @@ static int software_resume(void)
 		goto Close_Finish;
 	error = load_image_and_restore();
 	thaw_processes();
+	place_marker("PM: Thaw completed!");
  Finish:
 	__pm_notifier_call_chain(PM_POST_RESTORE, nr_calls, NULL);
 	pm_restore_console();

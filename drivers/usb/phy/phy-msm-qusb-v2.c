@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -119,7 +119,6 @@ struct qusb_phy {
 	int			efuse_bit_pos;
 	int			efuse_num_of_bits;
 
-	int			power_enabled_ref;
 	bool			cable_connected;
 	bool			suspended;
 	bool			dpdm_enable;
@@ -185,35 +184,77 @@ static int qusb_phy_config_vdd(struct qusb_phy *qphy, int high)
 	return ret;
 }
 
-static int qusb_phy_enable_power(struct qusb_phy *qphy, bool on)
+static int qusb_phy_disable_power(struct qusb_phy *qphy)
 {
 	int ret = 0;
 
 	mutex_lock(&qphy->lock);
 
-	dev_dbg(qphy->phy.dev,
-		"%s:req to turn %s regulators. power_enabled_ref:%d\n",
-			__func__, on ? "on" : "off", qphy->power_enabled_ref);
+	dev_dbg(qphy->phy.dev, "%s:req to turn off regulators\n",
+			__func__);
 
-	if (on && ++qphy->power_enabled_ref > 1) {
-		dev_dbg(qphy->phy.dev, "PHYs' regulators are already on\n");
-		goto done;
+	ret = regulator_disable(qphy->vdda33);
+	if (ret)
+		dev_err(qphy->phy.dev, "Unable to disable vdda33:%d\n", ret);
+
+	if (!regulator_is_enabled(qphy->vdda33)) {
+		ret = regulator_set_voltage(qphy->vdda33, 0,
+					QUSB2PHY_3P3_VOL_MAX);
+		if (ret)
+			dev_err(qphy->phy.dev,
+				"Unable to set (0) voltage for vdda33:%d\n",
+					ret);
+
+		ret = regulator_set_load(qphy->vdda33, 0);
+		if (ret < 0)
+			dev_err(qphy->phy.dev,
+					"Unable to set (0) HPM of vdda33\n");
+
 	}
 
-	if (!on) {
-		if (on == qphy->power_enabled_ref) {
-			dev_dbg(qphy->phy.dev,
-				"PHYs' regulators are already off\n");
-			goto done;
-		}
+	ret = regulator_disable(qphy->vdda18);
+	if (ret)
+		dev_err(qphy->phy.dev, "Unable to disable vdda18:%d\n", ret);
 
-		qphy->power_enabled_ref--;
-		if (!qphy->power_enabled_ref)
-			goto disable_vdda33;
+	if (!regulator_is_enabled(qphy->vdda18)) {
+		ret = regulator_set_voltage(qphy->vdda18, 0,
+					QUSB2PHY_1P8_VOL_MAX);
+		if (ret)
+			dev_err(qphy->phy.dev,
+			   "Unable to set (0) voltage for vdda18:%d\n", ret);
 
-		dev_dbg(qphy->phy.dev, "Skip turning off PHYs' regulators\n");
-		goto done;
+		ret = regulator_set_load(qphy->vdda18, 0);
+		if (ret < 0)
+			dev_err(qphy->phy.dev,
+					"Unable to set LPM of vdda18\n");
 	}
+
+	ret = regulator_disable(qphy->vdd);
+	if (ret)
+		dev_err(qphy->phy.dev, "Unable to disable vdd:%d\n", ret);
+
+	if (!regulator_is_enabled(qphy->vdd)) {
+		ret = qusb_phy_config_vdd(qphy, false);
+		if (ret)
+			dev_err(qphy->phy.dev, "Unable unconfig VDD:%d\n",
+						ret);
+	}
+
+	pr_debug("%s(): QUSB PHY's regulators are turned OFF.\n", __func__);
+
+	mutex_unlock(&qphy->lock);
+
+	return ret;
+}
+
+static int qusb_phy_enable_power(struct qusb_phy *qphy)
+{
+	int ret = 0;
+
+	mutex_lock(&qphy->lock);
+
+	dev_dbg(qphy->phy.dev, "%s:req to turn on regulators\n",
+			__func__);
 
 	ret = qusb_phy_config_vdd(qphy, true);
 	if (ret) {
@@ -271,12 +312,8 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy, bool on)
 	pr_debug("%s(): QUSB PHY's regulators are turned ON.\n", __func__);
 
 	mutex_unlock(&qphy->lock);
-	return ret;
 
-disable_vdda33:
-	ret = regulator_disable(qphy->vdda33);
-	if (ret)
-		dev_err(qphy->phy.dev, "Unable to disable vdda33:%d\n", ret);
+	return ret;
 
 unset_vdd33:
 	ret = regulator_set_voltage(qphy->vdda33, 0, QUSB2PHY_3P3_VOL_MAX);
@@ -317,13 +354,8 @@ unconfig_vdd:
 		dev_err(qphy->phy.dev, "Unable unconfig VDD:%d\n",
 							ret);
 err_vdd:
-	dev_dbg(qphy->phy.dev, "QUSB PHY's regulators are turned OFF.\n");
-
-	/* in case of error in turning on regulators */
-	if (qphy->power_enabled_ref)
-		qphy->power_enabled_ref--;
-done:
 	mutex_unlock(&qphy->lock);
+
 	return ret;
 }
 
@@ -464,14 +496,10 @@ static void qusb_phy_host_init(struct usb_phy *phy)
 static int qusb_phy_init(struct usb_phy *phy)
 {
 	struct qusb_phy *qphy = container_of(phy, struct qusb_phy, phy);
-	int ret, p_index;
+	int p_index;
 	u8 reg;
 
 	dev_dbg(phy->dev, "%s\n", __func__);
-
-	ret = qusb_phy_enable_power(qphy, true);
-	if (ret)
-		return ret;
 
 	qusb_phy_reset(qphy);
 
@@ -569,7 +597,7 @@ static void qusb_phy_shutdown(struct usb_phy *phy)
 
 	dev_dbg(phy->dev, "%s\n", __func__);
 
-	qusb_phy_enable_power(qphy, false);
+	qusb_phy_disable_power(qphy);
 
 }
 
@@ -606,8 +634,7 @@ static int qusb_phy_set_suspend(struct usb_phy *phy, int suspend)
 
 	if (suspend) {
 		/* Bus suspend case */
-		if (qphy->cable_connected ||
-			(qphy->phy.flags & PHY_HOST_MODE)) {
+		if (qphy->cable_connected) {
 			/* Disable all interrupts */
 			writel_relaxed(0x00,
 				qphy->base + qphy->phy_reg[INTR_CTRL]);
@@ -653,13 +680,12 @@ static int qusb_phy_set_suspend(struct usb_phy *phy, int suspend)
 				qphy->base + qphy->phy_reg[INTR_CTRL]);
 			qusb_phy_reset(qphy);
 			qusb_phy_enable_clocks(qphy, false);
-			qusb_phy_enable_power(qphy, false);
+			qusb_phy_disable_power(qphy);
 		}
 		qphy->suspended = true;
 	} else {
 		/* Bus resume case */
-		if (qphy->cable_connected ||
-			(qphy->phy.flags & PHY_HOST_MODE)) {
+		if (qphy->cable_connected) {
 			qusb_phy_enable_clocks(qphy, true);
 			/* Clear all interrupts on resume */
 			writel_relaxed(0x00,
@@ -686,6 +712,7 @@ static int qusb_phy_set_suspend(struct usb_phy *phy, int suspend)
 				wmb();
 			}
 		} else { /* Cable connect case */
+			qusb_phy_enable_power(qphy);
 			qusb_phy_enable_clocks(qphy, true);
 		}
 		qphy->suspended = false;
@@ -727,7 +754,7 @@ static int qusb_phy_dpdm_regulator_enable(struct regulator_dev *rdev)
 				__func__, qphy->dpdm_enable);
 
 	if (!qphy->dpdm_enable) {
-		ret = qusb_phy_enable_power(qphy, true);
+		ret = qusb_phy_enable_power(qphy);
 		if (ret < 0) {
 			dev_dbg(qphy->phy.dev,
 				"dpdm regulator enable failed:%d\n", ret);
@@ -749,7 +776,7 @@ static int qusb_phy_dpdm_regulator_disable(struct regulator_dev *rdev)
 				__func__, qphy->dpdm_enable);
 
 	if (qphy->dpdm_enable) {
-		ret = qusb_phy_enable_power(qphy, false);
+		ret = qusb_phy_disable_power(qphy);
 		if (ret < 0) {
 			dev_dbg(qphy->phy.dev,
 				"dpdm regulator disable failed:%d\n", ret);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -42,6 +42,14 @@
 		pinctrl-0 = <&cdc_reset_active>;
 		pinctrl-1 = <&cdc_reset_sleep>;
 	};
+
+	lineout_booster_gpio: msm_cdc_pinctrl@113 {
+		compatible = "qcom,msm-cdc-pinctrl";
+		qcom,lo-booster-gpio = <&tlmm 113 0>;
+		pinctrl-names = "aud_active", "aud_sleep";
+		pinctrl-0 = <&lineout_booster_active>;
+		pinctrl-1 = <&lineout_booster_sleep>;
+	};
 };
 
 &slim_aud {
@@ -69,6 +77,7 @@
 		qcom,cdc-slim-ifd-elemental-addr = [00 00 a0 01 17 02];
 		qcom,cdc-dmic-sample-rate = <4800000>;
 		qcom,cdc-mad-dmic-rate = <600000>;
+		qcom,vote-dynamic-supply-on-demand = <1>;
 
 		cdc-vdd-buck-supply = <&pms405_s4>;
 		qcom,cdc-vdd-buck-voltage = <1800000 1800000>;
@@ -88,11 +97,17 @@
 
 		cdc-vdd-px-supply = <&pms405_l6>;
 		qcom,cdc-vdd-px-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-px-current = <10000>;
+		qcom,cdc-vdd-px-current = <9000>;
 
 		qcom,cdc-static-supplies = "cdc-vdd-buck",
 					   "cdc-buck-sido",
-					   "cdc-vdd-tx-h",
-					   "cdc-vdd-rx-h";
+					   "cdc-vdd-px";
+
+		qcom,cdc-on-demand-supplies = "cdc-vdd-tx-h",
+					      "cdc-vdd-rx-h";
 	};
+};
+
+&qcs405_snd {
+	qcom,lineout-booster-gpio = <&lineout_booster_gpio>;
 };

@@ -86,6 +86,12 @@ static unsigned int num_uncached_entries;
 static void gmu_snapshot(struct kgsl_device *device);
 static void gmu_remove(struct kgsl_device *device);
 
+unsigned int gmu_get_memtype_base(struct gmu_device *gmu,
+		enum gmu_mem_type type)
+{
+	return gmu_vma[type].start;
+}
+
 static int _gmu_iommu_fault_handler(struct device *dev,
 		unsigned long addr, int flags, const char *name)
 {
@@ -363,6 +369,9 @@ static void gmu_kmem_close(struct gmu_device *gmu)
 	struct gmu_iommu_context *ctx = &gmu_ctx[GMU_CONTEXT_KERNEL];
 
 	gmu->hfi_mem = NULL;
+	gmu->persist_mem = NULL;
+	gmu->icache_mem = NULL;
+	gmu->dcache_mem = NULL;
 	gmu->dump_mem = NULL;
 	gmu->gmu_log = NULL;
 
@@ -431,32 +440,39 @@ static int gmu_memory_probe(struct kgsl_device *device,
 
 	/* Allocates & maps memory for WB DUMMY PAGE */
 	/* Must be the first alloc */
-	md = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL,
-			DUMMY_SIZE, (IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
-	if (IS_ERR(md)) {
-		ret = PTR_ERR(md);
+	if (IS_ERR_OR_NULL(gmu->persist_mem))
+		gmu->persist_mem = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL,
+				DUMMY_SIZE,
+				(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
+	if (IS_ERR(gmu->persist_mem)) {
+		ret = PTR_ERR(gmu->persist_mem);
 		goto err_ret;
 	}
 
 	/* Allocates & maps memory for DCACHE */
-	md = allocate_gmu_kmem(gmu, GMU_DCACHE, gmu_vma[GMU_DCACHE].size,
-			(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
-	if (IS_ERR(md)) {
-		ret = PTR_ERR(md);
+	if (IS_ERR_OR_NULL(gmu->dcache_mem))
+		gmu->dcache_mem = allocate_gmu_kmem(gmu, GMU_DCACHE,
+				gmu_vma[GMU_DCACHE].size,
+				(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
+	if (IS_ERR(gmu->dcache_mem)) {
+		ret = PTR_ERR(gmu->dcache_mem);
 		goto err_ret;
 	}
 
 	/* Allocates & maps memory for ICACHE */
-	md = allocate_gmu_kmem(gmu, GMU_ICACHE, gmu_vma[GMU_ICACHE].size,
-			(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
-	if (IS_ERR(md)) {
-		ret = PTR_ERR(md);
+	if (IS_ERR_OR_NULL(gmu->icache_mem))
+		gmu->icache_mem = allocate_gmu_kmem(gmu, GMU_ICACHE,
+				gmu_vma[GMU_ICACHE].size,
+				(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
+	if (IS_ERR(gmu->icache_mem)) {
+		ret = PTR_ERR(gmu->icache_mem);
 		goto err_ret;
 	}
 
 	/* Allocates & maps memory for HFI */
-	gmu->hfi_mem = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL, HFIMEM_SIZE,
-			(IOMMU_READ | IOMMU_WRITE));
+	if (IS_ERR_OR_NULL(gmu->hfi_mem))
+		gmu->hfi_mem = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL,
+				HFIMEM_SIZE, (IOMMU_READ | IOMMU_WRITE));
 	if (IS_ERR(gmu->hfi_mem)) {
 		ret = PTR_ERR(gmu->hfi_mem);
 		goto err_ret;
@@ -464,8 +480,11 @@ static int gmu_memory_probe(struct kgsl_device *device,
 
 	/* Allocates & maps GMU crash dump memory */
 	if (adreno_is_a630(adreno_dev) || adreno_is_a615_family(adreno_dev)) {
-		gmu->dump_mem = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL,
-				DUMPMEM_SIZE, (IOMMU_READ | IOMMU_WRITE));
+		if (IS_ERR_OR_NULL(gmu->dump_mem))
+			gmu->dump_mem = allocate_gmu_kmem(gmu,
+					GMU_NONCACHED_KERNEL,
+					DUMPMEM_SIZE,
+					(IOMMU_READ | IOMMU_WRITE));
 		if (IS_ERR(gmu->dump_mem)) {
 			ret = PTR_ERR(gmu->dump_mem);
 			goto err_ret;
@@ -473,8 +492,10 @@ static int gmu_memory_probe(struct kgsl_device *device,
 	}
 
 	/* GMU master log */
-	gmu->gmu_log = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL, LOGMEM_SIZE,
-			(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
+	if (IS_ERR_OR_NULL(gmu->gmu_log))
+		gmu->gmu_log = allocate_gmu_kmem(gmu, GMU_NONCACHED_KERNEL,
+				LOGMEM_SIZE,
+				(IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV));
 	if (IS_ERR(gmu->gmu_log)) {
 		ret = PTR_ERR(gmu->gmu_log);
 		goto err_ret;
@@ -1295,18 +1316,8 @@ static int gmu_acd_set(struct kgsl_device *device, unsigned int val)
 	if (val == test_bit(ADRENO_ACD_CTRL, &adreno_dev->pwrctrl_flag))
 		return 0;
 
-	mutex_lock(&device->mutex);
-
-	/* Power down the GPU before enabling or disabling ACD */
-	kgsl_pwrctrl_change_state(device, KGSL_STATE_SUSPEND);
-	if (val)
-		set_bit(ADRENO_ACD_CTRL, &adreno_dev->pwrctrl_flag);
-	else
-		clear_bit(ADRENO_ACD_CTRL, &adreno_dev->pwrctrl_flag);
-	kgsl_pwrctrl_change_state(device, KGSL_STATE_SLUMBER);
-
-	mutex_unlock(&device->mutex);
-	return 0;
+	return kgsl_change_flag(device, ADRENO_ACD_CTRL,
+			&adreno_dev->pwrctrl_flag);
 }
 
 /* Do not access any GMU registers in GMU probe function */
@@ -1830,6 +1841,24 @@ static bool gmu_regulator_isenabled(struct kgsl_device *device)
 	return (gmu->gx_gdsc &&	regulator_is_enabled(gmu->gx_gdsc));
 }
 
+static bool gmu_is_initialized(struct kgsl_device *device)
+{
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	struct gmu_dev_ops *gmu_dev_ops = GMU_DEVICE_OPS(device);
+	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
+	bool ret;
+
+	gmu_enable_gdsc(gmu);
+	gmu_enable_clks(device);
+
+	ret = gmu_dev_ops->is_initialized(adreno_dev);
+
+	gmu_disable_clks(device);
+	gmu_disable_gdsc(gmu);
+
+	return ret;
+}
+
 struct gmu_core_ops gmu_ops = {
 	.probe = gmu_probe,
 	.remove = gmu_remove,
@@ -1840,4 +1869,5 @@ struct gmu_core_ops gmu_ops = {
 	.regulator_isenabled = gmu_regulator_isenabled,
 	.suspend = gmu_suspend,
 	.acd_set = gmu_acd_set,
+	.is_initialized = gmu_is_initialized,
 };

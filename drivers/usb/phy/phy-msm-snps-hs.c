@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -54,6 +54,7 @@
 #define VBUSVLDEXT0				BIT(0)
 
 #define USB2_PHY_USB_PHY_HS_PHY_CTRL2		(0x64)
+#define USB2_AUTO_RESUME			BIT(0)
 #define USB2_SUSPEND_N				BIT(2)
 #define USB2_SUSPEND_N_SEL			BIT(3)
 
@@ -110,6 +111,7 @@ struct msm_hsphy {
 	bool			suspended;
 	bool			cable_connected;
 	bool			dpdm_enable;
+	bool			no_rext_present;
 
 	int			*param_override_seq;
 	int			param_override_seq_cnt;
@@ -476,12 +478,16 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 	if (phy->phy_rcal_reg) {
 		rcal_code = readl_relaxed(phy->phy_rcal_reg) & phy->rcal_mask;
 
-		dev_dbg(uphy->dev, "rcal_mask:%08x reg:%08x code:%08x\n",
+		dev_dbg(uphy->dev, "rcal_mask:%08x reg:%pK code:%08x\n",
 				phy->rcal_mask, phy->phy_rcal_reg, rcal_code);
 	}
 
-	/* Use external resistor for tuning if efuse is not programmed */
-	if (!rcal_code)
+	/*
+	 * Use external resistor value only if:
+	 * a. It is present and
+	 * b. efuse is not programmed.
+	 */
+	if (!phy->no_rext_present && !rcal_code)
 		msm_usb_write_readback(phy->base, USB2PHY_USB_PHY_RTUNE_SEL,
 			RTUNE_SEL, RTUNE_SEL);
 
@@ -520,6 +526,15 @@ static int msm_hsphy_set_suspend(struct usb_phy *uphy, int suspend)
 	if (suspend) { /* Bus suspend */
 		if (phy->cable_connected ||
 			(phy->phy.flags & PHY_HOST_MODE)) {
+			/* Enable auto-resume functionality by pulsing signal */
+			msm_usb_write_readback(phy->base,
+				USB2_PHY_USB_PHY_HS_PHY_CTRL2,
+				USB2_AUTO_RESUME, USB2_AUTO_RESUME);
+			usleep_range(500, 1000);
+			msm_usb_write_readback(phy->base,
+				USB2_PHY_USB_PHY_HS_PHY_CTRL2,
+				USB2_AUTO_RESUME, 0);
+
 			msm_hsphy_enable_clocks(phy, false);
 		} else {/* Cable disconnect */
 			mutex_lock(&phy->phy_lock);
@@ -723,7 +738,7 @@ static int msm_hsphy_probe(struct platform_device *pdev)
 			dev_err(dev, "unable to read phy rcal mask\n");
 			phy->phy_rcal_reg = NULL;
 		}
-		dev_dbg(dev, "rcal_mask:%08x reg:%08x\n", phy->rcal_mask,
+		dev_dbg(dev, "rcal_mask:%08x reg:%pK\n", phy->rcal_mask,
 				phy->phy_rcal_reg);
 	}
 
@@ -805,6 +820,9 @@ static int msm_hsphy_probe(struct platform_device *pdev)
 			"error allocating memory for emu_dcm_reset_seq\n");
 		}
 	}
+
+	phy->no_rext_present = of_property_read_bool(dev->of_node,
+					"qcom,no-rext-present");
 
 	phy->param_override_seq_cnt = of_property_count_elems_of_size(
 					dev->of_node,

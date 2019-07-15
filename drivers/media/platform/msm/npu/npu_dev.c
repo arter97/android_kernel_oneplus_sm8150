@@ -1937,7 +1937,7 @@ static int npu_of_parse_pwrlevels(struct npu_device *npu_dev,
 
 			clk_rate = clk_round_rate(npu_dev->core_clks[i].clk,
 				clk_array_values[i]);
-			pr_debug("clk %s rate [%ld]:[%ld]\n",
+			pr_debug("clk %s rate [%u]:[%u]\n",
 				npu_dev->core_clks[i].clk_name,
 				clk_array_values[i], clk_rate);
 			level->clk_freq[i] = clk_rate;
@@ -2161,7 +2161,7 @@ static int npu_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto error_get_dev_num;
 	}
-	pr_debug("core phy address=0x%x virt=%pK\n",
+	pr_debug("core phy address=0x%llx virt=%pK\n",
 		res->start, npu_dev->core_io.base);
 
 	res = platform_get_resource_byname(pdev,
@@ -2179,7 +2179,7 @@ static int npu_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto error_get_dev_num;
 	}
-	pr_debug("core phy address=0x%x virt=%pK\n",
+	pr_debug("core phy address=0x%llx virt=%pK\n",
 		res->start, npu_dev->tcm_io.base);
 
 	res = platform_get_resource_byname(pdev,
@@ -2197,7 +2197,7 @@ static int npu_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto error_get_dev_num;
 	}
-	pr_debug("bwmon phy address=0x%x virt=%pK\n",
+	pr_debug("bwmon phy address=0x%llx virt=%pK\n",
 		res->start, npu_dev->bwmon_io.base);
 
 	res = platform_get_resource_byname(pdev,
@@ -2213,7 +2213,7 @@ static int npu_probe(struct platform_device *pdev)
 			rc = -ENOMEM;
 			goto error_get_dev_num;
 		}
-		pr_debug("qfprom_physical phy address=0x%x virt=%pK\n",
+		pr_debug("qfprom_physical phy address=0x%llx virt=%pK\n",
 			res->start, npu_dev->qfprom_io.base);
 	}
 

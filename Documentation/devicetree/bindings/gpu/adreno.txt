@@ -8,7 +8,8 @@ Required properties:
 - reg:			Specifies the register base address and size, the shader memory
 			base address and size (if it exists), base address and size
 			of the CX_DBGC block (if it exists), and the base address and
-			size of the CX_MISC block (if it exists).
+			size of the CX_MISC block (if it exists), and the base address and size of
+			QDSS_GFX block (if it exists).
 - reg-names:		Resource names used for the physical address of device registers
 			and shader memory. "kgsl_3d0_reg_memory" gives the physical address
 			and length of device registers while "kgsl_3d0_shader_memory" gives
@@ -17,7 +18,9 @@ Required properties:
 			registers used for various configuration options. If specified,
 			"kgsl_3d0_cx_dbgc_memory" gives the physical address and length
 			of the CX DBGC block. If specified, "cx_misc" gives
-			the physical address and length of the CX_MISC block.
+			the physical address and length of the CX_MISC block. If specified,
+			"qdss_gfx" provides the physical address and length of the
+			QDSS_GFX_DBG block.
 - interrupts:		Interrupt mapping for GPU IRQ.
 - interrupt-names:	String property to describe the name of the interrupt.
 - qcom,id:		An integer used as an identification number for the device.
@@ -141,6 +144,14 @@ Optional Properties:
 				mask   - mask for the relevant bits in the efuse register.
 				shift  - number of bits to right shift to get the speed bin
 				value.
+
+- qcom,gpu-gaming-bin:  	GPU gaming bin information in the format
+				<offset mask shift>
+				offset - offset of the efuse register from the base.
+				mask   - mask for the relevant bits in the efuse register.
+				shift  - number of bits to right shift to get the value of
+				relevant bits.
+
 - qcom,gpu-disable-fuse:	GPU disable fuse
 				<offset mask shift>
 				offset - offset of the efuse register from the base.
@@ -205,6 +216,10 @@ Optional Properties:
 
 - qcom,tsens-name:
 				Specify the name of GPU temperature sensor. This name will be used
+				to get the temperature from the thermal driver API.
+
+- tzone-names:
+				Specify the names of GPU thermal zones. These will be used
 				to get the temperature from the thermal driver API.
 
 - qcom,enable-midframe-timer:

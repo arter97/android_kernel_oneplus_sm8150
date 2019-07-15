@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -116,6 +116,16 @@ struct bus_set {
 	u32 count;
 };
 
+struct reset_info {
+	struct reset_control *rst;
+	const char *name;
+};
+
+struct reset_set {
+	struct reset_info *reset_tbl;
+	u32 count;
+};
+
 struct allowed_clock_rates_table {
 	u32 clock_rate;
 };
@@ -151,9 +161,7 @@ struct msm_vidc_mem_cdsp {
 struct msm_vidc_platform_resources {
 	phys_addr_t firmware_base;
 	phys_addr_t register_base;
-	phys_addr_t gcc_register_base;
 	uint32_t register_size;
-	uint32_t gcc_register_size;
 	uint32_t irq;
 	uint32_t sku_version;
 	struct allowed_clock_rates_table *allowed_clks_tbl;
@@ -170,11 +178,12 @@ struct msm_vidc_platform_resources {
 	struct buffer_usage_set buffer_usage_set;
 	uint32_t max_load;
 	uint32_t max_hq_mbs_per_frame;
-	uint32_t max_hq_fps;
+	uint32_t max_hq_mbs_per_sec;
 	struct platform_device *pdev;
 	struct regulator_set regulator_set;
 	struct clock_set clock_set;
 	struct bus_set bus_set;
+	struct reset_set reset_set;
 	bool use_non_secure_pil;
 	bool sw_power_collapsible;
 	bool slave_side_cp;
@@ -204,6 +213,32 @@ struct msm_vidc_platform_resources {
 	uint32_t fw_vpp_cycles;
 	uint32_t clk_freq_threshold;
 	struct cx_ipeak_client *cx_ipeak_context;
+	struct msm_vidc_ubwc_config *ubwc_config;
+	uint32_t ubwc_config_length;
+};
+
+/**
+ * @bMaxChannelsOverride : enable - 1 /disable - 0 max channel override
+ * @bMalLengthOverride : enable - 1 /disable - 0 HBB override
+ * @bHBBOverride : enable - 1 /disable – 0 mal length override
+ * @nMaxChannels: Num DDR channels 4/8 channel,
+ *                This is to control mircotilling mode.
+ * @nMalLength : UBWC compression ratio granularity 32B/64B MAL
+ * @nHighestBankBit : Valid range 13-19
+ */
+
+struct msm_vidc_ubwc_config {
+	struct {
+		u32 bMaxChannelsOverride : 1;
+		u32 bMalLengthOverride : 1;
+		u32 bHBBOverride : 1;
+		u32 reserved1 : 29;
+	} sOverrideBitInfo;
+
+	u32 nMaxChannels;
+	u32 nMalLength;
+	u32 nHighestBankBit;
+	u32 reserved2[2];
 };
 
 static inline bool is_iommu_present(struct msm_vidc_platform_resources *res)

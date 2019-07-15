@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -400,6 +400,8 @@ static int wlan_msg_process(struct ipa_msg_meta *meta, void *buff)
 	uint8_t mac[IPA_MAC_ADDR_SIZE];
 	uint8_t mac2[IPA_MAC_ADDR_SIZE];
 
+	if (!buff)
+		return -EINVAL;
 	if (meta->msg_type == WLAN_CLIENT_CONNECT_EX) {
 		/* debug print */
 		event_ex_cur_con = buff;
@@ -751,6 +753,7 @@ ssize_t ipa3_read(struct file *filp, char __user *buf, size_t count,
 			IPA_STATS_INC_CNT(
 				ipa3_ctx->stats.msg_r[msg->meta.msg_type]);
 			kfree(msg);
+			msg = NULL;
 		}
 
 		ret = -EAGAIN;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -320,7 +320,7 @@ static void dp_aux_reconfig(struct dp_aux *dp_aux)
 	aux->catalog->reset(aux->catalog);
 }
 
-static void dp_aux_abort_transaction(struct dp_aux *dp_aux)
+static void dp_aux_abort_transaction(struct dp_aux *dp_aux, bool reset)
 {
 	struct dp_aux_private *aux;
 
@@ -331,7 +331,7 @@ static void dp_aux_abort_transaction(struct dp_aux *dp_aux)
 
 	aux = container_of(dp_aux, struct dp_aux_private, dp_aux);
 
-	atomic_set(&aux->aborted, 1);
+	atomic_set(&aux->aborted, !reset);
 }
 
 static void dp_aux_update_offset_and_segment(struct dp_aux_private *aux,
@@ -499,7 +499,7 @@ static ssize_t dp_aux_transfer_debug(struct drm_dp_aux *drm_aux,
 	}
 
 	if ((msg->address + msg->size) > SZ_4K) {
-		pr_debug("invalid dpcd access: addr=0x%x, size=0x%x\n",
+		pr_debug("invalid dpcd access: addr=0x%x, size=0x%lx\n",
 				msg->address, msg->size);
 		goto address_error;
 	}

@@ -65,11 +65,11 @@ struct msm_gem_address_space;
 struct msm_gem_vma;
 
 #define NUM_DOMAINS    4    /* one for KMS, then one per gpu core (?) */
-#define MAX_CRTCS      8
+#define MAX_CRTCS      16
 #define MAX_PLANES     20
-#define MAX_ENCODERS   8
-#define MAX_BRIDGES    8
-#define MAX_CONNECTORS 8
+#define MAX_ENCODERS   16
+#define MAX_BRIDGES    16
+#define MAX_CONNECTORS 16
 
 #define TEARDOWN_DEADLOCK_RETRY_MAX 5
 
@@ -449,6 +449,7 @@ struct msm_display_topology {
  * @wide_bus_en:	wide-bus mode cfg for interface module
  * @mdp_transfer_time_us   Specifies the mdp transfer time for command mode
  *                         panels in microseconds.
+ * @vpadding:        panel stacking height
  * @overlap_pixels:	overlap pixels for certain panels
  */
 struct msm_mode_info {
@@ -463,6 +464,7 @@ struct msm_mode_info {
 	struct msm_roi_caps roi_caps;
 	bool wide_bus_en;
 	u32 mdp_transfer_time_us;
+	u32 vpadding;
 	u32 overlap_pixels;
 };
 

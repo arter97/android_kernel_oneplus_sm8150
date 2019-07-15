@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -635,7 +635,6 @@
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
-
 			port@0 {
 				reg = <0>;
 				funnel_in2_out_funnel_merg: endpoint {
@@ -643,7 +642,6 @@
 					  <&funnel_merg_in_funnel_in2>;
 				};
 			};
-
 			port@1 {
 				reg = <2>;
 				funnel_in2_in_funnel_apss_merg: endpoint {
@@ -651,14 +649,63 @@
 					remote-endpoint =
 					  <&funnel_apss_merg_out_funnel_in2>;
 				};
-
 			};
 			port@2 {
+				reg = <3>;
+				funnel_in2_in_funnel_gfx: endpoint {
+					slave-mode;
+					remote-endpoint =
+					  <&funnel_gfx_out_funnel_in2>;
+				};
+			};
+			port@3 {
 				reg = <4>;
 				funnel_in2_in_tpda_modem: endpoint {
 					slave-mode;
 					remote-endpoint =
 					  <&tpda_modem_out_funnel_in2>;
+				};
+			};
+		};
+	};
+
+	funnel_gfx: funnel@0x6943000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x0003b908>;
+
+		reg = <0x6943000 0x1000>;
+		reg-names = "funnel-base";
+
+		coresight-name = "coresight-funnel-gfx";
+
+		clocks = <&clock_aop QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				funnel_gfx_out_funnel_in2: endpoint {
+					remote-endpoint =
+					  <&funnel_in2_in_funnel_gfx>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				funnel_gfx_in_gfx: endpoint {
+					slave-mode;
+					remote-endpoint =
+					  <&gfx_out_funnel_gfx>;
+				};
+			};
+			port@2 {
+				reg = <2>;
+				funnel_gfx_in_gfx_cx: endpoint {
+					slave-mode;
+					remote-endpoint =
+					  <&gfx_cx_out_funnel_gfx>;
 				};
 			};
 		};
@@ -1180,6 +1227,15 @@
 					<&tpda_spss_out_funnel_spss>;
 				};
 			};
+
+			port@2 {
+				reg = <1>;
+				funnel_spss_in_spss_etm0: endpoint {
+					slave-mode;
+					remote-endpoint =
+					<&spss_etm0_out_funnel_spss>;
+				};
+			};
 		};
 	};
 
@@ -1233,6 +1289,19 @@
 		port {
 			tpdm_spss_out_tpda_spss: endpoint {
 				remote-endpoint = <&tpda_spss_in_tpdm_spss>;
+			};
+		};
+	};
+
+	spss_etm0 {
+		compatible = "qcom,coresight-dummy";
+
+		coresight-name = "coresight-spss-etm0";
+		qcom,dummy-source;
+
+		port {
+			spss_etm0_out_funnel_spss: endpoint {
+				remote-endpoint = <&funnel_spss_in_spss_etm0>;
 			};
 		};
 	};
@@ -2474,6 +2543,7 @@
 		reg = <0x7040000 0x1000>;
 		cpu = <&CPU0>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm0";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2493,6 +2563,7 @@
 		reg = <0x7140000 0x1000>;
 		cpu = <&CPU1>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm1";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2512,6 +2583,7 @@
 		reg = <0x7240000 0x1000>;
 		cpu = <&CPU2>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm2";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2531,6 +2603,7 @@
 		reg = <0x7340000 0x1000>;
 		cpu = <&CPU3>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm3";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2550,6 +2623,7 @@
 		reg = <0x7440000 0x1000>;
 		cpu = <&CPU4>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm4";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2569,6 +2643,7 @@
 		reg = <0x7540000 0x1000>;
 		cpu = <&CPU5>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm5";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2588,6 +2663,7 @@
 		reg = <0x7640000 0x1000>;
 		cpu = <&CPU6>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm6";
 
 		clocks = <&clock_aop QDSS_CLK>;
@@ -2607,6 +2683,7 @@
 		reg = <0x7740000 0x1000>;
 		cpu = <&CPU7>;
 
+		qcom,tupwr-disable;
 		coresight-name = "coresight-etm7";
 
 		clocks = <&clock_aop QDSS_CLK>;

@@ -643,7 +643,6 @@ void diag_usb_disconnect_device(int id)
 		return;
 	atomic_set(&usb_info->diag_state, 0);
 	usb_disconnect(usb_info);
-
 }
 int diag_usb_register(int id, int ctxt, struct diag_mux_ops *ops)
 {

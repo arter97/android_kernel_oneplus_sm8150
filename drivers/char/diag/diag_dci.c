@@ -3084,7 +3084,6 @@ fail_alloc:
 		new_entry->dci_log_mask = NULL;
 		kfree(new_entry->buffers);
 		new_entry->buffers = NULL;
-		new_entry->tgid = -1;
 		kfree(new_entry);
 		new_entry = NULL;
 	}

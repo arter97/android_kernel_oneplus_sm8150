@@ -21,6 +21,7 @@
 #include <linux/of.h>
 #include <linux/coresight.h>
 #include <linux/regulator/consumer.h>
+#include <soc/qcom/scm.h>
 
 #include "coresight-priv.h"
 
@@ -138,6 +139,8 @@ do {									\
 #define TPDM_REVISION_A		0
 #define TPDM_REVISION_B		1
 
+#define HW_ENABLE_CHECK_VALUE   0x10
+
 enum tpdm_dataset {
 	TPDM_DS_IMPLDEF,
 	TPDM_DS_DSB,
@@ -238,6 +241,7 @@ struct cmb_dataset {
 	uint32_t		trig_patt_val[TPDM_CMB_PATT_CMP];
 	uint32_t		trig_patt_mask[TPDM_CMB_PATT_CMP];
 	bool			trig_ts;
+	bool			ts_all;
 	uint32_t		msr[TPDM_CMB_MAX_MSR];
 	uint8_t			read_ctl_reg;
 	struct mcmb_dataset	*mcmb;
@@ -644,6 +648,10 @@ static void __tpdm_enable_mcmb(struct tpdm_drvdata *drvdata)
 		val = val | BIT(1);
 	else
 		val = val & ~BIT(1);
+	if (drvdata->cmb->ts_all)
+		val = val | BIT(2);
+	else
+		val = val & ~BIT(2);
 	tpdm_writel(drvdata, val, TPDM_CMB_TIER);
 
 	__tpdm_config_cmb_msr(drvdata);
@@ -940,18 +948,11 @@ static ssize_t reset_store(struct device *dev,
 	/* Init the default data */
 	tpdm_init_default_data(drvdata);
 
-	/* Disable tpdm if enabled */
-	if (drvdata->enable) {
-		__tpdm_disable(drvdata);
-		drvdata->enable = false;
-	}
-
 	mutex_unlock(&drvdata->lock);
 
-	if (drvdata->enable) {
-		tpdm_setup_disable(drvdata);
-		dev_info(drvdata->dev, "TPDM tracing disabled\n");
-	}
+	/* Disable tpdm if enabled */
+	if (drvdata->enable)
+		coresight_disable(drvdata->csdev);
 
 	return size;
 }
@@ -3729,6 +3730,45 @@ static ssize_t tpdm_store_cmb_patt_ts(struct device *dev,
 	mutex_unlock(&drvdata->lock);
 	return size;
 }
+
+static ssize_t cmb_ts_all_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	struct tpdm_drvdata *drvdata = dev_get_drvdata(dev->parent);
+
+	if (!(test_bit(TPDM_DS_CMB, drvdata->datasets) ||
+	      test_bit(TPDM_DS_MCMB, drvdata->datasets)))
+		return -EPERM;
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			 (unsigned int)drvdata->cmb->ts_all);
+}
+
+static ssize_t cmb_ts_all_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf,
+				      size_t size)
+{
+	struct tpdm_drvdata *drvdata = dev_get_drvdata(dev->parent);
+	unsigned long val;
+
+	if (kstrtoul(buf, 16, &val))
+		return -EINVAL;
+	if (!(test_bit(TPDM_DS_CMB, drvdata->datasets) ||
+	      test_bit(TPDM_DS_MCMB, drvdata->datasets)))
+		return -EPERM;
+
+	mutex_lock(&drvdata->lock);
+	if (val)
+		drvdata->cmb->ts_all = true;
+	else
+		drvdata->cmb->ts_all = false;
+	mutex_unlock(&drvdata->lock);
+	return size;
+}
+static DEVICE_ATTR_RW(cmb_ts_all);
+
 static DEVICE_ATTR(cmb_patt_ts, 0644,
 		   tpdm_show_cmb_patt_ts, tpdm_store_cmb_patt_ts);
 
@@ -4235,6 +4275,7 @@ static struct attribute *tpdm_cmb_attrs[] = {
 	&dev_attr_cmb_patt_val.attr,
 	&dev_attr_cmb_patt_mask.attr,
 	&dev_attr_cmb_patt_ts.attr,
+	&dev_attr_cmb_ts_all.attr,
 	&dev_attr_cmb_trig_patt_val_lsb.attr,
 	&dev_attr_cmb_trig_patt_mask_lsb.attr,
 	&dev_attr_cmb_trig_patt_val_msb.attr,
@@ -4359,11 +4400,21 @@ static int tpdm_probe(struct amba_device *adev, const struct amba_id *id)
 	static int traceid = TPDM_TRACE_ID_START;
 	uint32_t version;
 	const char *tclk_name, *treg_name;
+	struct scm_desc des = {0};
+	u32 scm_ret = 0;
 
 	pdata = of_get_coresight_platform_data(dev, adev->dev.of_node);
 	if (IS_ERR(pdata))
 		return PTR_ERR(pdata);
 	adev->dev.platform_data = pdata;
+
+	if (of_property_read_bool(adev->dev.of_node, "qcom,hw-enable-check")) {
+		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_UTIL,
+				HW_ENABLE_CHECK_VALUE),	&des);
+		scm_ret = des.ret[0];
+		if (scm_ret == 0)
+			return -ENXIO;
+	}
 
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google, Inc
- * Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,6 +20,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#include <linux/cma.h>
 #include <soc/qcom/scm.h>
 #include <soc/qcom/secure_buffer.h>
 
@@ -392,6 +393,33 @@ int hyp_assign_phys(phys_addr_t addr, u64 size, u32 *source_vm_list,
 }
 EXPORT_SYMBOL(hyp_assign_phys);
 
+int cma_hyp_assign_phys(struct device *dev, u32 *source_vm_list,
+				int source_nelems, int *dest_vmids,
+					int *dest_perms, int dest_nelems)
+{
+	phys_addr_t addr;
+	u64 size;
+	struct cma *cma = NULL;
+	int ret;
+
+	if (dev && dev->cma_area)
+		cma = dev->cma_area;
+
+	if (cma) {
+		addr = cma_get_base(cma);
+		size = (size_t)cma_get_size(cma);
+	} else {
+		return -ENOMEM;
+	}
+
+	ret = hyp_assign_phys(addr, size, source_vm_list,
+				source_nelems, dest_vmids,
+					dest_perms, dest_nelems);
+
+	return ret;
+}
+EXPORT_SYMBOL(cma_hyp_assign_phys);
+
 const char *msm_secure_vmid_to_string(int secure_vmid)
 {
 	switch (secure_vmid) {
@@ -429,6 +457,10 @@ const char *msm_secure_vmid_to_string(int secure_vmid)
 		return "VMID_CP_SPSS_SP_SHARED";
 	case VMID_CP_SPSS_HLOS_SHARED:
 		return "VMID_CP_SPSS_HLOS_SHARED";
+	case VMID_CP_CDSP:
+		return "VMID_CP_CDSP";
+	case VMID_CP_DSP_EXT:
+		return "VMID_CP_DSP_EXT";
 	case VMID_INVAL:
 		return "VMID_INVAL";
 	default:

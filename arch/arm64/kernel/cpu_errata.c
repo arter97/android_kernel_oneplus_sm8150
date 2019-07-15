@@ -432,6 +432,12 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_845719,
 		MIDR_RANGE(MIDR_CORTEX_A53, 0x00, 0x04),
 	},
+	{
+	/* Kryo2xx Silver rAp4 */
+		.desc = "Kryo2xx Silver erratum 845719",
+		.capability = ARM64_WORKAROUND_845719,
+		MIDR_RANGE(MIDR_KRYO2XX_SILVER, 0xA00004, 0xA00004),
+	},
 #endif
 #ifdef CONFIG_CAVIUM_ERRATUM_23154
 	{
@@ -542,6 +548,12 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_858921,
 		MIDR_ALL_VERSIONS(MIDR_CORTEX_A73),
 	},
+	{
+	/* KRYO2XX all versions */
+		.desc = "ARM erratum 858921",
+		.capability = ARM64_WORKAROUND_858921,
+		MIDR_ALL_VERSIONS(MIDR_KRYO2XX_GOLD),
+	},
 #endif
 #ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
 	{
@@ -597,6 +609,11 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		MIDR_RANGE(MIDR_KRYO4G,
 			   MIDR_CPU_VAR_REV(12, 14),
 			   MIDR_CPU_VAR_REV(13, 14)),
+		.enable = enable_smccc_arch_workaround_1,
+	},
+	{
+		.capability = ARM64_HARDEN_BRANCH_PREDICTOR,
+		MIDR_ALL_VERSIONS(MIDR_KRYO2XX_GOLD),
 		.enable = enable_smccc_arch_workaround_1,
 	},
 #endif

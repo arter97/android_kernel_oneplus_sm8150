@@ -253,6 +253,33 @@
 		};
 
 		qupv3_se13_4uart_pins: qupv3_se13_4uart_pins {
+			qupv3_se13_default_ctsrtsrx:
+				qupv3_se13_default_ctsrtsrx {
+				mux {
+					pins = "gpio43", "gpio44", "gpio46";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio43", "gpio44", "gpio46";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+
+			qupv3_se13_default_tx: qupv3_se13_default_tx {
+				mux {
+					pins = "gpio45";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio45";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+
 			qupv3_se13_ctsrx: qupv3_se13_ctsrx {
 				mux {
 					pins = "gpio43", "gpio46";
@@ -442,6 +469,44 @@
 					drive-strength = <2>;
 					output-low;
 					bias-pull-down;
+				};
+			};
+		};
+
+		pcie_ep {
+			pcie_ep_clkreq_default: pcie_ep_clkreq_default {
+				mux {
+					pins = "gpio103";
+					function = "pci_e1";
+				};
+				config {
+					pins = "gpio103";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			pcie_ep_perst_default: pcie_ep_perst_default {
+				mux {
+					pins = "gpio102";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio102";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+
+			pcie_ep_wake_default: pcie_ep_wake_default {
+				mux {
+					pins = "gpio104";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio104";
+					drive-strength = <2>;
+					bias-disable;
 				};
 			};
 		};
@@ -4479,6 +4544,45 @@
 				pins = "gpio174";
 				drive-strength = <2>;
 				bias-pull-up;
+			};
+		};
+
+		usb2phy_ac_en1_default: usb2phy_ac_en1_default {
+			mux {
+				pins = "gpio113";
+				function = "usb2phy_ac";
+			};
+
+			config {
+				pins = "gpio113";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		usb2phy_ac_en2_default: usb2phy_ac_en2_default {
+			mux {
+				pins = "gpio123";
+				function = "usb2phy_ac";
+			};
+
+			config {
+				pins = "gpio123";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		audio_ioexp_reset_active: audio_ioexp_reset_active {
+			mux {
+				pins = "gpio166";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio166";
+				drive-strength = <2>;
+				bias-disable;
+				output-high;
 			};
 		};
 	};

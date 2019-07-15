@@ -33,8 +33,8 @@
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/wakeup_reason.h>
-
 #include "power.h"
+#include <soc/qcom/boot_stats.h>
 
 #include <linux/gpio.h>
 #include <linux/soc/qcom/smem_state.h>
@@ -663,6 +663,7 @@ int pm_suspend(suspend_state_t state)
 	}
 	pm_suspend_marker("exit");
 	pr_info("suspend exit\n");
+	measure_wake_up_time();
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);

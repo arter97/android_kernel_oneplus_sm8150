@@ -133,6 +133,8 @@ struct adc_channel_prop {
 	unsigned int			prescale;
 	unsigned int			hw_settle_time;
 	unsigned int			avg_samples;
+	/*lut_index is used only for bat_therm LUTs*/
+	unsigned int			lut_index;
 	enum vadc_scale_fn_type		scale_fn_type;
 	const char			*datasheet_name;
 };
@@ -165,6 +167,7 @@ struct adc_chip {
 	bool			skip_usb_wa;
 	struct pmic_revid_data	*pmic_rev_id;
 	const struct adc_data	*data;
+	int			adc_irq;
 };
 
 static const struct vadc_prescale_ratio adc_prescale_ratios[] = {
@@ -636,7 +639,7 @@ static int adc_read_raw(struct iio_dev *indio_dev,
 		if ((chan->type == IIO_VOLTAGE) || (chan->type == IIO_TEMP))
 			ret = qcom_vadc_hw_scale(prop->scale_fn_type,
 				&adc_prescale_ratios[prop->prescale],
-				adc->data,
+				adc->data, prop->lut_index,
 				adc_code_volt, val);
 		if (ret)
 			break;
@@ -644,14 +647,14 @@ static int adc_read_raw(struct iio_dev *indio_dev,
 		if (chan->type == IIO_POWER) {
 			ret = qcom_vadc_hw_scale(SCALE_HW_CALIB_DEFAULT,
 				&adc_prescale_ratios[VADC_DEF_VBAT_PRESCALING],
-				adc->data,
+				adc->data, prop->lut_index,
 				adc_code_volt, val);
 			if (ret)
 				break;
 
 			ret = qcom_vadc_hw_scale(prop->scale_fn_type,
 				&adc_prescale_ratios[prop->prescale],
-				adc->data,
+				adc->data, prop->lut_index,
 				adc_code_cur, val2);
 			if (ret)
 				break;
@@ -777,6 +780,10 @@ static const struct adc_channels adc_chans_pmic5[ADC_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_PM5_SMB_TEMP)
 	[ADC_GPIO1_PU2]	= ADC_CHAN_TEMP("gpio1_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
+	[ADC_GPIO2_PU2]	= ADC_CHAN_TEMP("gpio2_pu2", 1,
+					SCALE_HW_CALIB_THERM_100K_PULLUP)
+	[ADC_GPIO3_PU2]	= ADC_CHAN_TEMP("gpio3_pu2", 1,
+					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC_GPIO4_PU2]	= ADC_CHAN_TEMP("gpio4_pu2", 1,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 };
@@ -884,6 +891,12 @@ static int adc_get_dt_channel_data(struct device *dev,
 	} else {
 		prop->avg_samples = VADC_DEF_AVG_SAMPLES;
 	}
+
+	prop->lut_index = VADC_DEF_LUT_INDEX;
+
+	ret = of_property_read_u32(node, "qcom,lut-index", &value);
+	if (!ret)
+		prop->lut_index = value;
 
 	if (of_property_read_bool(node, "qcom,ratiometric"))
 		prop->cal_method = ADC_RATIOMETRIC_CAL;
@@ -1020,7 +1033,7 @@ static int adc_probe(struct platform_device *pdev)
 	struct adc_chip *adc;
 	struct regmap *regmap;
 	const __be32 *prop_addr;
-	int ret, irq_eoc;
+	int ret;
 	u32 reg;
 	bool skip_usb_wa = false;
 
@@ -1035,7 +1048,7 @@ static int adc_probe(struct platform_device *pdev)
 	revid_dev_node = of_parse_phandle(node, "qcom,pmic-revid", 0);
 	if (revid_dev_node) {
 		pmic_rev_id = get_revid_data(revid_dev_node);
-		if (!(IS_ERR(pmic_rev_id)))
+		if (!(IS_ERR_OR_NULL(pmic_rev_id)))
 			skip_usb_wa = skip_usb_in_wa(pmic_rev_id);
 		else {
 			pr_err("Unable to get revid\n");
@@ -1052,6 +1065,7 @@ static int adc_probe(struct platform_device *pdev)
 	adc->regmap = regmap;
 	adc->dev = dev;
 	adc->pmic_rev_id = pmic_rev_id;
+	dev_set_drvdata(&pdev->dev, adc);
 
 	prop_addr = of_get_address(dev->of_node, 0, NULL, NULL);
 	if (!prop_addr) {
@@ -1077,13 +1091,13 @@ static int adc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	irq_eoc = platform_get_irq(pdev, 0);
-	if (irq_eoc < 0) {
-		if (irq_eoc == -EPROBE_DEFER || irq_eoc == -EINVAL)
-			return irq_eoc;
+	adc->adc_irq = platform_get_irq(pdev, 0);
+	if (adc->adc_irq < 0) {
+		if (adc->adc_irq == -EPROBE_DEFER || adc->adc_irq == -EINVAL)
+			return adc->adc_irq;
 		adc->poll_eoc = true;
 	} else {
-		ret = devm_request_irq(dev, irq_eoc, adc_isr, 0,
+		ret = devm_request_irq(dev, adc->adc_irq, adc_isr, 0,
 				       "pm-adc5", adc);
 		if (ret)
 			return ret;
@@ -1100,10 +1114,45 @@ static int adc_probe(struct platform_device *pdev)
 	return devm_iio_device_register(dev, indio_dev);
 }
 
+static int adc_restore(struct device *dev)
+{
+	int ret = 0;
+	struct adc_chip *adc = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	if (adc->adc_irq > 0) {
+		ret = devm_request_irq(dev, adc->adc_irq, adc_isr, 0,
+				       "pm-adc5", adc);
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
+
+static int adc_freeze(struct device *dev)
+{
+	struct adc_chip *adc = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	if (adc->adc_irq > 0)
+		devm_free_irq(dev, adc->adc_irq, adc);
+
+	return 0;
+}
+
+static const struct dev_pm_ops adc_pm_ops = {
+	.freeze = adc_freeze,
+	.restore = adc_restore,
+};
+
 static struct platform_driver adc_driver = {
 	.driver = {
 		.name = "qcom-spmi-adc5.c",
 		.of_match_table = adc_match_table,
+		.pm = &adc_pm_ops,
 	},
 	.probe = adc_probe,
 };

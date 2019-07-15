@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,12 +25,13 @@
 		#size-cells = <1>;
 		ranges;
 
-		interrupts = <0 157 0>, <0 130 0>, <0 158 0>;
+		interrupts = <0 157 0>, <0 130 0>, <0 158 0>, <0 198 0>;
 		interrupt-names = "dp_hs_phy_irq", "pwr_event_irq",
-				"dm_hs_phy_irq";
+				"dm_hs_phy_irq", "ss_phy_irq";
 		qcom,use-pdc-interrupts;
 
 		USB3_GDSC-supply = <&gdsc_usb30>;
+		dpdm-supply = <&usb2_phy>;
 		clocks = <&clock_gcc GCC_USB30_MASTER_CLK>,
 			<&clock_gcc GCC_USB30_SLV_AHB_CLK>,
 			<&clock_gcc GCC_USB30_MSTR_AXI_CLK>,
@@ -66,7 +67,7 @@
 
 			/*  nominal vote */
 			<MSM_BUS_MASTER_USB3
-				MSM_BUS_SLAVE_EBI_CH0 1000000 2500000>,
+				MSM_BUS_SLAVE_EBI_CH0 1000000 1250000>,
 			<MSM_BUS_MASTER_USB3 MSM_BUS_SLAVE_IPA_CFG 0 2400>,
 			<MSM_BUS_MASTER_AMPSS_M0 MSM_BUS_SLAVE_USB3 0 40000>,
 
@@ -76,6 +77,7 @@
 			<MSM_BUS_MASTER_USB3 MSM_BUS_SLAVE_IPA_CFG 0 2400>,
 			<MSM_BUS_MASTER_AMPSS_M0 MSM_BUS_SLAVE_USB3 0 40000>;
 
+		qcom,default-bus-vote = <2>; /* use svs bus voting */
 		dwc3@a600000 {
 			compatible = "snps,dwc3";
 			reg = <0x0a600000 0xcd00>;
@@ -87,6 +89,7 @@
 			snps,hird-threshold = /bits/ 8 <0x10>;
 			snps,ssp-u3-u0-quirk;
 			snps,usb3-u1u2-disable;
+			snps,bus-suspend-enable;
 			usb-core-id = <0>;
 			tx-fifo-resize;
 			maximum-speed = "super-speed-plus";
@@ -98,7 +101,7 @@
 			reg = <0xa704000 0x17000>;
 			interrupts = <0 132 0>;
 
-			qcom,usb-bam-fifo-baseaddr = <0x146bb000>;
+			qcom,usb-bam-fifo-baseaddr = <0x1468b000>;
 			qcom,usb-bam-num-pipes = <4>;
 			qcom,disable-clk-gating;
 			qcom,usb-bam-override-threshold = <0x4001>;
@@ -143,6 +146,7 @@
 
 		resets = <&clock_gcc GCC_QUSB2PHY_BCR>;
 		reset-names = "phy_reset";
+		qcom,no-rext-present;
 	};
 
 	usb_qmp_phy: ssphy@ff6000 {
@@ -200,13 +204,13 @@
 		     USB3_UNI_QSERDES_COM_SSC_STEP_SIZE1_MODE0 0xde 0
 		     USB3_UNI_QSERDES_COM_SSC_STEP_SIZE2_MODE0 0x07 0
 		     USB3_UNI_QSERDES_COM_VCO_TUNE_MAP 0x02 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH4 0xb8 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH4 0x8c 0
 		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH3 0x7f 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH2 0x37 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH 0x2f 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_00_LOW 0xef 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH4 0xb3 0
-		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH3 0x0b 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH2 0xff 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH 0x3f 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_00_LOW 0xff 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH4 0xb4 0
+		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH3 0x7b 0
 		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH2 0x5c 0
 		     USB3_UNI_QSERDES_RX_RX_MODE_01_HIGH 0xdc 0
 		     USB3_UNI_QSERDES_RX_RX_MODE_01_LOW 0xdc 0
@@ -219,7 +223,7 @@
 		     USB3_UNI_QSERDES_RX_UCDR_FASTLOCK_COUNT_LOW 0xff 0
 		     USB3_UNI_QSERDES_RX_UCDR_FASTLOCK_COUNT_HIGH 0x0f 0
 		     USB3_UNI_QSERDES_RX_UCDR_SO_SATURATION_AND_ENABLE 0x7f 0
-		     USB3_UNI_QSERDES_RX_UCDR_FO_GAIN 0x08 0
+		     USB3_UNI_QSERDES_RX_UCDR_FO_GAIN 0x0a 0
 		     USB3_UNI_QSERDES_RX_VGA_CAL_CNTRL1 0x54 0
 		     USB3_UNI_QSERDES_RX_VGA_CAL_CNTRL2 0x0c 0
 		     USB3_UNI_QSERDES_RX_RX_EQU_ADAPTOR_CNTRL2 0x0f 0
@@ -232,14 +236,14 @@
 		     USB3_UNI_QSERDES_RX_SIGDET_DEGLITCH_CNTRL 0x0e 0
 		     USB3_UNI_QSERDES_RX_RX_IDAC_TSETTLE_HIGH 0x00 0
 		     USB3_UNI_QSERDES_RX_RX_IDAC_TSETTLE_LOW 0xc0 0
-		     USB3_UNI_QSERDES_RX_DFE_CTLE_POST_CAL_OFFSET 0x20 0
-		     USB3_UNI_QSERDES_RX_UCDR_SO_GAIN 0x04 0
+		     USB3_UNI_QSERDES_RX_DFE_CTLE_POST_CAL_OFFSET 0x00 0
+		     USB3_UNI_QSERDES_RX_UCDR_SO_GAIN 0x06 0
 		     USB3_UNI_QSERDES_RX_DCC_CTRL1 0x0c 0
 		     USB3_UNI_QSERDES_RX_GM_CAL 0x1f 0
 		     USB3_UNI_QSERDES_TX_RCV_DETECT_LVL_2 0x12 0
-		     USB3_UNI_QSERDES_TX_LANE_MODE_1 0x95 0
-		     USB3_UNI_QSERDES_TX_PI_QEC_CTRL 0x40 0
-		     USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_TX 0x05 0
+		     USB3_UNI_QSERDES_TX_LANE_MODE_1 0xd5 0
+		     USB3_UNI_QSERDES_TX_PI_QEC_CTRL 0x20 0
+		     USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_TX 0x08 0
 		     USB3_UNI_PCS_LOCK_DETECT_CONFIG1 0xd0 0
 		     USB3_UNI_PCS_LOCK_DETECT_CONFIG2 0x07 0
 		     USB3_UNI_PCS_LOCK_DETECT_CONFIG3 0x20 0
@@ -250,7 +254,7 @@
 		     USB3_UNI_PCS_PCS_TX_RX_CONFIG 0x0c 0
 		     USB3_UNI_PCS_USB3_RXEQTRAINING_DFE_TIME_S2 0x07 0
 		     USB3_UNI_PCS_USB3_LFPS_DET_HIGH_COUNT_VAL 0xf8 0
-		     USB3_UNI_PCS_CDR_RESET_TIME 0x0f 0
+		     USB3_UNI_PCS_CDR_RESET_TIME 0x0a 0
 		     USB3_UNI_PCS_ALIGN_DETECT_CONFIG1 0x88 0
 		     USB3_UNI_PCS_ALIGN_DETECT_CONFIG2 0x13 0
 		     USB3_UNI_PCS_EQ_CONFIG1 0x4b 0
