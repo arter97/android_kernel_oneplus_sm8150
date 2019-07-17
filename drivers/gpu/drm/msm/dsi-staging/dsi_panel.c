@@ -3262,7 +3262,6 @@ static int dsi_panel_parse_partial_update_caps(struct dsi_display_mode *mode,
 				struct dsi_parser_utils *utils)
 {
 	struct msm_roi_caps *roi_caps = NULL;
-	const char *data;
 	int rc = 0;
 
 	if (!mode || !mode->priv_info) {
@@ -3274,24 +3273,7 @@ static int dsi_panel_parse_partial_update_caps(struct dsi_display_mode *mode,
 
 	memset(roi_caps, 0, sizeof(*roi_caps));
 
-	data = utils->get_property(utils->data,
-		"qcom,partial-update-enabled", NULL);
-	if (data) {
-		if (!strcmp(data, "dual_roi"))
-			roi_caps->num_roi = 2;
-		else if (!strcmp(data, "single_roi"))
-			roi_caps->num_roi = 1;
-		else {
-			pr_info(
-			"invalid value for qcom,partial-update-enabled: %s\n",
-			data);
-			return 0;
-		}
-	} else {
-		pr_info("partial update disabled as the property is not set\n");
-		return 0;
-	}
-
+	roi_caps->num_roi = 1;
 	roi_caps->merge_rois = utils->read_bool(utils->data,
 			"qcom,partial-update-roi-merge");
 
