@@ -562,6 +562,7 @@ struct smb_charger {
 	int			default_icl_ua;
 	int			otg_cl_ua;
 	int			sw_iterm_ma;
+	int			little_cold_iterm_ma;
 	bool			check_batt_full_by_sw;
 	bool			OTG_ICL_CTRL;
 	int			OTG_LOW_BAT;
@@ -580,6 +581,8 @@ struct smb_charger {
 	int			vbus_ctrl;
 	bool			low_voltage_charger;
 	bool			lpd_disabled;
+	bool			vph_sel_disable;
+	bool			vph_set_flag;
 	bool			uusb_apsd_rerun_done;
 	bool			typec_present;
 	int			fake_input_current_limited;

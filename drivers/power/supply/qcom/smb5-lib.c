@@ -3058,6 +3058,11 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 		val->intval = true;
 		return rc;
 	}
+	chg->dash_on = get_prop_fast_chg_started(chg);
+	if (chg->dash_on) {
+		val->intval = true;
+		return rc;
+	}
 	if (is_client_vote_enabled(chg->usb_icl_votable,
 					CHG_TERMINATION_VOTER)) {
 		rc = smblib_get_prop_usb_present(chg, val);
@@ -5854,7 +5859,7 @@ static void op_get_aicl_work(struct work_struct *work)
 
 #define NORMAL_CHECK_INTERVAL 300 /*ms*/
 #define FAST_CHECK_INTERVAL 100 /*ms*/
-#define HIGH_TEMP_SHORT_CHECK_TIMEOUT 1000 /*ms*/
+#define HIGH_TEMP_SHORT_CHECK_TIMEOUT 1500 /*ms*/
 
 static void op_connect_temp_check_work(struct work_struct *work)
 {
@@ -5929,9 +5934,8 @@ static void op_connect_temp_check_work(struct work_struct *work)
 					chg->connecter_temp);
 			op_disconnect_vbus(chg, true);
 			return;
-		} else if (((interval_temp >= 10) && (interval_temp < 15)) &&
-					(chg->connecter_temp >= 45)) {
-		/* 10<= <15*/
+		} else if (chg->connecter_temp >= 35) {
+		/* >= 35 enter*/
 			if (chg->count_run <= chg->count_total) {
 			/*time out count*/
 				if (chg->count_run == 0)
@@ -5941,8 +5945,14 @@ static void op_connect_temp_check_work(struct work_struct *work)
 				if (chg->count_run > 0) {
 					chg->current_temp = chg->connecter_temp;
 					if ((chg->current_temp - chg->pre_temp)
-						>= 3)
+						>= 3) {
 						chg->connector_short = true;
+						pr_info("cout_run=%d,short=%d\n",
+							chg->count_run,
+							chg->connector_short);
+						op_disconnect_vbus(chg, true);
+						return;
+					}
 				}
 
 				chg->count_run++;/*count ++*/
@@ -6760,8 +6770,10 @@ static int set_dash_charger_present(int status)
 			vote(g_chg->usb_icl_votable, PD_VOTER, true,
 					DEFAULT_WALL_CHG_MA * 1000);
 		}
-		if (g_chg->dash_present)
+		if (g_chg->dash_present) {
+			g_chg->real_charger_type = POWER_SUPPLY_TYPE_DASH;
 			g_chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_DASH;
+		}
 		power_supply_changed(g_chg->batt_psy);
 		pr_info("dash_present = %d, charger_present = %d\n",
 				g_chg->dash_present, charger_present);
@@ -7541,6 +7553,35 @@ static void op_check_charger_uovp(struct smb_charger *chg, int vchg_mv)
 	pre_uovp_satus = uovp_satus;
 }
 
+static void op_dcdc_vph_track_sel(struct smb_charger *chg)
+{
+	int rc = 0;
+
+	pr_debug("lcd_is_on:%d\n", chg->oem_lcd_is_on);
+
+	if (chg->vbus_present && chg->chg_done && !chg->vph_sel_disable) {
+		if (chg->oem_lcd_is_on && !chg->vph_set_flag) {
+			pr_info("vbus present,LCD on set dcdc vph 300mv\n");
+			/* config the DCDC_VPH_TRACK_SEL 300mv */
+			rc = smblib_masked_write(chg, DCDC_VPH_TRACK_SEL,
+					VPH_TRACK_SEL_MASK, SEL_300MV);
+			if (rc < 0)
+				pr_err("Couldn't set  DCDC_VPH_TRACK_SEL rc=%d\n",
+						rc);
+			chg->vph_set_flag = true;
+		} else if (!chg->oem_lcd_is_on && chg->vph_set_flag) {
+			pr_info("vbus present,LCD off set dcdc vph 100mv\n");
+			/* config the DCDC_VPH_TRACK_SEL 100mv */
+			rc = smblib_masked_write(chg, DCDC_VPH_TRACK_SEL,
+					VPH_TRACK_SEL_MASK, 0);
+			if (rc < 0)
+				pr_err("Couldn't set  DCDC_VPH_TRACK_SEL rc=%d\n",
+						rc);
+			chg->vph_set_flag = false;
+		}
+	}
+}
+
 #if defined(CONFIG_FB)
 static int fb_notifier_callback(struct notifier_block *self,
 		unsigned long event, void *data)
@@ -7595,11 +7636,13 @@ static int msm_drm_notifier_callback(struct notifier_block *self,
 				set_property_on_fg(chip,
 				POWER_SUPPLY_PROP_UPDATE_LCD_IS_OFF, 0);
 			chip->oem_lcd_is_on = true;
+			op_dcdc_vph_track_sel(chip);
 		} else if (*blank == MSM_DRM_BLANK_POWERDOWN) {
 			if (chip->oem_lcd_is_on != false)
 				set_property_on_fg(chip,
 				POWER_SUPPLY_PROP_UPDATE_LCD_IS_OFF, 1);
 			chip->oem_lcd_is_on = false;
+			op_dcdc_vph_track_sel(chip);
 		}
 		/* add to set pd charging current 2.0A when panel on */
 		if (typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH) {
@@ -7720,6 +7763,7 @@ static bool op_check_vbat_is_full_by_sw(struct smb_charger *chg)
 	static int vbat_counts_hw;
 	int vbatt_full_vol_sw;
 	int vbatt_full_vol_hw;
+	int term_current;
 	int tbatt_status, icharging, batt_volt;
 
 	if (!chg->check_batt_full_by_sw)
@@ -7755,12 +7799,17 @@ static bool op_check_vbat_is_full_by_sw(struct smb_charger *chg)
 		ret_hw = 0;
 		return false;
 	}
+	if (chg->little_cold_iterm_ma > 0
+		&& (tbatt_status == BATT_TEMP_LITTLE_COLD))
+		term_current = chg->little_cold_iterm_ma;
+	else
+		term_current =  chg->sw_iterm_ma;
 
 	batt_volt = get_prop_batt_voltage_now(chg) / 1000;
 	icharging = get_prop_batt_current_now(chg) / 1000;
 	/* use SW Vfloat to check */
 	if (batt_volt > vbatt_full_vol_sw) {
-		if (icharging < 0 && (icharging * -1) <= chg->sw_iterm_ma) {
+		if (icharging < 0 && (icharging * -1) <= term_current) {
 			vbat_counts_sw++;
 			if (vbat_counts_sw > FULL_COUNTS_SW) {
 				vbat_counts_sw = 0;
@@ -7814,6 +7863,7 @@ void checkout_term_current(struct smb_charger *chg)
 	if (chg_full) {
 		chg->chg_done = true;
 		op_charging_en(chg, false);
+		op_dcdc_vph_track_sel(chg);
 		pr_info("chg_done:CAP=%d (Q:%d),VBAT=%d (Q:%d),IBAT=%d (Q:%d),BAT_TEMP=%d\n",
 				get_prop_batt_capacity(chg),
 				get_prop_fg_capacity(chg),

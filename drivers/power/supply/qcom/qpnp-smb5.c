@@ -482,6 +482,10 @@ static int smb5_parse_dt(struct smb5 *chip)
 		chg->sw_iterm_ma = 150;
 	pr_info("sw_iterm_ma=%d,check_batt_full_by_sw=%d",
 				chg->sw_iterm_ma, chg->check_batt_full_by_sw);
+	rc = of_property_read_u32(node,
+					"op,little_cold_term_current",
+					&chg->little_cold_iterm_ma);
+	pr_info("little_cold_iterm_ma=%d", chg->little_cold_iterm_ma);
 /*yangfb@bsp, 20171023 otg-icl set 1A if battery lower than 15%*/
 	chg->OTG_ICL_CTRL = of_property_read_bool(node,
 						"op,otg-icl-ctrl-enable");
@@ -509,6 +513,9 @@ static int smb5_parse_dt(struct smb5 *chip)
 					"op,vbus-ctrl-gpio", 0, &flags);
 	chg->plug_irq = of_get_named_gpio_flags(node,
 					"op,usb-check", 0, &flags);
+/* @bsp, 2019/06/28 vph sel set disable */
+	chg->vph_sel_disable = of_property_read_bool(node,
+						"vph-sel-disable");
 	/* read other settings */
 	OF_PROP_READ(node, "qcom,cutoff-voltage-with-charger",
 				smbchg_cutoff_volt_with_charger, rc, 1);

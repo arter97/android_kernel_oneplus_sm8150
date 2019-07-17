@@ -6871,7 +6871,7 @@ int dsi_display_find_mode(struct dsi_display *display,
 	return rc;
 }
 
-u32 mode_fps = 90;
+u32 mode_fps = 60;
 EXPORT_SYMBOL(mode_fps);
 
 /**
@@ -8106,6 +8106,7 @@ int dsi_display_get_acl_mode(struct drm_connector *connector)
 	return dsi_display->panel->acl_mode;
 }
 
+int op_resolution = 0;
 int dsi_display_get_gamma_para(struct dsi_display *dsi_display,
 			       struct dsi_panel *panel)
 {
@@ -8349,8 +8350,12 @@ int dsi_display_get_gamma_para(struct dsi_display *dsi_display,
 		    ("Failed to send DSI_CMD_SET_GAMMA_OTP_READ_C9_SMRPS command\n");
 		goto error;
 	}
-	pr_err("Read 90hz gamma done\n");
 
+	if (panel->cur_mode->timing.h_active == 1440){
+		op_resolution = 2;
+	} else if (panel->cur_mode->timing.h_active == 1080) {
+		op_resolution = 1;
+	}
  error:
 	dsi_panel_release_panel_lock(panel);
 	dsi_display_cmd_engine_disable(dsi_display);
