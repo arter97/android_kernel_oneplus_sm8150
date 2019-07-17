@@ -1397,6 +1397,7 @@ static int synaptics_capacity_test(struct seq_file *s, struct chip_data_s3706 *c
 	return error_count;
 }
 
+#if 0
 static int synaptics_auto_test_rt25(struct seq_file *s, struct chip_data_s3706 *chip_info, struct syna_testdata *syna_testdata)
 {
 	int ret = 0;
@@ -1927,10 +1928,11 @@ static int synaptics_auto_test_rt155(struct seq_file *s, struct chip_data_s3706 
 
 	return error_count;
 }
-
+#endif
 
 static void synaptics_auto_test(struct seq_file *s, void *chip_data, struct syna_testdata *syna_testdata)
 {
+#if 0
 	int ret = 0;
 	int error_count = 0;
 	int eint_status, eint_count = 0, read_gpio_num = 0;
@@ -2058,6 +2060,9 @@ END:
 	seq_printf(s, "%d error(s). %s\n", error_count, error_count?"":"All test passed.");
 	TPD_INFO(" TP auto test %d error(s). %s\n", error_count, error_count?"":"All test passed.");
 	TPD_INFO("\n\nstep5 reset and open irq complete\n");
+#else
+	TPD_INFO("auto test is disabled\n");
+#endif
 }
 
 static void synaptics_baseline_read(struct seq_file *s, void *chip_data)
