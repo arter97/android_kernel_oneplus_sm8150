@@ -600,7 +600,7 @@ static int oom_reaper(void *unused)
 	return 0;
 }
 
-void wake_oom_reaper(struct task_struct *tsk)
+static void wake_oom_reaper(struct task_struct *tsk)
 {
 	if (!oom_reaper_th)
 		return;
@@ -1101,9 +1101,6 @@ void pagefault_out_of_memory(void)
 		.gfp_mask = 0,
 		.order = 0,
 	};
-
-	if (IS_ENABLED(CONFIG_HAVE_LOW_MEMORY_KILLER))
-		return;
 
 	if (mem_cgroup_oom_synchronize(true))
 		return;
