@@ -62,6 +62,7 @@ echo 1 > /proc/sys/kernel/sched_walt_rotate_big_tasks
 # cpuset parameters
 echo 0-3 > /dev/cpuset/background/cpus
 echo 0-3 > /dev/cpuset/system-background/cpus
+echo 0-6 > /dev/cpuset/foreground/cpus
 
 # configure governor settings for silver cluster
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
@@ -92,9 +93,6 @@ echo 120 > /sys/module/cpu_boost/parameters/input_boost_ms
 # Disable wsf, beacause we are using efk.
 # wsf Range : 1..1000 So set to bare minimum value 1.
 echo 1 > /proc/sys/vm/watermark_scale_factor
-
-echo 0-3 > /dev/cpuset/background/cpus
-echo 0-3 > /dev/cpuset/system-background/cpus
 
 # Enable bus-dcvs
 for device in /sys/devices/platform/soc
