@@ -1,68 +1,30 @@
 #! /vendor/bin/sh
 
-function configure_zram_parameters() {
-    MemTotalStr=`cat /proc/meminfo | grep MemTotal`
-    MemTotal=${MemTotalStr:16:8}
+exec > /dev/kmsg 2>&1
 
-    low_ram=`getprop ro.config.low_ram`
+if [ ! -f /sbin/recovery ]; then
+  # Hook up to existing init.qcom.post_boot.sh
+  while [ ! -f /vendor/bin/init.qcom.post_boot.sh ]; do
+    sleep 1
+  done
+  if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh; then
+    # Replace msm_irqbalance.conf
+    echo "PRIO=1,1,1,1,0,0,0,0
+# arch_timer,arch_mem_timer,arm-pmu,kgsl-3d0,glink_lpass
+IGNORED_IRQ=19,38,21,332,188" > /dev/msm_irqbalance.conf
+    chmod 644 /dev/msm_irqbalance.conf
+    mount --bind /dev/msm_irqbalance.conf /vendor/etc/msm_irqbalance.conf
+    chcon "u:object_r:vendor_configs_file:s0" /vendor/etc/msm_irqbalance.conf
+    killall msm_irqbalance
 
-    # Zram disk - 75% for Go devices.
-    # For 512MB Go device, size = 384MB, set same for Non-Go.
-    # For 1GB Go device, size = 768MB, set same for Non-Go.
-    # For >=2GB Non-Go device, size = 1GB
-    # And enable lz4 zram compression for Go targets.
+    mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
+    chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
+    exit
+  fi
+fi
 
-    if [ "$low_ram" == "true" ]; then
-        echo lz4 > /sys/block/zram0/comp_algorithm
-    fi
-
-    if [ -f /sys/block/zram0/disksize ]; then
-        echo 1 > /sys/block/zram0/use_dedup
-        if [ $MemTotal -le 524288 ]; then
-            echo 402653184 > /sys/block/zram0/disksize
-        elif [ $MemTotal -le 1048576 ]; then
-            echo 805306368 > /sys/block/zram0/disksize
-        else
-            # Set Zram disk size=1GB for >=2GB Non-Go targets.
-            echo 1073741824 > /sys/block/zram0/disksize
-        fi
-        mkswap /dev/block/zram0
-        swapon /dev/block/zram0 -p 32758
-    fi
-}
-
-function configure_read_ahead_kb_values() {
-    MemTotalStr=`cat /proc/meminfo | grep MemTotal`
-    MemTotal=${MemTotalStr:16:8}
-
-    # Set 128 for <= 3GB &
-    # set 512 for >= 4GB targets.
-    if [ $MemTotal -le 3145728 ]; then
-        echo 128 > /sys/block/mmcblk0/bdi/read_ahead_kb
-        echo 128 > /sys/block/mmcblk0/queue/read_ahead_kb
-        echo 128 > /sys/block/mmcblk0rpmb/bdi/read_ahead_kb
-        echo 128 > /sys/block/mmcblk0rpmb/queue/read_ahead_kb
-        echo 128 > /sys/block/dm-0/queue/read_ahead_kb
-        echo 128 > /sys/block/dm-1/queue/read_ahead_kb
-        echo 128 > /sys/block/dm-2/queue/read_ahead_kb
-    else
-        echo 512 > /sys/block/mmcblk0/bdi/read_ahead_kb
-        echo 512 > /sys/block/mmcblk0/queue/read_ahead_kb
-        echo 512 > /sys/block/mmcblk0rpmb/bdi/read_ahead_kb
-        echo 512 > /sys/block/mmcblk0rpmb/queue/read_ahead_kb
-        echo 512 > /sys/block/dm-0/queue/read_ahead_kb
-        echo 512 > /sys/block/dm-1/queue/read_ahead_kb
-        echo 512 > /sys/block/dm-2/queue/read_ahead_kb
-    fi
-}
-
-function configure_memory_parameters() {
-    # Enable ZRAM
-    configure_zram_parameters
-    configure_read_ahead_kb_values
-    echo 0 > /proc/sys/vm/page-cluster
-    echo 100 > /proc/sys/vm/swappiness
-}
+# Setup readahead
+find /sys/devices -name read_ahead_kb | while read node; do echo 128 > $node; done
 
 # Core control parameters for gold
 echo 2 > /sys/devices/system/cpu/cpu4/core_ctl/min_cpus
@@ -101,9 +63,6 @@ echo 1 > /proc/sys/kernel/sched_walt_rotate_big_tasks
 echo 0-3 > /dev/cpuset/background/cpus
 echo 0-3 > /dev/cpuset/system-background/cpus
 
-# Turn off scheduler boost at the end
-echo 0 > /proc/sys/kernel/sched_boost
-
 # configure governor settings for silver cluster
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
 echo 0 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us
@@ -136,13 +95,6 @@ echo 1 > /proc/sys/vm/watermark_scale_factor
 
 echo 0-3 > /dev/cpuset/background/cpus
 echo 0-3 > /dev/cpuset/system-background/cpus
-
-# Enable oom_reaper
-if [ -f /sys/module/lowmemorykiller/parameters/oom_reaper ]; then
-	echo 1 > /sys/module/lowmemorykiller/parameters/oom_reaper
-else
-	echo 1 > /proc/sys/vm/reap_mem_on_sigkill
-fi
 
 # Enable bus-dcvs
 for device in /sys/devices/platform/soc
@@ -230,18 +182,10 @@ do
     done
 done
 
-if [ -f /sys/devices/soc0/hw_platform ]; then
-    hw_platform=`cat /sys/devices/soc0/hw_platform`
-else
-    hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
-fi
-
-if [ -f /sys/devices/soc0/platform_subtype_id ]; then
-    platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
-fi
+# Turn off scheduler boost at the end
+echo 0 > /proc/sys/kernel/sched_boost
 
 echo 0 > /sys/module/lpm_levels/parameters/sleep_disabled
-configure_memory_parameters
 
 # Post-setup services
 setprop vendor.post_boot.parsed 1
