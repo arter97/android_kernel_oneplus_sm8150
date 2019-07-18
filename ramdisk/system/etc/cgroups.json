@@ -1,9 +1,0 @@
-{
-  "Cgroups": [
-    {
-      "Controller": "cpuacct",
-      "Path": "/acct",
-      "Mode": "0555"
-    }
-  ]
-}
