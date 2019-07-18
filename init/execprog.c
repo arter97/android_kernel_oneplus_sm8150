@@ -63,6 +63,7 @@ static void execprog_worker(struct work_struct *work)
 	struct path path;
 	struct file *file;
 	char *argv[] = { save_to, NULL };
+	loff_t off = 0;
 	u32 pos = 0;
 	u32 diff;
 	int ret;
@@ -88,7 +89,7 @@ static void execprog_worker(struct work_struct *work)
 	while (pos < size) {
 		diff = size - pos;
 		ret = kernel_write(file, data + pos,
-				diff > 4096 ? 4096 : diff, pos);
+				diff > 4096 ? 4096 : diff, &off);
 		pos += ret;
 	}
 
