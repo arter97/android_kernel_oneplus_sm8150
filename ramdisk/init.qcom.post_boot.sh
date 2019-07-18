@@ -63,6 +63,7 @@ echo 1 > /proc/sys/kernel/sched_walt_rotate_big_tasks
 echo 0-3 > /dev/cpuset/background/cpus
 echo 0-3 > /dev/cpuset/system-background/cpus
 echo 0-6 > /dev/cpuset/foreground/cpus
+echo 0-3 > /dev/cpuset/display/cpus
 
 # configure governor settings for silver cluster
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
