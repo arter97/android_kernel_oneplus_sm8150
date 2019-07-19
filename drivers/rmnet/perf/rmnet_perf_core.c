@@ -104,7 +104,8 @@ module_param(rmnet_perf_frag_flush, ulong, 0444);
 MODULE_PARM_DESC(rmnet_perf_frag_flush,
 		 "Number of packet fragments flushed to stack");
 
-#define SHS_FLUSH 0
+#define SHS_FLUSH				0
+#define RECYCLE_BUFF_SIZE_THRESH		51200
 
 /* rmnet_perf_core_free_held_skbs() - Free held SKBs given to us by physical
  *		device
@@ -185,9 +186,10 @@ struct sk_buff *rmnet_perf_core_elligible_for_cache_skb(struct rmnet_perf *perf,
 	struct sk_buff *skbn;
 	int user_count;
 
-	if (len < 51200)
-		return NULL;
 	buff_pool = perf->core_meta->buff_pool;
+	if (len < RECYCLE_BUFF_SIZE_THRESH || !buff_pool->available[0])
+		return NULL;
+
 	circ_index = buff_pool->index;
 	iterations = 0;
 	while (iterations < RMNET_PERF_NUM_64K_BUFFS) {
@@ -537,8 +539,8 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	struct rmnet_perf *perf = rmnet_perf_config_get_perf();
 	u16 pkt_len;
 	bool skip_hash = false;
+	bool jumbo = false;
 
-	pkt_len = frame_len - sizeof(struct rmnet_map_header) - trailer_len;
 	pkt_info->ep = ep;
 	pkt_info->ip_proto = (*payload & 0xF0) >> 4;
 	if (pkt_info->ip_proto == 4) {
@@ -548,6 +550,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->protocol;
 		pkt_info->header_len = iph->ihl * 4;
 		skip_hash = !!(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET));
+		pkt_len = ntohs(iph->tot_len);
 	} else if (pkt_info->ip_proto == 6) {
 		struct ipv6hdr *iph = (struct ipv6hdr *)payload;
 
@@ -555,6 +558,14 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
 		skip_hash = iph->nexthdr == NEXTHDR_FRAGMENT;
+		if (ntohs(iph->payload_len)) {
+			pkt_len = ntohs(iph->payload_len) +
+				  sizeof(struct ipv6hdr);
+		} else {
+			jumbo = true;
+			pkt_len = frame_len - sizeof(struct rmnet_map_header) -
+				  trailer_len;
+		}
 	} else {
 		return;
 	}
@@ -579,6 +590,12 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
 
+		if (jumbo) {
+			rmnet_perf_opt_flush_flow_by_hash(perf,
+							  pkt_info->hash_key);
+			goto flush;
+		}
+
 		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
 			goto flush;
 	} else if (pkt_info->trans_proto == IPPROTO_UDP) {
@@ -593,6 +610,12 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
+
+		if (jumbo) {
+			rmnet_perf_opt_flush_flow_by_hash(perf,
+							  pkt_info->hash_key);
+			goto flush;
+		}
 
 		if (!rmnet_perf_opt_ingress(perf, skb, pkt_info))
 			goto flush;
@@ -634,6 +657,7 @@ void rmnet_perf_core_deaggregate(struct sk_buff *skb,
 	struct rmnet_perf *perf;
 	struct timespec curr_time, diff;
 	static struct timespec last_drop_time;
+	struct rmnet_perf_core_burst_marker_state *bm_state;
 	u32 trailer_len = 0;
 	int co = 0;
 	int chain_count = 0;
@@ -730,12 +754,13 @@ next_chain:
 		skb = skb_frag;
 	}
 
-	perf->core_meta->bm_state->expect_packets -= co;
+	bm_state = perf->core_meta->bm_state;
+	bm_state->expect_packets -= co;
 	/* if we ran out of data and should have gotten an end marker,
 	 * then we can flush everything
 	 */
-	if (!rmnet_perf_core_bm_flush_on ||
-	    (int) perf->core_meta->bm_state->expect_packets <= 0) {
+	if (!bm_state->callbacks_valid || !rmnet_perf_core_bm_flush_on ||
+	    (int) bm_state->expect_packets <= 0) {
 		rmnet_perf_opt_flush_all_flow_nodes(perf);
 		rmnet_perf_core_free_held_skbs(perf);
 		rmnet_perf_core_flush_reason_cnt[

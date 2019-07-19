@@ -146,52 +146,48 @@ rmnet_perf_tcp_opt_pkt_can_be_merged(struct sk_buff *skb,
 	return RMNET_PERF_TCP_OPT_MERGE_SUCCESS;
 }
 
-/* rmnet_perf_tcp_opt_check_timestamp() -Check timestamp of incoming packet
- * @skb: incoming packet to check
- * @tp: pointer to tcp header of incoming packet
- *
- * If the tcp segment has extended headers then parse them to check to see
- * if timestamps are included. If so, return the value
+/* rmnet_perf_tcp_opt_cmp_options() - Compare the TCP options of the packets
+ *		in a given flow node with an incoming packet in the flow
+ * @flow_node: The flow node representing the current flow
+ * @pkt_info: The characteristics of the incoming packet
  *
  * Return:
- *		- timestamp: if a timestamp is valid
- *		- 0: if there is no timestamp extended header
+ *    - true: The TCP headers have differing option fields
+ *    - false: The TCP headers have the same options
  **/
-static u32 rmnet_perf_tcp_opt_check_timestamp(struct sk_buff *skb,
-					      struct tcphdr *tp,
-					      struct net_device *dev)
+static bool
+rmnet_perf_tcp_opt_cmp_options(struct rmnet_perf_opt_flow_node *flow_node,
+			       struct rmnet_perf_pkt_info *pkt_info)
 {
-	int length = tp->doff * 4 - sizeof(*tp);
-	unsigned char *ptr = (unsigned char *)(tp + 1);
+	struct tcphdr *flow_header;
+	struct tcphdr *new_header;
+	u32 optlen, i;
 
-	while (length > 0) {
-		int code = *ptr++;
-		int size = *ptr++;
+	if ((flow_node->pkt_list[0].ip_start[0] & 0xF0) == 0x40) {
+		struct iphdr *iph;
 
-		/* Partial or malformed options */
-		if (size < 2 || size > length)
-			return 0;
-
-		switch (code) {
-		case TCPOPT_EOL:
-			/* No more options */
-			return 0;
-		case TCPOPT_NOP:
-			/* Empty option */
-			length--;
-			continue;
-		case TCPOPT_TIMESTAMP:
-			if (size == TCPOLEN_TIMESTAMP &&
-			    dev_net(dev)->ipv4.sysctl_tcp_timestamps)
-				return get_unaligned_be32(ptr);
-		}
-
-		ptr += size - 2;
-		length -= size;
+		iph = (struct iphdr *)flow_node->pkt_list[0].ip_start;
+		flow_header = (struct tcphdr *)
+			      (flow_node->pkt_list[0].ip_start + iph->ihl * 4);
+	} else {
+		flow_header = (struct tcphdr *)
+			      (flow_node->pkt_list[0].ip_start +
+			       sizeof(struct ipv6hdr));
 	}
 
-	/* No timestamp in the options */
-	return 0;
+	new_header = pkt_info->trns_hdr.tp;
+	optlen = flow_header->doff * 4;
+	if (new_header->doff * 4 != optlen)
+		return true;
+
+	/* Compare the bytes of the options */
+	for (i = sizeof(*flow_header); i < optlen; i += 4) {
+		if (*(u32 *)((u8 *)flow_header + i) ^
+		    *(u32 *)((u8 *)new_header + i))
+			return true;
+	}
+
+	return false;
 }
 
 /* rmnet_perf_tcp_opt_ingress() - Core business logic of tcp_opt
@@ -213,7 +209,7 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 				struct rmnet_perf_pkt_info *pkt_info,
 				bool flush)
 {
-	bool timestamp_mismatch;
+	bool option_mismatch;
 	enum rmnet_perf_tcp_opt_merge_check_rc rc;
 	struct napi_struct *napi = NULL;
 
@@ -240,11 +236,7 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 		return;
 	}
 
-	pkt_info->curr_timestamp =
-		rmnet_perf_tcp_opt_check_timestamp(skb,
-						   pkt_info->trns_hdr.tp,
-						   perf->core_meta->dev);
-	timestamp_mismatch = flow_node->timestamp != pkt_info->curr_timestamp;
+	option_mismatch = rmnet_perf_tcp_opt_cmp_options(flow_node, pkt_info);
 
 	rc = rmnet_perf_tcp_opt_pkt_can_be_merged(skb, flow_node, pkt_info);
 	if (rc == RMNET_PERF_TCP_OPT_FLUSH_ALL) {
@@ -256,11 +248,11 @@ void rmnet_perf_tcp_opt_ingress(struct rmnet_perf *perf, struct sk_buff *skb,
 	} else if (rc == RMNET_PERF_TCP_OPT_FLUSH_SOME) {
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
 		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);
-	} else if (timestamp_mismatch) {
+	} else if (option_mismatch) {
 		rmnet_perf_opt_flush_single_flow_node(perf, flow_node);
 		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);
 		rmnet_perf_tcp_opt_flush_reason_cnt[
-			RMNET_PERF_TCP_OPT_TIMESTAMP_MISMATCH]++;
+			RMNET_PERF_TCP_OPT_OPTION_MISMATCH]++;
 	} else if (rc == RMNET_PERF_TCP_OPT_MERGE_SUCCESS) {
 		pkt_info->first_packet = false;
 		rmnet_perf_opt_insert_pkt_in_flow(skb, flow_node, pkt_info);

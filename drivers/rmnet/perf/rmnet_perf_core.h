@@ -37,7 +37,6 @@ struct rmnet_perf_pkt_info {
 	u16 header_len;
 	u16 payload_len;
 	u32 hash_key;
-	u32 curr_timestamp;
 	union {
 		struct iphdr *v4hdr;
 		struct ipv6hdr *v6hdr;
@@ -56,6 +55,10 @@ struct rmnet_perf_core_64k_buff_pool {
 
 struct rmnet_perf_core_burst_marker_state {
 	bool wait_for_start;
+	/* If the callbacks fail to register, then we want to flush at the
+	 * end of overy chain
+	 */
+	bool callbacks_valid;
 	u32 curr_seq;
 	u32 expect_packets;
 };

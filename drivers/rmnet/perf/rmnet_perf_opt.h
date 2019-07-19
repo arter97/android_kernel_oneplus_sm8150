@@ -39,7 +39,6 @@ struct rmnet_perf_opt_flow_node {
 		struct rmnet_perf_opt_ip_flags ip4_flags;
 		__be32 first_word;
 	} ip_flags;
-	u32 timestamp;
 	__be32 next_seq;
 	u32 gso_len;
 	u32 len;
@@ -81,6 +80,7 @@ rmnet_perf_opt_update_flow(struct rmnet_perf_opt_flow_node *flow_node,
 			   struct rmnet_perf_pkt_info *pkt_info);
 void rmnet_perf_opt_flush_single_flow_node(struct rmnet_perf *perf,
 				struct rmnet_perf_opt_flow_node *flow_node);
+void rmnet_perf_opt_flush_flow_by_hash(struct rmnet_perf *perf, u32 hash_val);
 void rmnet_perf_opt_flush_all_flow_nodes(struct rmnet_perf *perf);
 void rmnet_perf_opt_insert_pkt_in_flow(struct sk_buff *skb,
 			struct rmnet_perf_opt_flow_node *flow_node,
