@@ -104,6 +104,16 @@ static int get_hal_pixel_depth(u32 hfi_bit_depth)
 	return MSM_VIDC_BIT_DEPTH_UNSUPPORTED;
 }
 
+static inline int validate_pkt_size(u32 rem_size, u32 msg_size)
+{
+	if (rem_size < msg_size) {
+		dprintk(VIDC_ERR, "%s: bad_pkt_size: %d\n",
+			__func__, rem_size);
+		return false;
+	}
+	return true;
+}
+
 static int hfi_process_sess_evt_seq_changed(u32 device_id,
 		struct hfi_msg_event_notify_packet *pkt,
 		struct msm_vidc_cb_info *info)
@@ -1247,7 +1257,8 @@ enum vidc_status hfi_process_sys_init_done_prop_read(
 	struct vidc_hal_sys_init_done *sys_init_done)
 {
 	enum vidc_status status = VIDC_ERR_NONE;
-	u32 rem_bytes, bytes_read, num_properties;
+	int bytes_read;
+	u32 rem_bytes, num_properties;
 	u8 *data_ptr;
 
 	if (!pkt || !sys_init_done) {
@@ -1287,6 +1298,8 @@ enum vidc_status hfi_process_sys_init_done_prop_read(
 		return status;
 	}
 	bytes_read = hfi_fill_codec_info(data_ptr, sys_init_done, rem_bytes);
+	if (bytes_read < 0)
+		return VIDC_ERR_FAIL;
 	data_ptr += bytes_read;
 	rem_bytes -= bytes_read;
 	num_properties--;
