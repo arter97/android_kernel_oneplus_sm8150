@@ -189,6 +189,10 @@ echo 0 > /sys/module/lpm_levels/parameters/sleep_disabled
 # Stock LMK settings
 echo "18432,23040,27648,51256,150296,200640" > /sys/module/lowmemorykiller/parameters/minfree
 
+# Remove unused swapfile
+rm -f /data/vendor/swap/swapfile 2>/dev/null
+sync
+
 # Post-setup services
 setprop vendor.post_boot.parsed 1
 
