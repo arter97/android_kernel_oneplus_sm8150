@@ -335,6 +335,7 @@ static int (*destroy_f[SYM_NUM]) (void *key, void *datum, void *datap) =
 static int filenametr_destroy(void *key, void *datum, void *p)
 {
 	struct filename_trans *ft = key;
+
 	kfree(ft->name);
 	kfree(key);
 	kfree(datum);
@@ -345,6 +346,7 @@ static int filenametr_destroy(void *key, void *datum, void *p)
 static int range_tr_destroy(void *key, void *datum, void *p)
 {
 	struct mls_range *rt = datum;
+
 	kfree(key);
 	ebitmap_destroy(&rt->level[0].cat);
 	ebitmap_destroy(&rt->level[1].cat);
@@ -440,6 +442,7 @@ static int filenametr_cmp(struct hashtab *h, const void *k1, const void *k2)
 static u32 rangetr_hash(struct hashtab *h, const void *k)
 {
 	const struct range_trans *key = k;
+
 	return (key->source_type + (key->target_type << 3) +
 		(key->target_class << 5)) & (h->size - 1);
 }
@@ -489,7 +492,8 @@ static int policydb_init(struct policydb *p)
 	if (rc)
 		goto out;
 
-	p->filename_trans = hashtab_create(filenametr_hash, filenametr_cmp, (1 << 10));
+	p->filename_trans = hashtab_create(filenametr_hash, filenametr_cmp,
+					   (1 << 10));
 	if (!p->filename_trans) {
 		rc = -ENOMEM;
 		goto out;
@@ -665,9 +669,9 @@ static void hash_eval(struct hashtab *h, const char *hash_name)
 	struct hashtab_info info;
 
 	hashtab_stat(h, &info);
-	pr_debug("SELinux: %s:  %d entries and %d/%d buckets used, "
-	       "longest chain length %d\n", hash_name, h->nel,
-	       info.slots_used, h->size, info.max_chain_len);
+	pr_debug("SELinux: %s:  %d entries and %d/%d buckets used, longest chain length %d\n",
+		 hash_name, h->nel, info.slots_used, h->size,
+		 info.max_chain_len);
 }
 
 static void symtab_hash_eval(struct symtab *s)
