@@ -541,6 +541,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	bool skip_hash = false;
 	bool jumbo = false;
 
+	memset(pkt_info, 0, sizeof(*pkt_info));
 	pkt_info->ep = ep;
 	pkt_info->ip_proto = (*payload & 0xF0) >> 4;
 	if (pkt_info->ip_proto == 4) {
@@ -573,6 +574,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	/* Push out fragments immediately */
 	if (skip_hash) {
 		rmnet_perf_frag_flush++;
+		pkt_info->payload_len = pkt_len - pkt_info->header_len;
 		rmnet_perf_core_validate_pkt_csum(skb, pkt_info);
 		goto flush;
 	}
