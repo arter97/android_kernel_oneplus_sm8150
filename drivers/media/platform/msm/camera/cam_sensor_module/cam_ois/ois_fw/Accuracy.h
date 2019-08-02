@@ -1,6 +1,6 @@
 /*=======================================================================
 		Accuracy Test Sample code for LC898124
-						by Rex.Tang
+                                             	by Rex.Tang
                                                 2016.03.27
 ========================================================================*/
 
@@ -24,3 +24,4 @@ typedef struct tag_Dual_Axis
 	float ypos;
 	float yhall;
 }Dual_Axis_t;
+

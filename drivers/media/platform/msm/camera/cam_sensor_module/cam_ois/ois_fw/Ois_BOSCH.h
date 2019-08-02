@@ -4,7 +4,7 @@
 //		Program Name	: Ois_BOSCH.h
 // 		Explanation		: BMI260 Global Declaration & ProtType Declaration
 //		Design			: K.abe
-//		History			: First edition
+//		History			: First edition	
 //********************************************************************************
 #define BMI260_SlvAddrWr	0xD0		// I2C Slave Address
 #define BMI260_SlvAddrRd	0xD1		// I2C Slave Address
@@ -29,3 +29,4 @@
 #define GYR_EN_260			1
 #define ACC_EN_260			2
 #define	TEMP_EN_260			3
+

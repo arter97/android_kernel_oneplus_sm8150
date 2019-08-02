@@ -59,9 +59,9 @@ void SetThroughParameter(UINT_8	UcDirSel )
 		RamRead32A( HallFilterCoeffX_hxpgain0, &BackupParameter[1]);
 		RamRead32A( HallFilterCoeffX_hxpgain1, &BackupParameter[2]);
 		RamRead32A( HallFilterCoeffX_hxigain0, &BackupParameter[3]);
-		RamRead32A( HallFilterCoeffX_hxgain0, &BackupParameter[4]);
-		RamRead32A( HallFilterShiftX, &BackupParameter[5]);
-		RamRead32A( (HallFilterShiftX+4), &BackupParameter[6]);
+		RamRead32A( HallFilterCoeffX_hxgain0, &BackupParameter[4]);	
+		RamRead32A( HallFilterShiftX, &BackupParameter[5]);	
+		RamRead32A( (HallFilterShiftX+4), &BackupParameter[6]);	
 		RamRead32A( HallFilterCoeffX_hxsa, &BackupParameter[7]);
 		RamRead32A( HallFilterCoeffX_hxsb, &BackupParameter[8]);
 		RamRead32A( HallFilterCoeffX_hxsc, &BackupParameter[9]);
@@ -103,7 +103,7 @@ void SetThroughParameter(UINT_8	UcDirSel )
 		RamRead32A( HallFilterCoeffY_hypgain1, &BackupParameter[2]);
 		RamRead32A( HallFilterCoeffY_hyigain0, &BackupParameter[3]);
 		RamRead32A( HallFilterCoeffY_hygain0, &BackupParameter[4]);
-		RamRead32A( HallFilterShiftY, &BackupParameter[5]);
+		RamRead32A( HallFilterShiftY, &BackupParameter[5]);	
 		RamRead32A( HallFilterCoeffY_hysa, &BackupParameter[6]);
 		RamRead32A( HallFilterCoeffY_hysb, &BackupParameter[7]);
 		RamRead32A( HallFilterCoeffY_hysc, &BackupParameter[8]);
@@ -117,7 +117,7 @@ void SetThroughParameter(UINT_8	UcDirSel )
 		RamRead32A( HallFilterCoeffY_hypc, &BackupParameter[16]);
 		RamRead32A( HallFilterCoeffY_hypd, &BackupParameter[17]);
 		RamRead32A( HallFilterCoeffY_hype, &BackupParameter[18]);
-
+		
 		RamWrite32A( HallFilterCoeffY_hydgain0, 0x00000000);	//RAMW32	8188	00000000
 		RamWrite32A( HallFilterCoeffY_hypgain0, 0x7fffffff);	//RAMW32	8174	7fffffff
 		RamWrite32A( HallFilterCoeffY_hypgain1, 0x7fffffff);	//RAMW32	8180	7fffffff
@@ -155,9 +155,9 @@ void ResetThroughParameter(void)
 		RamWrite32A( HallFilterCoeffX_hxpgain0, BackupParameter[1]);
 		RamWrite32A( HallFilterCoeffX_hxpgain1, BackupParameter[2]);
 		RamWrite32A( HallFilterCoeffX_hxigain0, BackupParameter[3]);
-		RamWrite32A( HallFilterCoeffX_hxgain0, BackupParameter[4]);
-		RamWrite32A( HallFilterShiftX, BackupParameter[5]);
-		RamWrite32A( (HallFilterShiftX+4), BackupParameter[6]);
+		RamWrite32A( HallFilterCoeffX_hxgain0, BackupParameter[4]);	
+		RamWrite32A( HallFilterShiftX, BackupParameter[5]);	
+		RamWrite32A( (HallFilterShiftX+4), BackupParameter[6]);	
 		RamWrite32A( HallFilterCoeffX_hxsa, BackupParameter[7]);
 		RamWrite32A( HallFilterCoeffX_hxsb, BackupParameter[8]);
 		RamWrite32A( HallFilterCoeffX_hxsc, BackupParameter[9]);
@@ -177,7 +177,7 @@ void ResetThroughParameter(void)
 		RamWrite32A( HallFilterCoeffY_hypgain1, BackupParameter[2]);
 		RamWrite32A( HallFilterCoeffY_hyigain0, BackupParameter[3]);
 		RamWrite32A( HallFilterCoeffY_hygain0, BackupParameter[4]);
-		RamWrite32A( HallFilterShiftY, BackupParameter[5]);
+		RamWrite32A( HallFilterShiftY, BackupParameter[5]);	
 		RamWrite32A( HallFilterCoeffY_hysa, BackupParameter[6]);
 		RamWrite32A( HallFilterCoeffY_hysb, BackupParameter[7]);
 		RamWrite32A( HallFilterCoeffY_hysc, BackupParameter[8]);
@@ -211,7 +211,7 @@ int     nDivision;
 
 void CoeffGenerate( double fc )
 {
-	double  df, fs;
+	double  df, fs; 
 	int     point, C0, S0, CN, SN;
 	double  theta;			// theta = 2*Pi*f/Fs
 
@@ -231,7 +231,7 @@ void CoeffGenerate( double fc )
 	CN = (int)((double)Q31 * cos(((double)N - 1.0) * theta) + 0.5);
 	SN = (int)((double)Q31 * sin(((double)N - 1.0) * theta) + 0.5);
 
-	RamWrite32A( FRA_DMA_DeciShift, nDivision );
+	RamWrite32A( FRA_DMA_DeciShift, nDivision );	
 	RamWrite32A( FRA_DMB_C0, C0 ) ;
 	RamWrite32A( FRA_DMB_S0, S0 ) ;
 	RamWrite32A( FRA_DMB_CN, CN ) ;
@@ -250,7 +250,7 @@ TRACE("0x%08X, 0x%08X, 0x%08X, 0x%08X,\n", C0, S0, CN, SN);
 UINT32	Freq_Convert( float SfFreq )
 {
 	UINT32	UlPhsStep;
-
+	
 	UlPhsStep	= ( UINT32 )( ( SfFreq * ( float )0x100000000 / FS_FREQ + 0.5F ) / 2.0F ) ;
 
 	return( UlPhsStep ) ;
@@ -268,11 +268,11 @@ void	MesStart_FRA_Single( UINT8	UcDirSel )
 {
 	float	SfTmp ;
 	INT32	GainQ23, PhaseQ21 ;
-	UINT32	UlReadVal ;
+	UINT32	UlReadVal ;	
 
 
 	SetSinWavGenInt() ;
-	// Change Frequency
+	// Change Frequency 
 	RamWrite32A( SinWave_Offset,	Freq_Convert( StFRAParam.StHostCom.SfFrqCom.SfFltVal ) ) ;		// Freq Setting = Freq * 80000000h / Fs	: 10Hz
 
 	SfTmp	= StFRAParam.StHostCom.SfAmpCom.SfFltVal / 1400.0F ;									// AVDD 2800mV / 2 = 1400mV
@@ -333,7 +333,7 @@ void	MesStart_FRA_Single( UINT8	UcDirSel )
 			RamWrite32A( FRA_DMA_InputData, HALL_FRA_YSININ  ) ;
 #else
 			RamWrite32A( FRA_DMA_InputData, HALL_FRA_YHOUTA ) ;
-#endif
+#endif			
 			RamWrite32A( FRA_DMA_OutputData, HALL_FRA_YHOUTB ) ;
 		}
 #ifdef SEL_CLOSED_AF
@@ -344,7 +344,7 @@ void	MesStart_FRA_Single( UINT8	UcDirSel )
 			RamWrite32A( FRA_DMA_InputData, CLAF_RAMA_AFSINE  ) ;
 #else
 			RamWrite32A( FRA_DMA_InputData, CLAF_DELAY_AFDZ0 ) ;
-#endif
+#endif			
 			RamWrite32A( FRA_DMA_OutputData, CLAF_RAMA_AFDEV ) ;
 		}
 #endif // SEL_CLOSED_AF
@@ -364,13 +364,13 @@ void	MesStart_FRA_Single( UINT8	UcDirSel )
 	if (nDivision == 4)	WitTim(1600);
 	do{
 		WitTim(10);
-		RamRead32A( FRA_DMA_Control	, &UlReadVal ) ;
+		RamRead32A( FRA_DMA_Control	, &UlReadVal ) ;	
 	}while (UlReadVal == 1);
 	// Read answer
 	RamRead32A( FRA_DMA_Gain	, &GainQ23 ) ;		// Gain
 	RamRead32A( FRA_DMA_Phase	, &PhaseQ21 ) ;		// Phase
 	StFRAParam.StMesRslt.SfGainAvg = (float)GainQ23 / Q23; //0x007FFFFF;
-	StFRAParam.StMesRslt.SfPhaseAvg = (float)PhaseQ21 / Q21; //0x001FFFFF;
+	StFRAParam.StMesRslt.SfPhaseAvg = (float)PhaseQ21 / Q21; //0x001FFFFF;	
 
 	TRACE("Phase %f deg : Gain %f dB\n", StFRAParam.StMesRslt.SfPhaseAvg, StFRAParam.StMesRslt.SfGainAvg );
 
@@ -388,9 +388,9 @@ void	MesStart_FRA_Single( UINT8	UcDirSel )
 void	MesStart_FRA_Continue( void )
 {
 	INT32	GainQ23, PhaseQ21 ;
-	UINT32	UlReadVal ;
-
-	// Change Frequency
+	UINT32	UlReadVal ;	
+	
+	// Change Frequency 
 	RamWrite32A( SinWave_Offset,	Freq_Convert( StFRAParam.StHostCom.SfFrqCom.SfFltVal ) ) ;
 	// Set parameter
 	CoeffGenerate( StFRAParam.StHostCom.SfFrqCom.SfFltVal );
@@ -403,14 +403,14 @@ void	MesStart_FRA_Continue( void )
 	if (nDivision == 3)	WitTim(800);
 	if (nDivision == 4)	WitTim(1600);
 	do{
-		WitTim(10);
-		RamRead32A( FRA_DMA_Control	, &UlReadVal ) ;
+		WitTim(10);	
+		RamRead32A( FRA_DMA_Control	, &UlReadVal ) ;	
 	}while (UlReadVal == 1);
 	// Read answer
 	RamRead32A( FRA_DMA_Gain	, &GainQ23 ) ;		// Gain
 	RamRead32A( FRA_DMA_Phase	, &PhaseQ21 ) ;		// Phase
 	StFRAParam.StMesRslt.SfGainAvg = (float)GainQ23 / Q23;
-	StFRAParam.StMesRslt.SfPhaseAvg = (float)PhaseQ21 / Q21;
+	StFRAParam.StMesRslt.SfPhaseAvg = (float)PhaseQ21 / Q21;	
 
 	TRACE("Phase %f deg : Gain %f dB\n", StFRAParam.StMesRslt.SfPhaseAvg, StFRAParam.StMesRslt.SfGainAvg );
 }

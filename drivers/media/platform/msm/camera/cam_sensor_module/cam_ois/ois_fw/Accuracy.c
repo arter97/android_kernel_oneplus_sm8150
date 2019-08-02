@@ -1,6 +1,6 @@
 /*=======================================================================
 		Accuracy Test Sample code for LC898124
-						by Rex.Tang
+                                             	by Rex.Tang
                                                 2016.03.27
 ========================================================================*/
 #include	"math.h"
@@ -11,12 +11,12 @@
 //****************************************************
 //	CUSTOMER NECESSARY CREATING LIST
 //****************************************************
-/* for I2C communication */
+/* for I2C communication */ 
 extern	void RamWrite32A(int addr, int data);
 extern 	void RamRead32A( unsigned short addr, void * data );
 extern void	WitTim( unsigned short	UsWitTim );
 
-/* Raw data buffers */
+/* Raw data buffers */	
 //Dual_Axis_t xy_raw_data[360/DEGSTEP + 1];
 Dual_Axis_t xy_raw_data[360/3 + 1];
 float xMaxAcc, yMaxAcc;
@@ -47,7 +47,7 @@ static unsigned int float2fix(float f)
 	Param:	none
 	Return:	value = 0 (no NG point)
 			value > 0 (High byte: X total NG points;
-					   Low byte: Y total NG points)
+					   Low byte: Y total NG points)	
 --------------------------------------------------------------------*/
 //unsigned short Accuracy()
 unsigned short Accuracy(float ACCURACY, unsigned short RADIUS, unsigned short DEGSTEP, unsigned short WAIT_MSEC1, unsigned short WAIT_MSEC2, unsigned short WAIT_MSEC3)
@@ -73,7 +73,7 @@ unsigned short Accuracy(float ACCURACY, unsigned short RADIUS, unsigned short DE
 	// Get Lenz
 	RamRead32A(Gyro_ShiftX_RG, &xG2x4xb);
 	RamRead32A(Gyro_ShiftY_RG, &yG2x4xb);
-
+	
 	// Calculate Radius (100um)
 	xRadius = 0.10546843F * fabsf(fix2float(xGyrogain)) * fabsf(fix2float(xGLenz)) * (1 << (unsigned char)( xG2x4xb >> 8 ));
 	yRadius = 0.10546843F * fabsf(fix2float(yGyrogain)) * fabsf(fix2float(yGLenz)) * (1 << (unsigned char)( yG2x4xb >> 8 ));
@@ -101,7 +101,7 @@ unsigned short Accuracy(float ACCURACY, unsigned short RADIUS, unsigned short DE
 	{
 		xpos = xRadius * cos(deg * PI/180);
 		ypos = yRadius * sin(deg * PI/180);
-	RamWrite32A(HALL_RAM_HXOFF1, float2fix(xpos));
+    	RamWrite32A(HALL_RAM_HXOFF1, float2fix(xpos));
 		RamWrite32A(HALL_RAM_HYOFF1, float2fix(ypos));
 
 		if(deg ==0)
@@ -110,29 +110,29 @@ unsigned short Accuracy(float ACCURACY, unsigned short RADIUS, unsigned short DE
 		xMaxHall = 0;
 		yMaxHall = 0;
 		WitTim(WAIT_MSEC2);
-
+		
 		for(short i=0; i<LOOPTIME; i++)
 		{
 			WitTim(WAIT_MSEC3);
 			RamRead32A( HALL_RAM_HXOUT0, &xhall_value );
 			RamRead32A( HALL_RAM_HYOUT0, &yhall_value );
-			if(fabsf(fix2float(xhall_value) - xpos) > fabsf(xMaxHall))
+			if(fabsf(fix2float(xhall_value) - xpos) > fabsf(xMaxHall))	
 				xMaxHall = fix2float(xhall_value) - xpos;
-			if(fabsf(fix2float(yhall_value) - ypos) > fabsf(yMaxHall))
+			if(fabsf(fix2float(yhall_value) - ypos) > fabsf(yMaxHall))	
 				yMaxHall = fix2float(yhall_value) - ypos;
 		}
 
 		if(fabsf(xMaxHall) > xMaxAcc)	xMaxAcc = fabsf(xMaxHall);
 		if(fabsf(yMaxHall) > yMaxAcc)	yMaxAcc = fabsf(yMaxHall);
-
+		
         // Save raw data
 		xy_raw_data[deg/DEGSTEP].xpos = xpos;
 		xy_raw_data[deg/DEGSTEP].xhall = xMaxHall + xpos;
 		xy_raw_data[deg/DEGSTEP].ypos = ypos;
 		xy_raw_data[deg/DEGSTEP].yhall = yMaxHall + ypos;
-
+		
 		if(fabsf(xMaxHall) > xLimit)	xng++; 	// Have NG point;
-		if(fabsf(yMaxHall) > yLimit)	yng++; 	// Have NG point;
+		if(fabsf(yMaxHall) > yLimit)	yng++; 	// Have NG point; 
 
 	}
 	RamWrite32A(HALL_RAM_HXOFF1, 0); // x = center
@@ -150,11 +150,11 @@ unsigned short HallCheck(float ACCURACY, unsigned short RADIUS, unsigned short D
 
 	if(ret)
 	{
-	TRACE("\n VCM has NG points: X = %d, Y = %d", ret >> 8, ret & 0xff);
+    	TRACE("\n VCM has NG points: X = %d, Y = %d", ret >> 8, ret & 0xff);
 	} else {
-	TRACE("\n VCM is good!");
+    	TRACE("\n VCM is good!");
 	}
-
+	
 	// Max Accuracy
 	//TRACE("\n X Max Accuracy = %f, Y Max Accuracy = %f", xMaxAcc, yMaxAcc);
 	TRACE("\n X Max Accuracy = %d, Y Max Accuracy = %d", (int)(xMaxAcc*1000), (int)(yMaxAcc*1000));
@@ -169,6 +169,6 @@ unsigned short HallCheck(float ACCURACY, unsigned short RADIUS, unsigned short D
 		//TRACE("\n xPos = %f, xHall = %f, yPos = %f, yHall = %f", xy_raw_data[i].xpos, xy_raw_data[i].xhall, xy_raw_data[i].ypos, xy_raw_data[i].yhall);
 		TRACE("\n xPos = %d, xHall = %d, yPos = %d, yHall = %d", (int)(xy_raw_data[i].xpos*1000), (int)(xy_raw_data[i].xhall*1000), (int)(xy_raw_data[i].ypos*1000), (int)(xy_raw_data[i].yhall*1000));
 	}
-
+	
 	return( ret );
 }

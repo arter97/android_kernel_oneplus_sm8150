@@ -3,7 +3,7 @@
 //********************************************************************************
 
 //**************************
-//	Include Header File
+//	Include Header File		
 //**************************
 #include "Ois.h"
 
@@ -22,13 +22,13 @@
 //****************************************************
 //	CUSTOMER NECESSARY CREATING LIST
 //****************************************************
-/* for I2C communication */
+/* for I2C communication */ 
 extern	void RamWrite32A( unsigned short, int );
 extern 	void RamRead32A( unsigned short, void * );
 /* for I2C Multi Translation : Burst Mode*/
 extern 	void CntWrt( void *, unsigned short) ;
 extern void CntRd( unsigned int addr, void *	PcSetDat, unsigned short	UsDatNum )  ;
-/* for Wait timer [Need to adjust for your system] */
+/* for Wait timer [Need to adjust for your system] */ 
 extern void	WitTim( unsigned short	UsWitTim );
 
 //****************************************************
@@ -36,14 +36,14 @@ extern void	WitTim( unsigned short	UsWitTim );
 //****************************************************
 #define BURST_LENGTH_PM ( 12*5 ) 	// 60 必ず5の倍数で設定すること。最大64Byteまで
 #define BURST_LENGTH_DM ( 10*6 ) 	// 60 必ず6の倍数で設定すること。最大64Byteまで
-#define BURST_LENGTH BURST_LENGTH_PM
+#define BURST_LENGTH BURST_LENGTH_PM 	
 
 //********************************************************************************
 // Function Name 	: DMIOWrite32
 // Retun Value		: None
 // Argment Value	: IOadrs, IOdata
 // Explanation		: Read From code version Command
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 void DMIOWrite32( UINT32 IOadrs, UINT32 IOdata )
 {
@@ -69,33 +69,33 @@ void DMIOWrite32( UINT32 IOadrs, UINT32 IOdata )
 //********************************************************************************
 // Function Name 	: DownloadToEP3
 // Retun Value		: NON
-// Argment Value	: PMlength: 5byte unit, DMlength : 1Byte unit
+// Argment Value	: PMlength: 5byte unit, DMlength : 1Byte unit 
 // Explanation		: <Pmem Memory> Write Data
 // History			: First edition
 //********************************************************************************
-unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity, const UINT8* DataDM, UINT32 LengthDMA , UINT32 LengthDMB )
+unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity, const UINT8* DataDM, UINT32 LengthDMA , UINT32 LengthDMB ) 
 {
 	UINT32 i, j;
 	UINT8 data[64];		// work fifo buffer max size 64 byte
 	UINT8 Remainder;	// 余り
 	UINT32 UlReadVal, UlCnt;
 	UINT32 ReadVerifyPM, ReadVerifyDMA, ReadVerifyDMB;	// Checksum
-
+	
 //*******************************************************************************//
 //*   pre-check ROM code version 												*//
 //*******************************************************************************//
 	RamRead32A( CMD_ROMVER , &UlReadVal );
 	if( UlReadVal == OLD_VER )	return( 3 );		/* ROM code version error */
-
+	
 //--------------------------------------------------------------------------------
-// 0. Start up to boot exection
+// 0. Start up to boot exection 
 //--------------------------------------------------------------------------------
 	RamWrite32A( CMD_IO_ADR_ACCESS , ROMINFO );
 	RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	switch ( (UINT8)UlReadVal ){
 	case 0x0A:	/* Normal Rom program execution */
 		break;
-
+	
 	case 0x01:	/* Normal Ram program execution */
 		/* 再Donloadのためには RomRebootしなければならない。AutoDownloadさせるためにCORE_RSTで実行させる*/
 		DMIOWrite32( SYSDSP_REMAP, 0x00001000 ); 	// CORE_RST
@@ -104,7 +104,7 @@ unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity
 
 //	case 0x0B:
 //	case 0x08:
-	default:
+	default:	
 		return( 1 );
 	}
 //--------------------------------------------------------------------------------
@@ -118,15 +118,15 @@ unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity
 	CntWrt( data, 5 ); 	// I2C 1Byte address.
 	// program start
 	data[0] = 0x40;		// Pmem address set
-	Remainder = ( (LengthPM*5) / BURST_LENGTH_PM );
+	Remainder = ( (LengthPM*5) / BURST_LENGTH_PM ); 
 	for(i=0 ; i< Remainder ; i++)
 	{
 		UlCnt = 1;
 		for(j=0 ; j < BURST_LENGTH_PM; j++)	data[UlCnt++] = *DataPM++;
-
+		
 		CntWrt( data, BURST_LENGTH_PM+1 );  // I2Caddresss 1Byte.
 	}
-	Remainder = ( (LengthPM*5) % BURST_LENGTH_PM);
+	Remainder = ( (LengthPM*5) % BURST_LENGTH_PM); 
 	if (Remainder != 0 )
 	{
 		UlCnt = 1;
@@ -140,41 +140,41 @@ unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity
 	data[2] = (unsigned char)(( LengthPM & 0xFF00) >> 8 );	// Size High
 	data[3] = (unsigned char)(( LengthPM & 0x00FF) >> 0 );	// Size Low
 	CntWrt( data, 4 ); 	// I2C 2Byte addresss.
-
+	
 //--------------------------------------------------------------------------------
 // 2. Download Table Data
 //--------------------------------------------------------------------------------
-//TRACE("DM Start \n" );
+//TRACE("DM Start \n" );	
 	RamWrite32A( DmCheck_CheckSumDMA, 0 );		// DMA Parity Clear
 	RamWrite32A( DmCheck_CheckSumDMB, 0 );		// DMB Parity Clear
 
 	/***** DMA Data Send *****/
-	Remainder = ( (LengthDMA*6/4) / BURST_LENGTH_DM );
+	Remainder = ( (LengthDMA*6/4) / BURST_LENGTH_DM ); 
 	for(i=0 ; i< Remainder ; i++)
 	{
 		CntWrt( (UINT8*)DataDM, BURST_LENGTH_DM );  // I2Caddresss 1Byte.
 		DataDM += BURST_LENGTH_DM;
 	}
-	Remainder = ( (LengthDMA*6/4) % BURST_LENGTH_DM );
+	Remainder = ( (LengthDMA*6/4) % BURST_LENGTH_DM ); 
 	if (Remainder != 0 )
 	{
 		CntWrt( (UINT8*)DataDM, (UINT8)Remainder );  // I2Caddresss 1Byte.
 	}
 	DataDM += Remainder;
-
+	
 	/***** DMB Data Send *****/
-	Remainder = ( (LengthDMB*6/4) / BURST_LENGTH_DM );
+	Remainder = ( (LengthDMB*6/4) / BURST_LENGTH_DM ); 
 	for( i=0 ; i< Remainder ; i++)	/* 続きから */
 	{
 		CntWrt( (UINT8*)DataDM, BURST_LENGTH_DM );  // I2Caddresss 1Byte.
 		DataDM += BURST_LENGTH_DM;
 	}
-	Remainder = ( (LengthDMB*6/4) % BURST_LENGTH_DM );
+	Remainder = ( (LengthDMB*6/4) % BURST_LENGTH_DM ); 
 	if (Remainder != 0 )
 	{
 		CntWrt( (UINT8*)DataDM, (UINT8)Remainder );  // I2Caddresss 1Byte.
 	}
-
+	
 //--------------------------------------------------------------------------------
 // 3. Verify
 //--------------------------------------------------------------------------------
@@ -182,9 +182,9 @@ unsigned char DownloadToEP3( const UINT8* DataPM, UINT32 LengthPM, UINT32 Parity
 	RamRead32A( DmCheck_CheckSumDMA, &ReadVerifyDMA );
 	RamRead32A( DmCheck_CheckSumDMB, &ReadVerifyDMB );
 
-
+	
 	if( (ReadVerifyPM + ReadVerifyDMA + ReadVerifyDMB) != Parity  ){
-TRACE("error! %08x %08x %08x \n", (unsigned int)ReadVerifyPM, (unsigned int)ReadVerifyDMA, (unsigned int)ReadVerifyDMB );
+TRACE("error! %08x %08x %08x \n", (unsigned int)ReadVerifyPM, (unsigned int)ReadVerifyDMA, (unsigned int)ReadVerifyDMB );	
 		return( 2 );
 	}
 	return(0);
@@ -207,7 +207,7 @@ void RemapMain( void )
 // Function Name 	: MonitorInfo
 // Retun Value		: NON
 // Argment Value	: NON
-// Explanation		:
+// Explanation		: 
 // History			: Second edition
 //********************************************************************************
 void MonitorInfo( DSPVER* Dspcode )
@@ -219,11 +219,11 @@ TRACE("Version : %02x \n", Dspcode->Version );
 
 
 if(Dspcode->SpiMode == SPI_MST )
-TRACE("spi mode : Master\n");
+TRACE("spi mode : Master\n");	
 if(Dspcode->SpiMode == SPI_SLV )
-TRACE("spi mode : Slave\n");
+TRACE("spi mode : Slave\n");	
 if(Dspcode->SpiMode == SPI_SNGL )
-TRACE("spi mode : only master\n");
+TRACE("spi mode : only master\n");	
 
 //if(Dspcode->ActType == ACT_SEMCO	)
 //TRACE("actuator type : SOXXXX\n");
@@ -236,7 +236,7 @@ if(Dspcode->ActType == ACT_SO2820) {
 }
 
 if(Dspcode->GyroType == GYRO_ICM20690 )
-TRACE("gyro type : INVEN ICM20690 \n");
+TRACE("gyro type : INVEN ICM20690 \n");	
 if(Dspcode->GyroType == GYRO_LSM6DSM )
 TRACE("gyro type : ST LSM6DSM \n")	;
 
@@ -303,7 +303,7 @@ UINT8 GetInfomationBeforeDownlaod( DSPVER* Info, const UINT8* DataDM,  UINT32 Le
 			MonitorInfo( Info );
 			return (0);
 		}
-	}
+	}	
 	return(1);
 }
 
@@ -312,7 +312,7 @@ UINT8 GetInfomationBeforeDownlaod( DSPVER* Info, const UINT8* DataDM,  UINT32 Le
 // Function Name 	: SelectDownload
 // Retun Value		: NON
 // Argment Value	: NON
-// Explanation		:
+// Explanation		: 
 // History			: Second edition
 //********************************************************************************
 extern unsigned char I2cSlvAddrWr;
@@ -362,5 +362,6 @@ unsigned char SelectDownload( UINT8 GyroSelect, UINT8 ActSelect, UINT8 MasterSla
 	// 高速化対応Download
 TRACE("DataPM( %08x ), LengthPM( %08x ) , Parity( %08x ), DataDM( %08x ) , LengthDMA( %08x ) , LengthDMB( %08x ) \n"
 	, (int)ptr->DataPM , (int)ptr->LengthPM , (int)ptr->Parity , (int)ptr->DataDM , (int)ptr->LengthDMA , (int)ptr->LengthDMB );
-	return( DownloadToEP3( ptr->DataPM, ptr->LengthPM, ptr->Parity, ptr->DataDM, ptr->LengthDMA , ptr->LengthDMB ) );
+	return( DownloadToEP3( ptr->DataPM, ptr->LengthPM, ptr->Parity, ptr->DataDM, ptr->LengthDMA , ptr->LengthDMB ) ); 
 }
+

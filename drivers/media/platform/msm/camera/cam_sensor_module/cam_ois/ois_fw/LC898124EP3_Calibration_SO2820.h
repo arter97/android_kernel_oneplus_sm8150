@@ -1,9 +1,9 @@
 //********************************************************************************
 //		<< LC898124 Evaluation Soft>>
 //		Program Name	: LC898124EP3_Calibration_SO2820.h
-// 		Explanation		: LC898124 calibration parameters
+// 		Explanation		: LC898124 calibration parameters 
 //		Design			: K.abe
-//		History			: First edition
+//		History			: First edition	
 //********************************************************************************
 
 // Version Name : 00-00-0000
@@ -30,18 +30,18 @@
 #else	//HALLADJ_FULLCURRENT
  #define 	MARGIN			(0x1000		)	// VDD-Margin,GND-MARGIN
  #define 	BIAS_RANGE_XY	(0x8CCC		)	// 55%
- #define	SINE_OFFSET		(0x00074528 )	/* Freq * 80000000h / 18.0288kHz   : 4Hz */
+ #define	SINE_OFFSET		(0x00074528 )	/* Freq * 80000000h / 18.0288kHz   : 4Hz */ 
  #define	SINE_GAIN		(0x4D780000	)	/*ì¸óÕSineîgÇÃç≈ëÂìdó¨ 115mA (115mA*7fff/190mA)  190mA(min) */
-
-
+ 
+ 
 #if 0
  #define 	MARGIN_F		(0x0300		)	// Margin
  #define 	BIAS_RANGE_XY_F	(0xB332		)	// 70%
  #define	SINE_OFFSET_F	(0x00122CE4 )	/* Freq * 80000000h / 18.0288kHz   : 10Hz */
  #define	SINE_GAIN_F		(0x7FFFFFFF	)	/*ì¸óÕSineîgÇÃç≈ëÂìdó¨*/
 #endif
-
-
+ 
+ 
 #endif	//HALLADJ_FULLCURRENT
 
 #define 	ADJMARG			(0x0300		)	// Margin
@@ -61,7 +61,7 @@
 
 #define		GAIN_GAP		(1000)			// 20*log(1000/1000)=0dB
 
-#define		AF_DrvDir		0x01				// AF Drive output signal 0:Pos  1:Neg
+#define		AF_DrvDir		0x01				// AF Drive output signal 0:Pos  1:Neg 
 #define		AF_RRMD1_TM		0x4200				// to Macro  RRMD1
 #define		AF_RRMD1_TI		0x4400				// to Infini RRMD1
 #define		AF_Ft			0x00D9				/* Ft	fs/Freq	*/
@@ -74,7 +74,7 @@
 //********************************************************************************
 // structure for calibration
 //********************************************************************************
- const ADJ_HALL SO2820_HallCalParameter = {
+ const ADJ_HALL SO2820_HallCalParameter = { 
 /* BiasInit */		XY_BIAS,
 /* OffsetInit */	XY_OFST,
 /* OffsetMargin */	MARGIN,
@@ -89,10 +89,10 @@
 /* ActMaxDrive */	ACT_MAX_DRIVE_Y,
 /* ActMinDrive */	ACT_MIN_DRIVE_X,
 /* ActMinDrive */	ACT_MIN_DRIVE_Y
-}; //
+}; //   
 
 #if 0
- const ADJ_HALL SO2820_HallCalParameter_F = {
+ const ADJ_HALL SO2820_HallCalParameter_F = { 
 /* BiasInit */		XY_BIAS,
 /* OffsetInit */	XY_OFST,
 /* OffsetMargin */	MARGIN_F,
@@ -103,28 +103,28 @@
 /* SinFreq */		SINE_OFFSET_F,
 /* SinGain */		SINE_GAIN_F,
 /* DecrementStep */ DECRE_CAL,
-}; //
+}; //   
 #endif
 
-const ADJ_LOPGAN SO2820_LoopGainParameter = {
+const ADJ_LOPGAN SO2820_LoopGainParameter = { 
 /* Hxgain */		SXGAIN_LOP,
 /* Hygain */		SYGAIN_LOP,
 /* NoiseNum */		LOOP_NUM,
 /* NoiseFreq */		LOOP_FREQ,
-/* NoiseGain */		LOOP_GAIN,
+/* NoiseGain */		LOOP_GAIN, 
 /* Gap  */			GAIN_GAP,
 /* XJudgeHigh */ 	LOOP_MAX_X,
 /* XJudgeLow  */ 	LOOP_MIN_X,
 /* YJudgeHigh */ 	LOOP_MAX_Y,
 /* YJudgeLow  */ 	LOOP_MIN_Y,
-}; //
+}; //   
 
- const AF_PARA SO2820_OpenAfParameter = {
+ const AF_PARA SO2820_OpenAfParameter = { 
 /* DriveDir*/		AF_DrvDir,
 /* RRMD1 to Mcr*/	AF_RRMD1_TM,
 /* RRMD1 to Inf*/	AF_RRMD1_TI,
 /* resonance frq*/	AF_Ft,
-}; //
+}; //   
 
 #undef	OFFSET_DIV
 #undef	IME_OUT
@@ -159,3 +159,4 @@ const ADJ_LOPGAN SO2820_LoopGainParameter = {
 #undef	ACT_MAX_DRIVE_Y
 #undef	ACT_MIN_DRIVE_X
 #undef	ACT_MIN_DRIVE_Y
+

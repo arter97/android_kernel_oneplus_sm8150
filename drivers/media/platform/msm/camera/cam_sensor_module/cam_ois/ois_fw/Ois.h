@@ -3,7 +3,7 @@
 //		Program Name	: Ois.h
 // 		Explanation		: LC898124 Global Declaration & ProtType Declaration
 //		Design			: Y.Yamada
-//		History			: First edition
+//		History			: First edition	
 //********************************************************************************
 #include "OisLc898124EP3.h"
 
@@ -41,7 +41,7 @@
  #define	SUB_VER				0x00		//ATMEL SUB Version
 #endif
 
-
+								
 //#define		ZERO_SERVO
 #define		ACCEL_SERVO
 #define		SEL_SHIFT_COR
@@ -72,7 +72,7 @@
 
 // Command Status
 #define		EXE_END		0x00000002L		// Execute End (Adjust OK)
-#define		EXE_ERROR	0x00000003L		// Adjust NG : Execution Failure
+#define		EXE_ERROR	0x00000003L		// Adjust NG : Execution Failure 
 #define		EXE_HXADJ	0x00000006L		// Adjust NG : X Hall NG (Gain or Offset)
 #define		EXE_HYADJ	0x0000000AL		// Adjust NG : Y Hall NG (Gain or Offset)
 #define		EXE_LXADJ	0x00000012L		// Adjust NG : X Loop NG (Gain)
@@ -221,7 +221,7 @@
 
 
 //****************************************************
-//	Generic memory
+//	Generic memory 
 //****************************************************
 #ifdef __OIS_BIG_ENDIAN__
 // Big endian
@@ -379,7 +379,7 @@ typedef struct {
 	UINT32 YJudgeHigh;
 	UINT32 YJudgeLow;
 } ADJ_LOPGAN;
-
+	
 typedef struct {
 	UINT8 Vendor;
 	UINT8 User;
@@ -441,19 +441,19 @@ typedef struct STADJPAR {
 		UINT16	UsGxoSts ;				// Gyro Offset X Status
 		UINT16	UsGyoSts ;				// Gyro Offset Y Status
 	} StGvcOff ;
-
+	
 	UINT8		UcOscVal ;				// OSC value
 
 } stAdjPar ;
 
 #ifdef	ZERO_SERVO
 typedef struct STZEROSERVO {
-	INT32				SlOffset ;					//
-	INT32				SlG45m ;					//
-	INT32				SlG45s ;					//
-	INT32				SlGcora ;					//
-	INT32				SlGaina ;					//
-	INT32				SlShift ;					//
+	INT32				SlOffset ;					// 
+	INT32				SlG45m ;					// 
+	INT32				SlG45s ;					// 
+	INT32				SlGcora ;					// 
+	INT32				SlGaina ;					// 
+	INT32				SlShift ;					// 
 } stZeroServo ;
 #endif	//ZERO_SERVO
 
@@ -555,5 +555,6 @@ typedef struct ACT_MOV_t	Act_Mov_t ;
  #define TRACE_INIT(x)
  #define TRACE(...)
  #define TRACE_DUMP(x,y)
- #define TRACE_USB(...)
+ #define TRACE_USB(...)	
 #endif
+

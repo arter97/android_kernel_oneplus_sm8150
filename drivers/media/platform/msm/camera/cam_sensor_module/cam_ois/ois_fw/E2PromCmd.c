@@ -3,13 +3,13 @@
 //********************************************************************************
 
 //**************************
-//	Include Header File
+//	Include Header File		
 //**************************
 #include	"Ois.h"
 #include	"OisAPI.h"
 
 //****************************************************
-//	LC898124 calibration parameters
+//	LC898124 calibration parameters 
 //****************************************************
 #if ((SELECT_VENDOR&0x01) == 0x01)				// SEMCO
 extern const ADJ_HALL SO2820_HallCalParameter;
@@ -24,10 +24,10 @@ extern AF_PARA SO3600_OpenAfParameter;
 //****************************************************
 //	CUSTOMER NECESSARY CREATING LIST
 //****************************************************
-/* for I2C communication */
+/* for I2C communication */ 
 extern	void RamWrite32A( int, int );
 extern 	void RamRead32A( unsigned short, void * );
-/* for Wait timer [Need to adjust for your system] */
+/* for Wait timer [Need to adjust for your system] */ 
 extern void	WitTim( unsigned short	UsWitTim );
 
 //****************************************************
@@ -39,7 +39,7 @@ extern void DMIOWrite32( UINT32 IOadrs, UINT32 IOdata );
 //****************************************************
 //	LOCAL RAM LIST
 //****************************************************
-stAdjPar	StAdjPar ;				// temporary buffer for caribration data
+stAdjPar	StAdjPar ;				// temporary buffer for caribration data 
 UINT16		UsGzoVal ;				// Gyro A/D Offset X
 
 #ifdef	SEL_SHIFT_COR
@@ -71,7 +71,7 @@ stZeroServo			StZeroServoZ;
 #define E2P_USER_AREA_SIZE		(8*13)
 
 #define LSB 0
-#define MSB 8
+#define MSB 8 
 
 
 #define CHECK_SUM_ADR	0x7D
@@ -97,7 +97,7 @@ unsigned char UnlockCodeSet( void )
 	RamRead32A(  CMD_IO_DAT_ACCESS , &UlReadVal ) ;
 	if ( (UlReadVal & 0x00000002) != 2 ) return(1);
 
-	return(0);
+	return(0);	
 
 }
 
@@ -115,9 +115,9 @@ unsigned char UnlockCodeClear(void)
 	RamWrite32A( CMD_IO_ADR_ACCESS, E2P_WPB );				// UNLOCK_CLR(E0_7014h[4])=1
 	RamWrite32A( CMD_IO_DAT_ACCESS, 0x00000010 );
 	RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
-	if( (UlReadVal & 0x00000080) != 0 )	return (3);
-
-	return(0);
+	if( (UlReadVal & 0x00000080) != 0 )	return (3);						
+	
+	return(0);	
 }
 
 #if ((SELECT_VENDOR & 0x80 ) != 0x80)
@@ -126,20 +126,20 @@ unsigned char UnlockCodeClear(void)
 // Retun Value		: error
 // Argment Value	: NON
 // Explanation		: Write data to E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 unsigned char WriteE2Prom( unsigned char address, unsigned char data )
 {
 	UINT32 UlReadVal, UlCnt;
 	unsigned char ans;
-
+		
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return (ans);							// Unlock Code Set
 
 	DMIOWrite32( E2P_ADR, address );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 			// FLG CLR
-
+	
 	switch ( (address & 0x0F) ){
 		case 0 : 	DMIOWrite32( E2P_WDAT00, data );	break;
 		case 1 : 	DMIOWrite32( E2P_WDAT01, data );	break;
@@ -157,22 +157,22 @@ unsigned char WriteE2Prom( unsigned char address, unsigned char data )
 		case 13 : 	DMIOWrite32( E2P_WDAT13, data );	break;
 		case 14 : 	DMIOWrite32( E2P_WDAT14, data );	break;
 		case 15 : 	DMIOWrite32( E2P_WDAT15, data );	break;
-	}
-
+	}	
+	
 	DMIOWrite32( E2P_CMD, 2 ); 			// Re-Program
 	WitTim( 20 ) ;
 	UlCnt=0;
 	do{
-		if( UlCnt++ > 10 ){	ans = 2;	break;	} ;
+		if( UlCnt++ > 10 ){	ans = 2;	break;	} ;	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
-
+	
 	UnlockCodeClear();							// Unlock Code Clear
-
+	
 	return(ans);
 
-}
+} 
 #endif //((SELECT_VENDOR & 0x80 ) != 0x80)
 
 
@@ -181,7 +181,7 @@ unsigned char WriteE2Prom( unsigned char address, unsigned char data )
 // Retun Value		: data
 // Argment Value	: NON
 // Explanation		: Read data from E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 void ReadE2Prom( unsigned char address, unsigned char * val )
 {
@@ -193,7 +193,7 @@ void ReadE2Prom( unsigned char address, unsigned char * val )
 	// Read Exe
 	RamWrite32A( CMD_IO_ADR_ACCESS, E2P_RDAT );
 	RamRead32A ( CMD_IO_DAT_ACCESS, &UlReadVal );			// Read Access
-
+	
 	*val = (unsigned char)UlReadVal;
 }
 
@@ -202,7 +202,7 @@ void ReadE2Prom( unsigned char address, unsigned char * val )
 // Retun Value		: data
 // Argment Value	: NON
 // Explanation		: Read data from E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 void BurstReadE2Prom( unsigned char address, unsigned char * val, unsigned char cnt )
 {
@@ -226,7 +226,7 @@ void BurstReadE2Prom( unsigned char address, unsigned char * val, unsigned char 
 // Retun Value		: data
 // Argment Value	: NON
 // Explanation		: Read data from E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8 E2PromVerificationONSEMI( void )
 {
@@ -250,7 +250,7 @@ UINT8 E2PromVerificationONSEMI( void )
 // Retun Value		: data
 // Argment Value	: NON
 // Explanation		: Read data from E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8 E2PromVerification( void )
 {
@@ -273,7 +273,7 @@ UINT8 E2PromVerification( void )
 // Retun Value		: error
 // Argment Value	: NON
 // Explanation		: Write data to E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 extern unsigned char I2cSlvAddrWr;
 
@@ -300,8 +300,8 @@ UINT8 WrI2cSlaveAddr( unsigned char Addr )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -315,7 +315,7 @@ UINT8 WrI2cSlaveAddr( unsigned char Addr )
 // Retun Value		: error
 // Argment Value	: NON
 // Explanation		: Write data to E2Prom
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8	WrHallCalData( void )
 {
@@ -325,13 +325,13 @@ UINT8	WrHallCalData( void )
 
 	// Read the Status & Update
 	BurstReadE2Prom( EEPROM_Calibration_Status_LSB, UcReadVal, 2 );
-	StAdjPar.StHalAdj.UlAdjPhs |= ( (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~( HALL_CALB_FLG | HALL_CALB_BIT )) );
-
+	StAdjPar.StHalAdj.UlAdjPhs |= ( (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~( HALL_CALB_FLG | HALL_CALB_BIT )) ); 
+	
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
@@ -346,7 +346,7 @@ UINT8	WrHallCalData( void )
 	DMIOWrite32( E2P_WDAT09, (UINT8)((StAdjPar.StHalAdj.UlAdjPhs)>>MSB ) );
 	DMIOWrite32( E2P_WDAT10, (UINT8)((StAdjPar.StHalAdj.UsHlxMxa)>>LSB ) ); // OIS Hall X Max After
 	DMIOWrite32( E2P_WDAT11, (UINT8)((StAdjPar.StHalAdj.UsHlxMxa)>>MSB ) );
-	DMIOWrite32( E2P_WDAT12, (UINT8)((StAdjPar.StHalAdj.UsHlxMna)>>LSB ) ); // OIS Hall X Min After
+	DMIOWrite32( E2P_WDAT12, (UINT8)((StAdjPar.StHalAdj.UsHlxMna)>>LSB ) ); // OIS Hall X Min After	
 	DMIOWrite32( E2P_WDAT13, (UINT8)((StAdjPar.StHalAdj.UsHlxMna)>>MSB ) );
 	DMIOWrite32( E2P_WDAT14, (UINT8)((StAdjPar.StHalAdj.UsHlyMxa)>>LSB ) ); // OIS Hall Y Max After
 	DMIOWrite32( E2P_WDAT15, (UINT8)((StAdjPar.StHalAdj.UsHlyMxa)>>MSB ) );
@@ -357,17 +357,17 @@ UINT8	WrHallCalData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 //------------------------------------------------------------------------------------------------
-// Page 2 (0x20-0x2F)
+// Page 2 (0x20-0x2F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x20 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT00, (UINT8)((StAdjPar.StHalAdj.UsHlyMna)>>LSB ) ); // OIS Hall Y Min After
 	DMIOWrite32( E2P_WDAT01, (UINT8)((StAdjPar.StHalAdj.UsHlyMna)>>MSB ) );
 	DMIOWrite32( E2P_WDAT02, (UINT8)((StAdjPar.StHalAdj.UsHlxGan)>>8 ) );		// OIS Hall Bias X
@@ -391,42 +391,42 @@ UINT8	WrHallCalData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 3 );
-		}
+			return( 3 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 //------------------------------------------------------------------------------------------------
-// Page 3 (0x30-0x32)
+// Page 3 (0x30-0x32) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x30 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT00, 0xFF );	// GyroFilterTableX_gxzoom
 	DMIOWrite32( E2P_WDAT01, 0x3F );
 	DMIOWrite32( E2P_WDAT02, 0xFF );	//	GyroFilterTableY_gyzoom
 	DMIOWrite32( E2P_WDAT03, 0xFF );
 	DMIOWrite32( E2P_WDAT04, 0xFF );
-	DMIOWrite32( E2P_WDAT05, 0x3F );
-
+	DMIOWrite32( E2P_WDAT05, 0x3F );	
+	
 	DMIOWrite32( E2P_CMD, 2 ); 			// Re-Program
 	WitTim( 20 ) ;
 	UlCnt=0;
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 4 );
-		}
+			return( 4 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 //------------------------------------------------------------------------------------------------
-// Page 5 (0x50-0x5F)
+// Page 5 (0x50-0x5F) 
 //------------------------------------------------------------------------------------------------
 #if 0
 	DMIOWrite32( E2P_ADR, 0x50 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT06, 0 );	// OIS gyro offset X
 	DMIOWrite32( E2P_WDAT07, (UINT8)(HALLCROSSXX>>16) );	// CrossXX lower Byte
 	DMIOWrite32( E2P_WDAT08, (UINT8)(HALLCROSSXX>>24) );	// CrossXX Higher Byte
@@ -445,21 +445,21 @@ UINT8	WrHallCalData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 4 );
-		}
+			return( 4 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 #endif
 //------------------------------------------------------------------------------------------------
-// Page 6 (0x50-0x5F)
+// Page 6 (0x50-0x5F) 
 //------------------------------------------------------------------------------------------------
 #if 0
 	DMIOWrite32( E2P_ADR, 0x60 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
-	DMIOWrite32( E2P_WDAT00, CH2SEL );	// DrvY direction
-	DMIOWrite32( E2P_WDAT01, CH3SEL );	// DrvZ direction
+	
+	DMIOWrite32( E2P_WDAT00, CH2SEL );	// DrvY direction 
+	DMIOWrite32( E2P_WDAT01, CH3SEL );	// DrvZ direction 
 	DMIOWrite32( E2P_WDAT02, (UINT8)(AF_FST_FREQ)      );	// AfFreq
 	DMIOWrite32( E2P_WDAT03, (UINT8)(AF_FST_FREQ>>8)   );	// AfFreq
 	DMIOWrite32( E2P_WDAT04, (UINT8)(AF_FST_UCOEF>>16) );	// AfUcode
@@ -473,14 +473,14 @@ UINT8	WrHallCalData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 4 );
-		}
+			return( 4 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 #endif
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -489,7 +489,7 @@ UINT8	WrHallCalData( void )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -502,8 +502,8 @@ UINT8	WrHallCalData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -519,17 +519,17 @@ UINT8	WrHallCalData( void )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	return( 0 );
 
-}
+} 
 //********************************************************************************
 // Function Name 	: WrGyroGainData
 // Retun Value		: 0:OK, 1:NG
 // Argment Value	: NON
 // Explanation		: Flash Write Hall Calibration Data Function
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8	WrGyroGainData( void )
 {
@@ -543,19 +543,19 @@ UINT8	WrGyroGainData( void )
 	RamRead32A(  GyroFilterTableY_gyzoom , &UlZoomY ) ;
 	// Read the Status & Update
 	BurstReadE2Prom( EEPROM_Calibration_Status_LSB, UcReadVal, 2 );
-	UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~GYRO_GAIN_FLG) ;
-
+	UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~GYRO_GAIN_FLG) ; 
+		
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
 
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
 
-//	DMIOWrite32( E2P_WDAT00,  );	// IDSEL
+//	DMIOWrite32( E2P_WDAT00,  );	// IDSEL	
 	DMIOWrite32( E2P_WDAT08, (UINT8)((UlReadVal)>>LSB ) ); // Calibration Status
 	DMIOWrite32( E2P_WDAT09, (UINT8)((UlReadVal)>>MSB ) );
 
@@ -565,17 +565,17 @@ UINT8	WrGyroGainData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 //------------------------------------------------------------------------------------------------
-// Page 2 (0x20-0x2F)
+// Page 2 (0x20-0x2F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x20 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT14, (UINT8)(UlZoomX>>0) );//GyroFilterTableX_gxzoom
 	DMIOWrite32( E2P_WDAT15, (UINT8)(UlZoomX>>8) );
 
@@ -585,24 +585,24 @@ UINT8	WrGyroGainData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 3 );
-		}
+			return( 3 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// Page 3 (0x30-0x3F)
+// Page 3 (0x30-0x3F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x30 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT00, (UINT8)(UlZoomX>>16) );
 	DMIOWrite32( E2P_WDAT01, (UINT8)(UlZoomX>>24) );
 	DMIOWrite32( E2P_WDAT02, (UINT8)(UlZoomY>>0) );	//	GyroFilterTableY_gyzoom
 	DMIOWrite32( E2P_WDAT03, (UINT8)(UlZoomY>>8) );
 	DMIOWrite32( E2P_WDAT04, (UINT8)(UlZoomY>>16) );
-	DMIOWrite32( E2P_WDAT05, (UINT8)(UlZoomY>>24) );
+	DMIOWrite32( E2P_WDAT05, (UINT8)(UlZoomY>>24) );	
 
 	DMIOWrite32( E2P_CMD, 2 ); 			// Re-Program
 	WitTim( 20 ) ;
@@ -610,14 +610,14 @@ UINT8	WrGyroGainData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 3 );
-		}
+			return( 3 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -626,7 +626,7 @@ UINT8	WrGyroGainData( void )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -639,8 +639,8 @@ UINT8	WrGyroGainData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -656,9 +656,9 @@ UINT8	WrGyroGainData( void )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+		
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	return(ans);
 }
 
@@ -668,7 +668,7 @@ UINT8	WrGyroGainData( void )
 // Retun Value		: 0:OK, 1:NG
 // Argment Value	: UlReadValX: gyro gain X, UlReadValY: gyro gain Y
 // Explanation		: Flash Write Hall Calibration Data Function
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8	WrGyroGainData_NV( UINT32 UlReadValX , UINT32 UlReadValY )
 {
@@ -690,21 +690,21 @@ UINT8	WrZeroServoData( void )
 	UINT32 UlReadVal, UlCnt;
 	UINT8 ans, data[CHECK_SUM_NUM], cnt, UcReadVal[2];
 	UINT32 ReadVerify, Parity;
-
+	
 	// Read the Status & Update
 	BurstReadE2Prom( EEPROM_Calibration_Status_LSB, UcReadVal, 2 );
-	UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~ZSRV_CAL_FLG) ;
-
+	UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~ZSRV_CAL_FLG) ; 
+	
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
-
+	
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 //	DMIOWrite32( E2P_WDAT00, 0xF7 );										// IDSEL
 	DMIOWrite32( E2P_WDAT08, (UINT8)((UlReadVal)>>LSB ) ); // Calibration Status
 	DMIOWrite32( E2P_WDAT09, (UINT8)((UlReadVal)>>MSB ) );
@@ -715,18 +715,18 @@ UINT8	WrZeroServoData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
-
+	
 //------------------------------------------------------------------------------------------------
-// Page 3 (0x30-0x3F)
+// Page 3 (0x30-0x3F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x30 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 //	DMIOWrite32( E2P_WDAT00, (UINT8)(  );
 //	DMIOWrite32( E2P_WDAT01, (UINT8)(  );
 //	DMIOWrite32( E2P_WDAT02, (UINT8)(  );
@@ -750,18 +750,18 @@ UINT8	WrZeroServoData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 4 );
-		}
+			return( 4 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// Page 4 (0x40-0x4F)
+// Page 4 (0x40-0x4F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x40 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT00, (UINT8)( ((StZeroServoY.SlShift) >> 0)>>LSB ) );
 	DMIOWrite32( E2P_WDAT01, (UINT8)( ((StZeroServoY.SlShift) >> 0)>>MSB ) );
 	DMIOWrite32( E2P_WDAT02, (UINT8)( ((StZeroServoY.SlGcora) >>16)>>LSB ) );
@@ -785,14 +785,14 @@ UINT8	WrZeroServoData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 4 );
-		}
+			return( 4 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
-
+	
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -801,7 +801,7 @@ UINT8	WrZeroServoData( void )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -814,8 +814,8 @@ UINT8	WrZeroServoData( void )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -832,8 +832,8 @@ UINT8	WrZeroServoData( void )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	return( 0 );
 }
 
@@ -844,7 +844,7 @@ UINT8	WrZeroServoData( void )
 // Retun Value		: 0:OK, 1:NG
 // Argment Value	: SelectAct
 // Explanation		: Flash Write Af paramter Function
-// History			: First edition
+// History			: First edition 						
 //********************************************************************************
 UINT8	WrAfParameter( UINT8 SelectAct )
 {
@@ -853,7 +853,7 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	UINT32 ReadVerify, Parity;
 	AF_PARA* AfParaPtr;
 	// Select parameter
-
+	
 	if( SelectAct == ACT_SO2820 ){
 		AfParaPtr = (AF_PARA*)&SO2820_OpenAfParameter;
 	}else if( SelectAct == ACT_SO3600 ){
@@ -867,12 +867,12 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
 
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
 
-//	DMIOWrite32( E2P_WDAT00,  );	// IDSEL
+//	DMIOWrite32( E2P_WDAT00,  );	// IDSEL	
 	DMIOWrite32( E2P_WDAT01, (UINT8)( AfParaPtr->DrvDir )); 					// Af driver direction
 	DMIOWrite32( E2P_WDAT02, (UINT8)((AfParaPtr->Rrmd1ToMacro)>>LSB ) ); 	// Af rrmd1 para to macro
 	DMIOWrite32( E2P_WDAT03, (UINT8)((AfParaPtr->Rrmd1ToMacro)>>MSB ) );
@@ -887,14 +887,14 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -903,7 +903,7 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -916,8 +916,8 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -933,15 +933,15 @@ UINT8	WrAfParameter( UINT8 SelectAct )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+		
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	DMIOWrite32( DRVCH3SEL,				(UINT32)AfParaPtr->DrvDir ); 					// Af driver direction
 	RamWrite32A( OLAF_COEF_FSTVAL0,		((UINT32)AfParaPtr->Rrmd1ToMacro)<<16  ); 		// Af rrmd1 para to macro
 	RamWrite32A( OLAF_COEF_FSTVAL1,		((UINT32)AfParaPtr->Rrmd1ToInfini)<<16 ); 		// Af rrmd1 para to inf
 	RamWrite32A( OLAF_COEF_FSTVAL2, 	(UINT32)AfParaPtr->Freq ); 						// Af freq
 	RamWrite32A( OLAF_DMB_FT, 			(UINT32)AfParaPtr->Freq ); 						// Af freq
-
+	
 	return(ans);
 }
 
@@ -961,25 +961,25 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	double		*pPosX, *pPosY;
 	UINT32	PosDifX, PosDifY;
 	DSPVER Info;
-
+	
 	// Read the Status & Update
 	BurstReadE2Prom( EEPROM_Calibration_Status_LSB, UcReadVal, 2 );
 	if( UcMode ){
-		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~HLLN_CALB_FLG) ;
+		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~HLLN_CALB_FLG) ; 
 	}else{
-		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) | (HLLN_CALB_FLG) ;
+		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) | (HLLN_CALB_FLG) ; 
 	}
-
+	
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
-
+	
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 //	DMIOWrite32( E2P_WDAT00, 0xF7 );										// IDSEL
 	DMIOWrite32( E2P_WDAT08, (UINT8)((UlReadVal)>>LSB ) ); // Calibration Status
 	DMIOWrite32( E2P_WDAT09, (UINT8)((UlReadVal)>>MSB ) );
@@ -990,19 +990,19 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
-
+	
 	if( GetInfomationAfterDownload( &Info ) != 0) return( EXE_ERROR );
 //------------------------------------------------------------------------------------------------
-// Page 4 (0x40-0x4F)
+// Page 4 (0x40-0x4F) 
 //------------------------------------------------------------------------------------------------
 		DMIOWrite32( E2P_ADR, 0x40 );	// Start Address
 		DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+		
 	if( UcMode ){
 
 		if( Info.ActType == ACT_SO2820 ){
@@ -1028,7 +1028,7 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	//	DMIOWrite32( E2P_WDAT06, (UINT8)(  ) );
 	//	DMIOWrite32( E2P_WDAT07, (UINT8)(  ) );
 		DMIOWrite32( E2P_WDAT08, (UINT8)( (UINT32)(*pPosX * 10)>>LSB ) );				// POS1 X
-		DMIOWrite32( E2P_WDAT09, (UINT8)( (UINT32)(*pPosX * 10)>>MSB ) );	pPosX++;
+		DMIOWrite32( E2P_WDAT09, (UINT8)( (UINT32)(*pPosX * 10)>>MSB ) );	pPosX++;	
 		DMIOWrite32( E2P_WDAT10, (UINT8)( (UINT32)(*pPosY * 10)>>LSB ) );				// POS1 Y
 		DMIOWrite32( E2P_WDAT11, (UINT8)( (UINT32)(*pPosY * 10)>>MSB ) );	pPosY++;
 		DMIOWrite32( E2P_WDAT12, (UINT8)( (UINT32)(*pPosX * 10)>>LSB ) );				// POS2 X
@@ -1037,13 +1037,13 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 		DMIOWrite32( E2P_WDAT15, (UINT8)( (UINT32)(*pPosY * 10)>>MSB ) );	pPosY++;
 	}else{
 		DMIOWrite32( E2P_WDAT08, (UINT8)0xFF );		// POS1 X
-		DMIOWrite32( E2P_WDAT09, (UINT8)0xFF );
+		DMIOWrite32( E2P_WDAT09, (UINT8)0xFF );		
 		DMIOWrite32( E2P_WDAT10, (UINT8)0xFF );		// POS1 Y
-		DMIOWrite32( E2P_WDAT11, (UINT8)0xFF );
+		DMIOWrite32( E2P_WDAT11, (UINT8)0xFF );	
 		DMIOWrite32( E2P_WDAT12, (UINT8)0xFF );		// POS2 X
-		DMIOWrite32( E2P_WDAT13, (UINT8)0xFF );
+		DMIOWrite32( E2P_WDAT13, (UINT8)0xFF );	
 		DMIOWrite32( E2P_WDAT14, (UINT8)0xFF );		// POS2 Y
-		DMIOWrite32( E2P_WDAT15, (UINT8)0xFF );
+		DMIOWrite32( E2P_WDAT15, (UINT8)0xFF );	
 	}
 
 		DMIOWrite32( E2P_CMD, 2 ); 		// Re-Program
@@ -1052,18 +1052,18 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 		do{
 			if( UlCnt++ > 10 ){
 				UnlockCodeClear();							// Unlock Code Clear
-				return( 4 );
-			}
+				return( 4 );	
+			}	
 			RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 			RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 		}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// Page 5 (0x50-0x5F)
+// Page 5 (0x50-0x5F) 
 //------------------------------------------------------------------------------------------------
 			DMIOWrite32( E2P_ADR, 0x50 );	// Start Address
 			DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+			
 		if( UcMode ){
 			DMIOWrite32( E2P_WDAT00, (UINT8)( (UINT32)(*pPosX * 10)>>LSB ) );				// POS3 X
 			DMIOWrite32( E2P_WDAT01, (UINT8)( (UINT32)(*pPosX * 10)>>MSB ) );	pPosX++;
@@ -1105,18 +1105,18 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 			do{
 				if( UlCnt++ > 10 ){
 					UnlockCodeClear();							// Unlock Code Clear
-					return( 4 );
-				}
+					return( 4 );	
+				}	
 				RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 				RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 			}while ( (UlReadVal & 0x00000080) != 0 );
-
+			
 //------------------------------------------------------------------------------------------------
-// Page 6 (0x60-0x6F)
+// Page 6 (0x60-0x6F) 
 //------------------------------------------------------------------------------------------------
 		DMIOWrite32( E2P_ADR, 0x60 );	// Start Address
 		DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+		
 		if( UcMode ){
 			DMIOWrite32( E2P_WDAT00, (UINT8)( (UINT32)(*pPosX * 10)>>LSB ) );				// POS7 X
 			DMIOWrite32( E2P_WDAT01, (UINT8)( (UINT32)(*pPosX * 10)>>MSB ) );
@@ -1125,16 +1125,16 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 
 			if( Info.ActType == ACT_SO2820 ){
 			//(XYSWAP == 0)
-				PosDifX = (linval->dacX[1] - linval->dacX[0]);
-				PosDifY = (linval->dacY[1] - linval->dacY[0]);
+				PosDifX = (linval->dacX[1] - linval->dacX[0]); 
+				PosDifY = (linval->dacY[1] - linval->dacY[0]); 
 			}else if( Info.ActType == ACT_SO3600 ){
 			//(XYSWAP == 1)
-				PosDifY = (linval->dacX[1] - linval->dacX[0]);
-				PosDifX = (linval->dacY[1] - linval->dacY[0]);
+				PosDifY = (linval->dacX[1] - linval->dacX[0]); 
+				PosDifX = (linval->dacY[1] - linval->dacY[0]); 
 			}else{
 			//(XYSWAP == 1)
-				PosDifY = (linval->dacX[1] - linval->dacX[0]);
-				PosDifX = (linval->dacY[1] - linval->dacY[0]);
+				PosDifY = (linval->dacX[1] - linval->dacX[0]); 
+				PosDifX = (linval->dacY[1] - linval->dacY[0]); 
 			}
 
 			DMIOWrite32( E2P_WDAT04, (UINT8)( (UINT16)(PosDifX>>16)>>LSB ) );				// STEP X
@@ -1166,14 +1166,14 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 		do{
 			if( UlCnt++ > 10 ){
 				UnlockCodeClear();							// Unlock Code Clear
-				return( 4 );
-			}
+				return( 4 );	
+			}	
 			RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 			RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 		}while ( (UlReadVal & 0x00000080) != 0 );
-
+		
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -1182,7 +1182,7 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -1195,8 +1195,8 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -1213,8 +1213,8 @@ UINT8	WrHallLnData(  UINT8 UcMode, mlLinearityValue *linval )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	return( 0 );
 }
 
@@ -1231,25 +1231,25 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	UINT8 ans, data[CHECK_SUM_NUM], cnt, UcReadVal[2];
 	UINT32 ReadVerify, Parity;
 	DSPVER Info;
-
+	
 	// Read the Status & Update
 	BurstReadE2Prom( EEPROM_Calibration_Status_LSB, UcReadVal, 2 );
 	if( UcMode ){
-		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~MIXI_CALB_FLG) ;
+		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) & (~MIXI_CALB_FLG) ; 
 	}else{
-		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) | (MIXI_CALB_FLG) ;
+		UlReadVal = (((UINT32)UcReadVal[1]<<8) +UcReadVal[0]) | (MIXI_CALB_FLG) ; 
 	}
-
+	
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) return ( 1 );							// Unlock Code Set
-
+	
 //------------------------------------------------------------------------------------------------
-// Page 1 (0x10-0x1F)
+// Page 1 (0x10-0x1F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x10 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 //	DMIOWrite32( E2P_WDAT00, 0xF7 );										// IDSEL
 	DMIOWrite32( E2P_WDAT08, (UINT8)((UlReadVal)>>LSB ) ); // Calibration Status
 	DMIOWrite32( E2P_WDAT09, (UINT8)((UlReadVal)>>MSB ) );
@@ -1260,20 +1260,20 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 2 );
-		}
+			return( 2 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
-
+	
 	if( GetInfomationAfterDownload( &Info ) != 0) return( EXE_ERROR );
 
 //------------------------------------------------------------------------------------------------
-// Page 6 (0x60-0x6F)
+// Page 6 (0x60-0x6F) 
 //------------------------------------------------------------------------------------------------
 		DMIOWrite32( E2P_ADR, 0x60 );	// Start Address
 		DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+		
 	//	DMIOWrite32( E2P_WDAT00, (UINT8)( ) );
 	//	DMIOWrite32( E2P_WDAT01, (UINT8)( ) );
 	//	DMIOWrite32( E2P_WDAT02, (UINT8)( ) );
@@ -1282,35 +1282,35 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	//	DMIOWrite32( E2P_WDAT05, (UINT8)( ) );
 	//	DMIOWrite32( E2P_WDAT06, (UINT8)( ) );
 	//	DMIOWrite32( E2P_WDAT07, (UINT8)( ) );
-
+	
 	if( GetInfomationAfterDownload( &Info ) != 0) return( EXE_ERROR );
-
+	
 	if( Info.ActType == ACT_SO2820 ){
-
+		
 		mixval->hx45yL = (-1)*mixval->hx45yL;
 		mixval->hy45xL = (-1)*mixval->hy45xL;
-
+	
 		if(mixval->hy45yL<0){			/* for MeasurementLibrary 1.X */
 			mixval->hy45yL = (-1)*mixval->hy45yL;
 			mixval->hx45yL = (-1)*mixval->hx45yL;
 		}
 	}else if( Info.ActType == ACT_SO3600 ){
-
+		
 		mixval->hx45yL = (-1)*mixval->hx45yL;
 		mixval->hy45xL = (-1)*mixval->hy45xL;
-
+	
 		if(mixval->hy45yL<0){			/* for MeasurementLibrary 1.X */
 			mixval->hy45yL = (-1)*mixval->hy45yL;
 			mixval->hx45yL = (-1)*mixval->hx45yL;
 		}
-	}
+	} 
 //*****************************************************//
 //	if( XYSTPDIR == 0x10 || XYSTPDIR == 0x01  ){
 //		mixval->hx45yL = (-1)*mixval->hx45yL;
 //		mixval->hy45xL = (-1)*mixval->hy45xL;
 //	}
 //****************************************************//
-
+	
 	if( UcMode ){
 		if( Info.ActType == ACT_SO2820 ){
 			/* XYSWAP == 0 */
@@ -1360,14 +1360,14 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 		do{
 			if( UlCnt++ > 10 ){
 				UnlockCodeClear();							// Unlock Code Clear
-				return( 4 );
-			}
+				return( 4 );	
+			}	
 			RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 			RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 		}while ( (UlReadVal & 0x00000080) != 0 );
-
+		
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 		DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 		DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
@@ -1411,16 +1411,16 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 		do{
 			if( UlCnt++ > 10 ){
 				UnlockCodeClear();							// Unlock Code Clear
-				return( 4 );
-			}
+				return( 4 );	
+			}	
 			RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 			RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 		}while ( (UlReadVal & 0x00000080) != 0 );
-
+		
 //	}
-
+	
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -1429,7 +1429,7 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -1442,8 +1442,8 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	do{
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -1460,8 +1460,8 @@ UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval )
 	}
 	ReadE2Prom( CHECK_SUM_ADR, &cnt );
 	Parity = cnt;
-	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );
-
+	if( (UINT8)ReadVerify != (UINT8)Parity)	return( 6 );  
+	
 	return( 0 );
 }
 #endif //((SELECT_VENDOR & 0x80 ) != 0x80)
@@ -1481,7 +1481,7 @@ UINT8	WrOptOffsetData( void )
 
 	UINT32	UlHxoff;
 	UINT32	UlHyoff;
-
+	
 	RamRead32A( ZeroServoRAM_X_OUT , &UlHxoff ) ;	// ZeroServoRAM_X_OUT // 0x03BC
 	RamRead32A( ZeroServoRAM_Y_OUT , &UlHyoff ) ;	// ZeroServoRAM_Y_OUT // 0x03D4
 //	UlHxoff = 0xFFFFFFFF;
@@ -1489,7 +1489,7 @@ UINT8	WrOptOffsetData( void )
 
 TRACE("UlHxoff = %08X\n", UlHxoff);
 TRACE("UlHyoff = %08X\n", UlHyoff);
-
+	
 	// Flash write€”õ
 	ans = UnlockCodeSet();
 	if ( ans != 0 ) {
@@ -1498,11 +1498,11 @@ TRACE("UlHyoff = %08X\n", UlHyoff);
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 2 (0x72-0x75)
+// Page 2 (0x72-0x75) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 		// FLG CLR
-
+	
 	DMIOWrite32( E2P_WDAT02, (UINT8)((UlHxoff)>>(16+LSB) ) );   // optical center X
 	DMIOWrite32( E2P_WDAT03, (UINT8)((UlHxoff)>>(16+MSB) ) );
 	DMIOWrite32( E2P_WDAT04, (UINT8)((UlHyoff)>>(16+LSB) ) ); 	// optical center Y
@@ -1515,14 +1515,14 @@ TRACE("UlHyoff = %08X\n", UlHyoff);
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
 TRACE("Error 2 \n");
-			return( 3 );
-		}
+			return( 3 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
 
 //------------------------------------------------------------------------------------------------
-// CheckSum Creating
+// CheckSum Creating 
 //------------------------------------------------------------------------------------------------
 	BurstReadE2Prom( EEPROM_ONSEMI_IDSEL, data, CHECK_SUM_NUM );
 	Parity = 0;
@@ -1531,7 +1531,7 @@ TRACE("Error 2 \n");
 	}
 
 //------------------------------------------------------------------------------------------------
-// Page 7 (0x70-0x7F)
+// Page 7 (0x70-0x7F) 
 //------------------------------------------------------------------------------------------------
 	DMIOWrite32( E2P_ADR, 0x70 );	// Start Address
 	DMIOWrite32( E2P_DFG, 0 ); 				// FLG CLR
@@ -1545,8 +1545,8 @@ TRACE("Error 2 \n");
 		if( UlCnt++ > 10 ){
 			UnlockCodeClear();							// Unlock Code Clear
 TRACE("Error 3 \n");
-			return( 5 );
-		}
+			return( 5 );	
+		}	
 		RamWrite32A( CMD_IO_ADR_ACCESS , E2P_INT );
 		RamRead32A( CMD_IO_DAT_ACCESS, &UlReadVal );
 	}while ( (UlReadVal & 0x00000080) != 0 );
@@ -1564,10 +1564,10 @@ TRACE("Error 3 \n");
 	Parity = cnt;
 	if( (UINT8)ReadVerify != (UINT8)Parity){
 TRACE("Error 4 \n");
-			return( 6 );
+			return( 6 );  
 	}
-
+	
 TRACE("Pass All \n");
 	return( 0 );
 
-}
+} 

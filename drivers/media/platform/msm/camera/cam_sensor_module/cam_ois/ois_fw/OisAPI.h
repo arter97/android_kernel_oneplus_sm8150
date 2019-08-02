@@ -5,10 +5,10 @@
 //		History			: First edition						2016.03.15 K.abe
 //********************************************************************************
 //****************************************************
-//	API FUNCTION LIST
+//	API FUNCTION LIST	
 //****************************************************
 /* Program Download & Start */
-extern void RemapMain( void );							// make download code start.
+extern void RemapMain( void );							// make download code start. 
 extern unsigned char SelectDownload( UINT8 GyroSelect, UINT8 ActSelect, UINT8 MasterSlave );	// download
 
 /* Code information check such as version */
@@ -37,7 +37,7 @@ extern UINT8 SetAngleCorrection( float DegreeGap, UINT8 SelectAct, unsigned char
 extern void	SetGyroAccelCoef( UINT8 );
 
 /* AF position Control [mandatory] */
-extern void		SetTregAf( UINT16 UsTregAf );			// Bi-direction :  Min:000h Max:7FFh (11bit)
+extern void		SetTregAf( UINT16 UsTregAf );			// Bi-direction :  Min:000h Max:7FFh (11bit) 
 
 /* Status Read and OIS enable [mandatory] */
 extern	UINT8	RdStatus( UINT8 UcStBitChk );			// Status Read whether initialization finish or not.
@@ -45,10 +45,10 @@ extern	void	OisEna( void );							// OIS Enable Function
 
 /* Others [option] */
 extern	UINT8	RtnCen( UINT8	UcCmdPar ) ;			// Return to Center Function. Hall servo on/off
-extern	UINT8	ZscCnt( UINT8 ) ;						// Zero servo control
+extern	UINT8	ZscCnt( UINT8 ) ;						// Zero servo control 
 extern	UINT8	AfStbyRls( void );						// Af Standby release Command Function
 extern	void	SetPanTiltMode( UINT8 UcPnTmod );		// default ON.
-extern  void	SetSinWavePara( UINT8 , UINT8 ) ;		// Circle movement
+extern  void	SetSinWavePara( UINT8 , UINT8 ) ;		// Circle movement 
 
 extern	UINT8	RunHea( void ) ;						// Hall Examination of Acceptance
 #if ((SELECT_VENDOR & 0x80 ) != 0x80)
@@ -91,3 +91,5 @@ extern UINT8	WrMixCalData(  UINT8 UcMode, mlMixingValue *mixval );		// upload cr
 /* NOTEST */
 //extern UINT8 	NotestMain( void );						// for NOTEST (E2prom erase & data set)
 //extern	void	TimPro( void );							// for NOTEST (OSC measurement function for 1msec interruption)
+
+
