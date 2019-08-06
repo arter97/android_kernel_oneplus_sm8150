@@ -86,10 +86,7 @@
 		((x) == SDE_RM_TOPOLOGY_DUALPIPE_3DMERGE) || \
 		((x) == SDE_RM_TOPOLOGY_DUALPIPE_3DMERGE_DSC))
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
-#define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
-
-extern char dsi_panel_name;
+extern bool is_s6e3hc2;
 
 /**
  * enum sde_enc_rc_events - events for resource control state machine
@@ -1976,12 +1973,10 @@ static int _sde_encoder_update_rsc_client(
 	    (rsc_config->prefill_lines != prefill_lines) ||
 	    (rsc_config->jitter_numer != mode_info.jitter_numer) ||
 	    (rsc_config->jitter_denom != mode_info.jitter_denom)) {
-		if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+		if (is_s6e3hc2)
 			rsc_config->fps = 90;
-		}
-		else {
+		else
 			rsc_config->fps = mode_info.frame_rate;
-		}
 		rsc_config->vtotal = mode_info.vtotal;
 		rsc_config->prefill_lines = prefill_lines;
 		rsc_config->jitter_numer = mode_info.jitter_numer;
@@ -4742,8 +4737,7 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	if (sde_enc->cur_master && !sde_enc->cur_master->cont_splash_enabled)
 		sde_configure_qdss(sde_enc, sde_enc->cur_master->hw_qdss,
 				sde_enc->cur_master, sde_kms->qdss_enabled);
-	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2)
-		{
+	if (is_s6e3hc2) {
 		if (disp_info->intf_type == DRM_MODE_CONNECTOR_DSI && !_sde_encoder_is_dsc_enabled(drm_enc)) {
 				pr_err("DSC is disabled\n");
 				if (sde_enc && sde_enc->phys_encs[0] && sde_enc->phys_encs[0]->connector) {
