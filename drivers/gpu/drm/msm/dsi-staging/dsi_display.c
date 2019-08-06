@@ -224,7 +224,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		rc = -EINVAL;
 		goto error;
 	}
-if (strcmp(dsi_display->panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0){
+if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3FC2X01){
 	if (bl_lvl != 0 && panel->bl_config.bl_level == 0){
 			if (panel->naive_display_p3_mode) {
 				mdelay(20);
@@ -261,7 +261,7 @@ if (strcmp(dsi_display->panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") ==
 
 }
 
-	if (strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 		if (bl_lvl != 0 && panel->bl_config.bl_level == 0){
 			if (panel->naive_display_p3_mode) {
 				mdelay(20);
@@ -339,12 +339,11 @@ if (strcmp(dsi_display->panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") ==
 error:
 	mutex_unlock(&panel->panel_lock);
 
-	if((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0
-		|| strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0) && (0 == SERIAL_NUMBER_flag)) {
+	if (dsi_display->panel->hw_type != DSI_PANEL_DEFAULT && (0 == SERIAL_NUMBER_flag)) {
 		dsi_display_get_serial_number_AT(connector);
 	}
 
-	if ((gamma_read_flag < 2) && (strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0)) {
+	if ((gamma_read_flag < 2) && dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 		if (gamma_read_flag < 1) {
 			gamma_read_flag++;
 		}
@@ -923,7 +922,7 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 	}
 	mode = display->panel->cur_mode;
 	panel = display->panel;
-	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0){
+	if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2){
 		count = mode->priv_info->cmd_sets[DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_ON].count;
 		if (!count) {
 			pr_err("This panel does not read register\n");
@@ -1064,7 +1063,7 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
         else {
             rc = 1;
         }
-}else if(strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0){
+}else if(panel->hw_type == DSI_PANEL_SAMSUNG_S6E3FC2X01){
 
 		count = mode->priv_info->cmd_sets[DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_ON].count;
 		if (!count) {
@@ -8413,11 +8412,8 @@ int dsi_display_read_serial_number(struct dsi_display *dsi_display,
 
 	mode = panel->cur_mode;
 
-	if (strcmp
-	    (dsi_display->panel->name,
-	     "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2)
 		rc = dsi_panel_tx_cmd_set_op(panel, DSI_CMD_SET_LCDINFO_PRE);
-	}
 
 	cmds = mode->priv_info->cmd_sets[DSI_CMD_SET_PANEL_SERIAL_NUMBER].cmds;
 	if (cmds->last_command) {
@@ -8433,9 +8429,7 @@ int dsi_display_read_serial_number(struct dsi_display *dsi_display,
 	if (rc <= 0)
 		pr_err("Failed to get panel serial number, rc=%d\n", rc);
 
-	if (strcmp
-	    (dsi_display->panel->name,
-	     "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 		flags = 0;
 		cmds = mode->priv_info->cmd_sets[DSI_CMD_SET_STAGE_INFO].cmds;
 		if (cmds->last_command) {
@@ -8784,11 +8778,9 @@ int dsi_display_get_stage_info(struct drm_connector *connector)
 
 	pr_err("%s end\n", __func__);
 
-	if (strcmp
-	    (dsi_display->panel->name,
-	     "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2)
 		return dsi_display->panel->panel_stage_info;
-	} else
+	else
 		return 0xFF;
 }
 
@@ -8811,11 +8803,9 @@ int dsi_display_get_production_info(struct drm_connector *connector)
 
 	pr_err("%s end\n", __func__);
 
-	if (strcmp
-	    (dsi_display->panel->name,
-	     "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2)
 		return dsi_display->panel->panel_production_info;
-	} else
+	else
 		return 0xFF;
 }
 
@@ -9055,13 +9045,7 @@ int dsi_display_set_hbm_brightness(struct drm_connector *connector, int level)
 
 	panel = dsi_display->panel;
 
-	if ((strcmp
-	     (dsi_display->panel->name,
-	      "samsung dsc cmd mode oneplus dsi panel") != 0)
-	    &&
-	    (strcmp
-	     (dsi_display->panel->name,
-	      "samsung s6e3fc2x01 cmd mode dsi panel") != 0)) {
+	if (dsi_display->panel->hw_type == DSI_PANEL_DEFAULT) {
 		dsi_display->panel->hbm_brightness = 0;
 		return 0;
 	}
@@ -9758,20 +9742,12 @@ int dsi_display_set_aod_mode(struct drm_connector *connector, int level)
 
 	panel = dsi_display->panel;
 	panel->aod_mode = level;
-	if (strcmp
-	    (dsi_display->panel->name,
-	     "samsung s6e3fc2x01 cmd mode dsi panel") == 0) {
-		printk(KERN_ERR "dsi_display_set_aod_mode\n");
-	} else
-	    if (strcmp
-		(dsi_display->panel->name,
-		 "samsung dsc cmd mode oneplus dsi panel") == 0) {
-		printk(KERN_ERR
-		       "oneplus SDC 2K OLED dsi_display_set_aod_mode\n");
-	} else {
+
+	if (dsi_display->panel->hw_type == DSI_PANEL_DEFAULT) {
 		dsi_display->panel->aod_mode = 0;
 		return 0;
 	}
+
 	mutex_lock(&dsi_display->display_lock);
 	if (!dsi_panel_initialized(panel)) {
 		goto error;

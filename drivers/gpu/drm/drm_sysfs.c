@@ -32,9 +32,9 @@
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
 extern char gamma_para[2][413];
-extern char dsi_panel_name;
+extern bool is_s6e3hc2;
+
 /**
  * DOC: overview
  *
@@ -750,7 +750,7 @@ static ssize_t gamma_test_show(struct device *dev,
 		pr_err("Failed to update panel id and gamma para!\n");
 	}
 
-	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+	if (is_s6e3hc2) {
 		if ((gamma_para[0][18] == 0xFF) && (gamma_para[0][19] == 0xFF) && (gamma_para[0][20] == 0xFF)) {
 			gamma_test_flag = 0;
 		}

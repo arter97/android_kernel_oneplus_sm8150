@@ -84,9 +84,7 @@
 		((x) == SDE_RM_TOPOLOGY_DUALPIPE_3DMERGE) || \
 		((x) == SDE_RM_TOPOLOGY_DUALPIPE_3DMERGE_DSC))
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
-#define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
-extern char dsi_panel_name;
+extern bool is_s6e3hc2;
 
 /**
  * enum sde_enc_rc_events - events for resource control state machine
@@ -1935,12 +1933,10 @@ static int _sde_encoder_update_rsc_client(
 	    (rsc_config->prefill_lines != prefill_lines) ||
 	    (rsc_config->jitter_numer != mode_info.jitter_numer) ||
 	    (rsc_config->jitter_denom != mode_info.jitter_denom)) {
-		if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+		if (is_s6e3hc2)
 			rsc_config->fps = 90;
-		}
-		else {
+		else
 			rsc_config->fps = mode_info.frame_rate;
-		}
 		rsc_config->vtotal = mode_info.vtotal;
 		rsc_config->prefill_lines = prefill_lines;
 		rsc_config->jitter_numer = mode_info.jitter_numer;
