@@ -222,7 +222,6 @@ struct dsi_panel {
 	struct drm_panel_esd_config esd_config;
 
 	struct dsi_parser_utils utils;
-	char buf_id[32];
 	int panel_year;
 	int panel_mon;
 	int panel_day;
