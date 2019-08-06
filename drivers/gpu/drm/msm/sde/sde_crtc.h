@@ -34,11 +34,7 @@
 /* Expand it to 2x for handling atleast 2 connectors safely */
 #define SDE_CRTC_FRAME_EVENT_SIZE	(4 * 2)
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
-#define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
-#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
-
-extern char dsi_panel_name;
+extern int dsi_panel_hw_type;
 
 /**
  * enum sde_crtc_client_type: crtc client type

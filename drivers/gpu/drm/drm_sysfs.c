@@ -34,11 +34,11 @@
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
-#define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
-#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
+#define DSI_PANEL_SAMSUNG_S6E3HC2 1
+#define DSI_PANEL_SAMSUNG_S6E3FC2X01 2
+#define DSI_PANEL_SAMSUNG_SOFEF03F_M 3
 extern char gamma_para[2][413];
-extern char dsi_panel_name;
+extern int dsi_panel_hw_type;
 /**
  * DOC: overview
  *
@@ -862,7 +862,7 @@ static ssize_t gamma_test_show(struct device *dev,
 	int panel_stage_info = 0;
 	int pvt_mp_panel_flag = 0;
 
-	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+	if (dsi_panel_hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 		if ((gamma_para[0][18] == 0xFF) && (gamma_para[0][19] == 0xFF) && (gamma_para[0][20] == 0xFF)) {
 			gamma_test_flag = 0;
 		}
@@ -917,7 +917,7 @@ static ssize_t panel_serial_number_show(struct device *dev,
 	panel_stage_info = dsi_display_get_stage_info(connector);
 	panel_production_info = dsi_display_get_production_info(connector);
 
-	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+	if (dsi_panel_hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 		if (panel_code_info == 0xED) {
 			if (panel_stage_info == 0x02)
 				stage_string_info = "STAGE: EVT2";
@@ -987,7 +987,7 @@ static ssize_t panel_serial_number_show(struct device *dev,
 						panel_stage_info, panel_production_info);
 		}
 
-	} else if (dsi_panel_name == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
+	} else if (dsi_panel_hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
 		if (panel_stage_info == 0x01)
 			stage_string_info = "STAGE: T0";
 		else if (panel_stage_info == 0x21)
