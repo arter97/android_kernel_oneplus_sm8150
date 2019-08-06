@@ -46,12 +46,6 @@
 #define TOPOLOGY_SET_LEN 3
 #define MAX_TOPOLOGY 5
 
-#define DSI_PANEL_SAMSUNG_S6E3HC2 0
-#define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
-#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
-
-#define DSI_PANEL_DEFAULT_LABEL  "Default dsi panel"
-
 #define DEFAULT_MDP_TRANSFER_TIME 14000
 
 #define DEFAULT_PANEL_JITTER_NUMERATOR		2
@@ -261,9 +255,7 @@ const char *gamma_cmd_set_map[DSI_GAMMA_CMD_SET_MAX] = {
 };
 
 int gamma_read_flag = GAMMA_READ_SUCCESS;
-
-char dsi_panel_name = DSI_PANEL_SAMSUNG_S6E3FC2X01;
-EXPORT_SYMBOL(dsi_panel_name);
+int dsi_panel_hw_type = DSI_PANEL_SAMSUNG_S6E3FC2X01;
 
 int dsi_dsc_create_pps_buf_cmd(struct msm_display_dsc_info *dsc, char *buf,
 				int pps_id)
@@ -3848,20 +3840,23 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 
 	panel->name = utils->get_property(utils->data,
 				"qcom,mdss-dsi-panel-name", NULL);
+
 	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) {
-		dsi_panel_name = DSI_PANEL_SAMSUNG_S6E3HC2;
+		panel->hw_type = DSI_PANEL_SAMSUNG_S6E3HC2;
+		dsi_panel_hw_type = DSI_PANEL_SAMSUNG_S6E3HC2;
 		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_S6E3HC2");
-	}
-	else if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
-		dsi_panel_name = DSI_PANEL_SAMSUNG_SOFEF03F_M;
-		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_SOFEF03F_M");
-	}
-	else if (strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0) {
-		dsi_panel_name = DSI_PANEL_SAMSUNG_S6E3FC2X01;
+	} else if (strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0) {
+		panel->hw_type = DSI_PANEL_SAMSUNG_S6E3FC2X01;
+		dsi_panel_hw_type = DSI_PANEL_SAMSUNG_S6E3FC2X01;
 		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_S6E3FC2X01");
-	}
-	else if (!panel->name)
+	} else if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		panel->hw_type = DSI_PANEL_SAMSUNG_SOFEF03F_M;
+		dsi_panel_hw_type = DSI_PANEL_SAMSUNG_SOFEF03F_M;
+		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_S6E3FC2X01");
+	} else if (!panel->name) {
+		panel->hw_type = DSI_PANEL_DEFAULT;
 		panel->name = DSI_PANEL_DEFAULT_LABEL;
+	}
 
 	/*
 	 * Set panel type to LCD as default.
@@ -4805,7 +4800,8 @@ int dsi_panel_switch(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	if ((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) && (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0))
+	if (panel->hw_type != DSI_PANEL_SAMSUNG_S6E3HC2 &&
+	    panel->hw_type != DSI_PANEL_SAMSUNG_SOFEF03F_M)
 		return rc;
 
 	mutex_lock(&panel->panel_lock);
@@ -4816,7 +4812,8 @@ int dsi_panel_switch(struct dsi_panel *panel)
 		       panel->name, rc);
 	pr_err("Send DSI_CMD_SET_TIMING_SWITCH cmds\n");
 	pr_err("panel->cur_mode->timing->h_active = %d\n", panel->cur_mode->timing.h_active);
-	if((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) && (gamma_read_flag == GAMMA_READ_SUCCESS)) {
+
+	if (gamma_read_flag == GAMMA_READ_SUCCESS) {
 		if (mode_fps == 90) {
 			rc = dsi_panel_tx_gamma_cmd_set(panel, DSI_GAMMA_CMD_SET_SWITCH_90HZ);
 			pr_err("Send DSI_GAMMA_CMD_SET_SWITCH_90HZ cmds\n");
@@ -4884,7 +4881,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	}
 	panel->need_power_on_backlight = true;
 
-	if ((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) && (gamma_read_flag == GAMMA_READ_SUCCESS)) {
+	if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2 && (gamma_read_flag == GAMMA_READ_SUCCESS)) {
 		if (mode_fps == 60) {
 			rc = dsi_panel_tx_gamma_cmd_set(panel, DSI_GAMMA_CMD_SET_SWITCH_60HZ);
 			pr_err("Send DSI_GAMMA_CMD_SET_SWITCH_60HZ cmds\n");

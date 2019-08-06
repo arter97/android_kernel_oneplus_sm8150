@@ -44,6 +44,14 @@
 #define GAMMA_READ_SUCCESS 1
 #define GAMMA_READ_ERROR 0
 
+enum dsi_panel_hw_type {
+	DSI_PANEL_DEFAULT = 0,
+	DSI_PANEL_SAMSUNG_S6E3HC2 = 1,
+	DSI_PANEL_SAMSUNG_S6E3FC2X01 = 2,
+	DSI_PANEL_SAMSUNG_SOFEF03F_M = 3
+};
+#define DSI_PANEL_DEFAULT_LABEL  "Default dsi panel"
+
 extern u32 mode_fps;
 extern int gamma_read_flag;
 extern int tp_1v8_power;
@@ -282,6 +290,7 @@ struct dsi_panel {
 	bool sync_broadcast_en;
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
+	enum dsi_panel_hw_type hw_type;
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
