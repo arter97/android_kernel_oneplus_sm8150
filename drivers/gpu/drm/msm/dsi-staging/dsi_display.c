@@ -8549,7 +8549,6 @@ int dsi_display_get_serial_number(struct drm_connector *connector)
 		}
 		memset(buf, 0, sizeof(buf));
 		dsi_display_read_serial_number(dsi_display, panel, buf, len);
-		memcpy(panel->buf_id, buf, 32);
 		panel_year =
 		    2011 + ((buf[panel->panel_year_index - 1] >> 4) & 0x0f);
 		if (panel_year == 2011) {
@@ -8874,8 +8873,6 @@ int dsi_display_get_serial_number_AT(struct drm_connector *connector)
 		}
 		memset(buf, 0, sizeof(buf));
 		dsi_display_read_serial_number(dsi_display, panel, buf, len);
-		memcpy(panel->buf_id, buf, 32);
-
 		panel_year =
 		    2011 + ((buf[panel->panel_year_index - 1] >> 4) & 0x0f);
 		if (panel_year == 2011) {
