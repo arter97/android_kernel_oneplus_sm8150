@@ -539,34 +539,30 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 	struct rmnet_perf *perf = rmnet_perf_config_get_perf();
 	u16 pkt_len;
 	bool skip_hash = false;
-	bool jumbo = false;
+	bool mismatch = false;
 
 	memset(pkt_info, 0, sizeof(*pkt_info));
+	pkt_len = frame_len - sizeof(struct rmnet_map_header) - trailer_len;
 	pkt_info->ep = ep;
 	pkt_info->ip_proto = (*payload & 0xF0) >> 4;
 	if (pkt_info->ip_proto == 4) {
 		struct iphdr *iph = (struct iphdr *)payload;
+		u16 ip_len = ntohs(iph->tot_len);
 
 		pkt_info->iphdr.v4hdr = iph;
 		pkt_info->trans_proto = iph->protocol;
 		pkt_info->header_len = iph->ihl * 4;
 		skip_hash = !!(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET));
-		pkt_len = ntohs(iph->tot_len);
+		mismatch = pkt_len != ip_len;
 	} else if (pkt_info->ip_proto == 6) {
 		struct ipv6hdr *iph = (struct ipv6hdr *)payload;
+		u16 ip_len = ntohs(iph->payload_len) + sizeof(*iph);
 
 		pkt_info->iphdr.v6hdr = iph;
 		pkt_info->trans_proto = iph->nexthdr;
 		pkt_info->header_len = sizeof(*iph);
 		skip_hash = iph->nexthdr == NEXTHDR_FRAGMENT;
-		if (ntohs(iph->payload_len)) {
-			pkt_len = ntohs(iph->payload_len) +
-				  sizeof(struct ipv6hdr);
-		} else {
-			jumbo = true;
-			pkt_len = frame_len - sizeof(struct rmnet_map_header) -
-				  trailer_len;
-		}
+		mismatch = pkt_len != ip_len;
 	} else {
 		return;
 	}
@@ -592,7 +588,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
 
-		if (jumbo) {
+		if (mismatch) {
 			rmnet_perf_opt_flush_flow_by_hash(perf,
 							  pkt_info->hash_key);
 			goto flush;
@@ -613,7 +609,7 @@ void rmnet_perf_core_handle_packet_ingress(struct sk_buff *skb,
 		if (rmnet_perf_core_validate_pkt_csum(skb, pkt_info))
 			goto flush;
 
-		if (jumbo) {
+		if (mismatch) {
 			rmnet_perf_opt_flush_flow_by_hash(perf,
 							  pkt_info->hash_key);
 			goto flush;
