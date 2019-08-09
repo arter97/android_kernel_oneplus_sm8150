@@ -235,4 +235,6 @@ source "drivers/vibrator/Kconfig"
 
 source "coretech/Kconfig"
 
+source "techpack/data/drivers/Kconfig"
+
 endmenu
