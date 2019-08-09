@@ -24,19 +24,17 @@
 
 #include "execprog.h"
 
-#define DELAY_MS 100 // Do we really need this to be configurable?
-
-static char save_to[PATH_MAX] = CONFIG_EXECPROG_DST;
-module_param_string(save_to, save_to, PATH_MAX, 0644);
-
 /*
- * Set wait_for carefully.
+ * Set CONFIG_EXECPROG_WAIT_FOR carefully.
  *
- * It's assumed that if wait_for is ready,
- * the path to save_to is also ready for writing.
+ * It's assumed that if CONFIG_EXECPROG_WAIT_FOR is ready,
+ * the path to CONFIG_EXECPROG_DST is also ready for writing.
  */
-static char wait_for[PATH_MAX] = CONFIG_EXECPROG_WAIT_FOR;
-module_param_string(wait_for, wait_for, PATH_MAX, 0644);
+
+// Do we really need these to be configurable?
+#define DELAY_MS 100
+#define SAVE_DST CONFIG_EXECPROG_DST
+#define WAIT_FOR CONFIG_EXECPROG_WAIT_FOR
 
 static struct delayed_work execprog_work;
 static unsigned char* data;
@@ -62,7 +60,7 @@ static void execprog_worker(struct work_struct *work)
 {
 	struct path path;
 	struct file *file;
-	char *argv[] = { save_to, NULL };
+	char *argv[] = { SAVE_DST, NULL };
 	loff_t off = 0;
 	u32 pos = 0;
 	u32 diff;
@@ -70,23 +68,23 @@ static void execprog_worker(struct work_struct *work)
 
 	pr_info("worker started\n");
 
-	if (wait_for[0]) {
-		pr_info("waiting for %s\n", wait_for);
-		while (kern_path(wait_for, LOOKUP_FOLLOW, &path))
+	if (WAIT_FOR[0]) {
+		pr_info("waiting for %s\n", WAIT_FOR);
+		while (kern_path(WAIT_FOR, LOOKUP_FOLLOW, &path))
 			msleep(DELAY_MS);
 	} else {
 		pr_info("no file specified to wait for\n");
 	}
 
-	if (!save_to[0]) {
+	if (!SAVE_DST[0]) {
 		pr_err("no path specified for the binary to be saved!\n");
 		return;
 	}
 
 	pr_info("saving binary to userspace\n");
-	file = file_open(save_to, O_CREAT | O_WRONLY | O_TRUNC, 0755);
+	file = file_open(SAVE_DST, O_CREAT | O_WRONLY | O_TRUNC, 0755);
 	if (file == NULL) {
-		pr_err("failed to save to %s\n", save_to);
+		pr_err("failed to save to %s\n", SAVE_DST);
 		return;
 	}
 
