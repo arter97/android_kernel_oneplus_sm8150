@@ -68,18 +68,9 @@ static void execprog_worker(struct work_struct *work)
 
 	pr_info("worker started\n");
 
-	if (WAIT_FOR[0]) {
-		pr_info("waiting for %s\n", WAIT_FOR);
-		while (kern_path(WAIT_FOR, LOOKUP_FOLLOW, &path))
-			msleep(DELAY_MS);
-	} else {
-		pr_info("no file specified to wait for\n");
-	}
-
-	if (!SAVE_DST[0]) {
-		pr_err("no path specified for the binary to be saved!\n");
-		return;
-	}
+	pr_info("waiting for %s\n", WAIT_FOR);
+	while (kern_path(WAIT_FOR, LOOKUP_FOLLOW, &path))
+		msleep(DELAY_MS);
 
 	pr_info("saving binary to userspace\n");
 	file = file_open(SAVE_DST, O_CREAT | O_WRONLY | O_TRUNC, 0755);
