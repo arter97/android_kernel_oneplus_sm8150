@@ -85,6 +85,10 @@ static void execprog_worker(struct work_struct *work)
 
 	pr_info("saving binary to userspace\n");
 	file = file_open(save_to, O_CREAT | O_WRONLY | O_TRUNC, 0755);
+	if (file == NULL) {
+		pr_err("failed to save to %s\n", save_to);
+		return;
+	}
 
 	while (pos < size) {
 		diff = size - pos;
