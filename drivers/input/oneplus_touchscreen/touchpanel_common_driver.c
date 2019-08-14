@@ -5036,28 +5036,24 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
                     enable_irq(ts->irq);
                 }
             }
-          }else if (*blank == MSM_DRM_DYNAMICFPS_60) {  //60-90HZ LCD refresh switch
-			if (event == MSM_DRM_EARLY_EVENT_BLANK) {
-				mutex_lock(&ts->mutex);
-				if (!ts->is_suspended && (ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE)) {
-					ts->ts_ops->mode_switch(ts->chip_data, MODE_REFRESH_SWITCH, 0);
-				}
-				mutex_unlock(&ts->mutex);
-			}
-		} else if (*blank == MSM_DRM_DYNAMICFPS_90) {
-			if (event == MSM_DRM_EARLY_EVENT_BLANK) {
-				mutex_lock(&ts->mutex);
-				if (!ts->is_suspended && (ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE)) {
-					ts->ts_ops->mode_switch(ts->chip_data, MODE_REFRESH_SWITCH, 1);
-				}
-				mutex_unlock(&ts->mutex);
-			}	
-		}
+          }
     }
 
     return 0;
 }
 #endif
+
+void ts_switch_poll_rate(bool is_90)
+{
+	struct touchpanel_data *ts = g_tp;
+
+	if (ts->is_suspended || (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE))
+		return;
+
+	mutex_lock(&ts->mutex);
+	ts->ts_ops->mode_switch(ts->chip_data, MODE_REFRESH_SWITCH, is_90);
+	mutex_unlock(&ts->mutex);
+}
 
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
 void tp_i2c_suspend(struct touchpanel_data *ts)
