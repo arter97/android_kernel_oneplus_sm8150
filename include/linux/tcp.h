@@ -85,6 +85,7 @@ struct tcp_sack_block {
 
 /*These are used to set the sack_ok field in struct tcp_options_received */
 #define TCP_SACK_SEEN     (1 << 0)   /*1 = peer is SACK capable, */
+#define TCP_FACK_ENABLED  (1 << 1)   /*1 = FACK is enabled locally*/
 #define TCP_DSACK_SEEN    (1 << 2)   /*1 = DSACK was received from peer*/
 
 struct tcp_options_received {
@@ -190,7 +191,6 @@ struct tcp_sock {
 	u32	tsoffset;	/* timestamp offset */
 
 	struct list_head tsq_node; /* anchor in tsq_tasklet.head list */
-	struct list_head tsorted_sent_queue; /* time-sorted sent but un-SACKed skbs */
 
 	u32	snd_wl1;	/* Sequence for window update		*/
 	u32	snd_wnd;	/* The window we expect to receive	*/
@@ -205,13 +205,8 @@ struct tcp_sock {
 		u64 mstamp; /* (Re)sent time of the skb */
 		u32 rtt_us;  /* Associated RTT */
 		u32 end_seq; /* Ending TCP sequence of the skb */
-		u32 last_delivered; /* tp->delivered at last reo_wnd adj */
-		u8 reo_wnd_steps;   /* Allowed reordering window */
-#define TCP_RACK_RECOVERY_THRESH 16
-		u8 reo_wnd_persist:5, /* No. of recovery since last adj */
-		   dsack_seen:1, /* Whether DSACK seen after last adj */
-		   advanced:1,	 /* mstamp advanced since last lost marking */
-		   reord:1;	 /* reordering detected */
+		u8 advanced; /* mstamp advanced since last lost marking */
+		u8 reord;    /* reordering detected */
 	} rack;
 	u16	advmss;		/* Advertised MSS			*/
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
@@ -235,9 +230,6 @@ struct tcp_sock {
 		save_syn:1,	/* Save headers of SYN packet */
 		is_cwnd_limited:1;/* forward progress limited by snd_cwnd? */
 	u32	tlp_high_seq;	/* snd_nxt at the time of TLP retransmit. */
-
-	u64	tcp_wstamp_ns;	/* departure time for next sent data packet */
-	u64	tcp_clock_cache; /* cache last tcp_clock_ns() (see tcp_mstamp_refresh()) */
 
 /* RTT measurement */
 	u64	tcp_mstamp;	/* most recent packet received/sent */
@@ -291,6 +283,7 @@ struct tcp_sock {
 	u32	pushed_seq;	/* Last pushed seq, required to talk to windows */
 	u32	lost_out;	/* Lost packets			*/
 	u32	sacked_out;	/* SACK'd packets			*/
+	u32	fackets_out;	/* FACK'd packets			*/
 
 	struct hrtimer	pacing_timer;
 

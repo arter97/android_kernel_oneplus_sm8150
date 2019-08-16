@@ -294,7 +294,8 @@ tcp_ecn_fallback - BOOLEAN
 	Default: 1 (fallback enabled)
 
 tcp_fack - BOOLEAN
-	This is a legacy option, it has no effect anymore.
+	Enable FACK congestion avoidance and fast retransmission.
+	The value is not used, if tcp_sack is not enabled.
 
 tcp_fin_timeout - INTEGER
 	The length of time an orphaned (no longer referenced by any
@@ -458,10 +459,7 @@ tcp_recovery - INTEGER
 	features.
 
 	RACK: 0x1 enables the RACK loss detection for fast detection of lost
-	      retransmissions and tail drops. It also subsumes and disables
-	      RFC6675 recovery for SACK connections.
-	RACK: 0x2 makes RACK's reordering window static (min_rtt/4).
-	RACK: 0x4 disables RACK's DUPACK threshold heuristic
+	      retransmissions and tail drops.
 
 	Default: 0x1
 

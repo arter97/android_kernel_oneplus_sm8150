@@ -822,8 +822,7 @@ static int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 			return -EINVAL;
 		if (skb->len > cork->gso_size * UDP_MAX_SEGMENTS)
 			return -EINVAL;
-		if (skb->ip_summed != CHECKSUM_PARTIAL || is_udplite ||
-		    dst_xfrm(skb_dst(skb)))
+		if (skb->ip_summed != CHECKSUM_PARTIAL || is_udplite)
 			return -EIO;
 
 		skb_shinfo(skb)->gso_size = cork->gso_size;
@@ -960,7 +959,6 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	ipc.tx_flags = 0;
 	ipc.ttl = 0;
 	ipc.tos = -1;
-	ipc.sockc.transmit_time = 0;
 
 	getfrag = is_udplite ? udplite_getfrag : ip_generic_getfrag;
 

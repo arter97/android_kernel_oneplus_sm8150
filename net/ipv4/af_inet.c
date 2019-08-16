@@ -151,10 +151,6 @@ void inet_sock_destruct(struct sock *sk)
 	struct inet_sock *inet = inet_sk(sk);
 
 	__skb_queue_purge(&sk->sk_receive_queue);
-	if (sk->sk_rx_skb_cache) {
-		__kfree_skb(sk->sk_rx_skb_cache);
-		sk->sk_rx_skb_cache = NULL;
-	}
 	__skb_queue_purge(&sk->sk_error_queue);
 
 	sk_mem_reclaim(sk);
@@ -965,9 +961,7 @@ const struct proto_ops inet_stream_ops = {
 	.getsockopt	   = sock_common_getsockopt,
 	.sendmsg	   = inet_sendmsg,
 	.recvmsg	   = inet_recvmsg,
-#ifdef CONFIG_MMU
-	.mmap		   = tcp_mmap,
-#endif
+	.mmap		   = sock_no_mmap,
 	.sendpage	   = inet_sendpage,
 	.splice_read	   = tcp_splice_read,
 	.read_sock	   = tcp_read_sock,
@@ -979,7 +973,6 @@ const struct proto_ops inet_stream_ops = {
 	.compat_getsockopt = compat_sock_common_getsockopt,
 	.compat_ioctl	   = inet_compat_ioctl,
 #endif
-	.set_rcvlowat	   = tcp_set_rcvlowat,
 };
 EXPORT_SYMBOL(inet_stream_ops);
 

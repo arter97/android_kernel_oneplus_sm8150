@@ -120,7 +120,6 @@ enum {
 #define TCP_FASTOPEN_CONNECT	30	/* Attempt FastOpen with connect */
 #define TCP_ULP			31	/* Attach a ULP to a TCP connection */
 #define TCP_MD5SIG_EXT		32	/* TCP MD5 Signature with extensions */
-#define TCP_ZEROCOPY_RECEIVE	33
 
 struct tcp_repair_opt {
 	__u32	opt_code;
@@ -267,11 +266,4 @@ struct tcp_diag_md5sig {
 	__u8	tcpm_key[TCP_MD5SIG_MAXKEYLEN];
 };
 
-/* setsockopt(fd, IPPROTO_TCP, TCP_ZEROCOPY_RECEIVE, ...) */
-
-struct tcp_zerocopy_receive {
-	__u64 address;		/* in: address of mapping */
-	__u32 length;		/* in/out: number of bytes to map/mapped */
-	__u32 recv_skip_hint;	/* out: amount of bytes to skip */
-};
 #endif /* _UAPI_LINUX_TCP_H */

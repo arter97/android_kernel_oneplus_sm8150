@@ -619,7 +619,6 @@ typedef unsigned char *sk_buff_data_t;
  *	@nf_trace: netfilter packet trace flag
  *	@protocol: Packet protocol from driver
  *	@destructor: Destruct function
- *	@tcp_tsorted_anchor: list structure for TCP (tp->tsorted_sent_queue)
  *	@_nfct: Associated connection, if any (with nfctinfo bits)
  *	@nf_bridge: Saved data about a bridged frame - see br_netfilter.c
  *	@skb_iif: ifindex of device we arrived on
@@ -685,7 +684,7 @@ struct sk_buff {
 
 	union {
 		ktime_t		tstamp;
-		u64		skb_mstamp_ns; /* earliest departure time */
+		u64		skb_mstamp;
 	};
 	/*
 	 * This is the control buffer. It is free to use for every
@@ -695,14 +694,8 @@ struct sk_buff {
 	 */
 	char			cb[48] __aligned(8);
 
-	union {
-		struct {
-			unsigned long	_skb_refdst;
-			void		(*destructor)(struct sk_buff *skb);
-		};
-		struct list_head	tcp_tsorted_anchor;
-	};
-
+	unsigned long		_skb_refdst;
+	void			(*destructor)(struct sk_buff *skb);
 #ifdef CONFIG_XFRM
 	struct	sec_path	*sp;
 #endif

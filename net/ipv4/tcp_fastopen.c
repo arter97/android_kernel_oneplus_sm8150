@@ -179,6 +179,10 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 	struct sock *child;
 	bool own_req;
 
+	req->num_retrans = 0;
+	req->num_timeout = 0;
+	req->sk = NULL;
+
 	child = inet_csk(sk)->icsk_af_ops->syn_recv_sock(sk, skb, req, NULL,
 							 NULL, &own_req);
 	if (!child)
@@ -213,7 +217,12 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 	refcount_set(&req->rsk_refcnt, 2);
 
 	/* Now finish processing the fastopen child socket. */
-	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB);
+	inet_csk(child)->icsk_af_ops->rebuild_header(child);
+	tcp_init_congestion_control(child);
+	tcp_mtup_init(child);
+	tcp_init_metrics(child);
+	tcp_call_bpf(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB);
+	tcp_init_buffer_space(child);
 
 	tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
 

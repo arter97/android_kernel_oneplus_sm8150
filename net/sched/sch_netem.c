@@ -146,6 +146,7 @@ struct netem_sched_data {
  */
 struct netem_skb_cb {
 	psched_time_t	time_to_send;
+	ktime_t		tstamp_save;
 };
 
 static inline struct netem_skb_cb *netem_skb_cb(struct sk_buff *skb)
@@ -561,6 +562,7 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 		}
 
 		cb->time_to_send = now + delay;
+		cb->tstamp_save = skb->tstamp;
 		++q->counter;
 		tfifo_enqueue(skb, sch);
 	} else {
@@ -628,6 +630,7 @@ deliver:
 			qdisc_qstats_backlog_dec(sch, skb);
 			skb->next = NULL;
 			skb->prev = NULL;
+			skb->tstamp = netem_skb_cb(skb)->tstamp_save;
 			/* skb->dev shares skb->rbnode area,
 			 * we need to restore its value.
 			 */

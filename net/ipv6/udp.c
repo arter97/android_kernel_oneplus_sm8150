@@ -1094,8 +1094,7 @@ static int udp_v6_send_skb(struct sk_buff *skb, struct flowi6 *fl6,
 			return -EINVAL;
 		if (skb->len > cork->gso_size * UDP_MAX_SEGMENTS)
 			return -EINVAL;
-		if (skb->ip_summed != CHECKSUM_PARTIAL || is_udplite ||
-		    dst_xfrm(skb_dst(skb)))
+		if (skb->ip_summed != CHECKSUM_PARTIAL || is_udplite)
 			return -EIO;
 
 		skb_shinfo(skb)->gso_size = cork->gso_size;
@@ -1189,7 +1188,6 @@ int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	ipc6.dontfrag = -1;
 	ipc6.gso_size = up->gso_size;
 	sockc.tsflags = sk->sk_tsflags;
-	sockc.transmit_time = 0;
 
 	/* destination address check */
 	if (sin6) {

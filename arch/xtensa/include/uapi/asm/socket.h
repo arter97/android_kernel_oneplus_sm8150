@@ -116,7 +116,4 @@
 
 #define SO_ZEROCOPY		60
 
-#define SO_TXTIME		61
-#define SCM_TXTIME		SO_TXTIME
-
 #endif	/* _XTENSA_SOCKET_H */

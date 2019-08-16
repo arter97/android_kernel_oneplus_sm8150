@@ -453,7 +453,6 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 		newtp->snd_nxt = newtp->snd_up = treq->snt_isn + 1;
 
 		INIT_LIST_HEAD(&newtp->tsq_node);
-		INIT_LIST_HEAD(&newtp->tsorted_sent_queue);
 
 		tcp_init_wl(newtp, treq->rcv_isn);
 
@@ -466,6 +465,7 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 		newtp->packets_out = 0;
 		newtp->retrans_out = 0;
 		newtp->sacked_out = 0;
+		newtp->fackets_out = 0;
 		newtp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 		newtp->tlp_high_seq = 0;
 		newtp->lsndtime = tcp_jiffies32;
@@ -499,7 +499,10 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 						       keepalive_time_when(newtp));
 
 		newtp->rx_opt.tstamp_ok = ireq->tstamp_ok;
-		newtp->rx_opt.sack_ok = ireq->sack_ok;
+		if ((newtp->rx_opt.sack_ok = ireq->sack_ok) != 0) {
+			if (sysctl_tcp_fack)
+				tcp_enable_fack(newtp);
+		}
 		newtp->window_clamp = req->rsk_window_clamp;
 		newtp->rcv_ssthresh = req->rsk_rcv_wnd;
 		newtp->rcv_wnd = req->rsk_rcv_wnd;
@@ -523,11 +526,6 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 			newtp->rx_opt.ts_recent_stamp = 0;
 			newtp->tcp_header_len = sizeof(struct tcphdr);
 		}
-		if (req->num_timeout) {
-			newtp->undo_marker = treq->snt_isn;
-			newtp->retrans_stamp = div_u64(treq->snt_synack,
-						       USEC_PER_SEC / TCP_TS_HZ);
-		}
 		newtp->tsoffset = treq->ts_off;
 #ifdef CONFIG_TCP_MD5SIG
 		newtp->md5sig_info = NULL;	/*XXX*/
@@ -543,10 +541,6 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 		newtp->syn_data_acked = 0;
 		newtp->rack.mstamp = 0;
 		newtp->rack.advanced = 0;
-		newtp->rack.reo_wnd_steps = 1;
-		newtp->rack.last_delivered = 0;
-		newtp->rack.reo_wnd_persist = 0;
-		newtp->rack.dsack_seen = 0;
 
 		__TCP_INC_STATS(sock_net(sk), TCP_MIB_PASSIVEOPENS);
 	}

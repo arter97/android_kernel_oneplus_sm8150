@@ -141,19 +141,4 @@ struct scm_ts_pktinfo {
 	__u32 reserved[2];
 };
 
-/*
- * SO_TXTIME gets a struct sock_txtime with flags being an integer bit
- * field comprised of these values.
- */
-enum txtime_flags {
-	SOF_TXTIME_DEADLINE_MODE = (1 << 0),
-
-	SOF_TXTIME_FLAGS_MASK = (SOF_TXTIME_DEADLINE_MODE)
-};
-
-struct sock_txtime {
-	__kernel_clockid_t	clockid;/* reference clockid */
-	__u32			flags;	/* as defined by enum txtime_flags */
-};
-
 #endif /* _NET_TIMESTAMPING_H */

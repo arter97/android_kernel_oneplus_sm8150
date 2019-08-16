@@ -472,8 +472,10 @@ void tcp_init_metrics(struct sock *sk)
 		tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	}
 	val = tcp_metric_get(tm, TCP_METRIC_REORDERING);
-	if (val && tp->reordering != val)
+	if (val && tp->reordering != val) {
+		tcp_disable_fack(tp);
 		tp->reordering = val;
+	}
 
 	crtt = tcp_metric_get(tm, TCP_METRIC_RTT);
 	rcu_read_unlock();
@@ -514,6 +516,16 @@ reset:
 
 		inet_csk(sk)->icsk_rto = TCP_TIMEOUT_FALLBACK;
 	}
+	/* Cut cwnd down to 1 per RFC5681 if SYN or SYN-ACK has been
+	 * retransmitted. In light of RFC6298 more aggressive 1sec
+	 * initRTO, we only reset cwnd when more than 1 SYN/SYN-ACK
+	 * retransmission has occurred.
+	 */
+	if (tp->total_retrans > 1)
+		tp->snd_cwnd = 1;
+	else
+		tp->snd_cwnd = tcp_init_cwnd(tp, dst);
+	tp->snd_cwnd_stamp = tcp_jiffies32;
 }
 
 bool tcp_peer_is_proven(struct request_sock *req, struct dst_entry *dst)

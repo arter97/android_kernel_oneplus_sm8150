@@ -475,7 +475,7 @@ void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 		if (sock_owned_by_user(sk))
 			break;
 
-		skb = tcp_rtx_queue_head(sk);
+		skb = tcp_write_queue_head(sk);
 		if (WARN_ON_ONCE(!skb))
 			break;
 
@@ -485,7 +485,7 @@ void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 		icsk->icsk_rto = inet_csk_rto_backoff(icsk, TCP_RTO_MAX);
 
 		tcp_mstamp_refresh(tp);
-		delta_us = (u32)(tp->tcp_mstamp - tcp_skb_timestamp_us(skb));
+		delta_us = (u32)(tp->tcp_mstamp - skb->skb_mstamp);
 		remaining = icsk->icsk_rto -
 			    usecs_to_jiffies(delta_us);
 
@@ -560,9 +560,16 @@ void __tcp_v4_send_check(struct sk_buff *skb, __be32 saddr, __be32 daddr)
 {
 	struct tcphdr *th = tcp_hdr(skb);
 
-	th->check = ~tcp_v4_check(skb->len, saddr, daddr, 0);
-	skb->csum_start = skb_transport_header(skb) - skb->head;
-	skb->csum_offset = offsetof(struct tcphdr, check);
+	if (skb->ip_summed == CHECKSUM_PARTIAL) {
+		th->check = ~tcp_v4_check(skb->len, saddr, daddr, 0);
+		skb->csum_start = skb_transport_header(skb) - skb->head;
+		skb->csum_offset = offsetof(struct tcphdr, check);
+	} else {
+		th->check = tcp_v4_check(skb->len, saddr, daddr,
+					 csum_partial(th,
+						      th->doff << 2,
+						      skb->csum));
+	}
 }
 
 /* This routine computes an IPv4 TCP checksum. */
@@ -1544,14 +1551,12 @@ int tcp_v4_early_demux(struct sk_buff *skb)
 bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 {
 	u32 limit = sk->sk_rcvbuf + sk->sk_sndbuf;
-	struct skb_shared_info *shinfo;
-	const struct tcphdr *th;
-	struct tcphdr *thtail;
-	struct sk_buff *tail;
-	unsigned int hdrlen;
-	bool fragstolen;
-	u32 gso_segs;
-	int delta;
+
+	/* Only socket owner can try to collapse/prune rx queues
+	 * to reduce memory overhead, so add a little headroom here.
+	 * Few sockets backlog are possibly concurrently non empty.
+	 */
+	limit += 64*1024;
 
 	/* In case all data was pulled from skb frags (in __pskb_pull_tail()),
 	 * we can fix skb->truesize to its real value to avoid future drops.
@@ -1560,95 +1565,6 @@ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 	 * (if cooked by drivers without copybreak feature).
 	 */
 	skb_condense(skb);
-
-	if (unlikely(tcp_checksum_complete(skb))) {
-		bh_unlock_sock(sk);
-		__TCP_INC_STATS(sock_net(sk), TCP_MIB_CSUMERRORS);
-		__TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
-		return true;
-	}
-
-	/* Attempt coalescing to last skb in backlog, even if we are
-	 * above the limits.
-	 * This is okay because skb capacity is limited to MAX_SKB_FRAGS.
-	 */
-	th = (const struct tcphdr *)skb->data;
-	hdrlen = th->doff * 4;
-	shinfo = skb_shinfo(skb);
-
-	if (!shinfo->gso_size)
-		shinfo->gso_size = skb->len - hdrlen;
-
-	if (!shinfo->gso_segs)
-		shinfo->gso_segs = 1;
-
-	tail = sk->sk_backlog.tail;
-	if (!tail)
-		goto no_coalesce;
-	thtail = (struct tcphdr *)tail->data;
-
-	if (TCP_SKB_CB(tail)->end_seq != TCP_SKB_CB(skb)->seq ||
-	    TCP_SKB_CB(tail)->ip_dsfield != TCP_SKB_CB(skb)->ip_dsfield ||
-	    ((TCP_SKB_CB(tail)->tcp_flags |
-	      TCP_SKB_CB(skb)->tcp_flags) & (TCPHDR_SYN | TCPHDR_RST | TCPHDR_URG)) ||
-	    !((TCP_SKB_CB(tail)->tcp_flags &
-	      TCP_SKB_CB(skb)->tcp_flags) & TCPHDR_ACK) ||
-	    ((TCP_SKB_CB(tail)->tcp_flags ^
-	      TCP_SKB_CB(skb)->tcp_flags) & (TCPHDR_ECE | TCPHDR_CWR)) ||
-#ifdef CONFIG_TLS_DEVICE
-	    tail->decrypted != skb->decrypted ||
-#endif
-	    thtail->doff != th->doff ||
-	    memcmp(thtail + 1, th + 1, hdrlen - sizeof(*th)))
-		goto no_coalesce;
-
-	__skb_pull(skb, hdrlen);
-	if (skb_try_coalesce(tail, skb, &fragstolen, &delta)) {
-		thtail->window = th->window;
-
-		TCP_SKB_CB(tail)->end_seq = TCP_SKB_CB(skb)->end_seq;
-
-		if (after(TCP_SKB_CB(skb)->ack_seq, TCP_SKB_CB(tail)->ack_seq))
-			TCP_SKB_CB(tail)->ack_seq = TCP_SKB_CB(skb)->ack_seq;
-
-		/* We have to update both TCP_SKB_CB(tail)->tcp_flags and
-		 * thtail->fin, so that the fast path in tcp_rcv_established()
-		 * is not entered if we append a packet with a FIN.
-		 * SYN, RST, URG are not present.
-		 * ACK is set on both packets.
-		 * PSH : we do not really care in TCP stack,
-		 *       at least for 'GRO' packets.
-		 */
-		thtail->fin |= th->fin;
-		TCP_SKB_CB(tail)->tcp_flags |= TCP_SKB_CB(skb)->tcp_flags;
-
-		if (TCP_SKB_CB(skb)->has_rxtstamp) {
-			TCP_SKB_CB(tail)->has_rxtstamp = true;
-			tail->tstamp = skb->tstamp;
-			skb_hwtstamps(tail)->hwtstamp = skb_hwtstamps(skb)->hwtstamp;
-		}
-
-		/* Not as strict as GRO. We only need to carry mss max value */
-		skb_shinfo(tail)->gso_size = max(shinfo->gso_size,
-						 skb_shinfo(tail)->gso_size);
-
-		gso_segs = skb_shinfo(tail)->gso_segs + shinfo->gso_segs;
-		skb_shinfo(tail)->gso_segs = min_t(u32, gso_segs, 0xFFFF);
-
-		sk->sk_backlog.len += delta;
-		__NET_INC_STATS(sock_net(sk),
-				LINUX_MIB_TCPBACKLOGCOALESCE);
-		kfree_skb_partial(skb, fragstolen);
-		return false;
-	}
-	__skb_push(skb, hdrlen);
-
-no_coalesce:
-	/* Only socket owner can try to collapse/prune rx queues
-	 * to reduce memory overhead, so add a little headroom here.
-	 * Few sockets backlog are possibly concurrently non empty.
-	 */
-	limit += 64*1024;
 
 	if (unlikely(sk_add_backlog(sk, skb, limit))) {
 		bh_unlock_sock(sk);
@@ -1702,7 +1618,6 @@ static void tcp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
 int tcp_v4_rcv(struct sk_buff *skb)
 {
 	struct net *net = dev_net(skb->dev);
-	struct sk_buff *skb_to_free;
 	int sdif = inet_sdif(skb);
 	const struct iphdr *iph;
 	const struct tcphdr *th;
@@ -1823,17 +1738,11 @@ process:
 	tcp_segs_in(tcp_sk(sk), skb);
 	ret = 0;
 	if (!sock_owned_by_user(sk)) {
-		skb_to_free = sk->sk_rx_skb_cache;
-		sk->sk_rx_skb_cache = NULL;
 		ret = tcp_v4_do_rcv(sk, skb);
-	} else {
-		if (tcp_add_backlog(sk, skb))
-			goto discard_and_relse;
-		skb_to_free = NULL;
+	} else if (tcp_add_backlog(sk, skb)) {
+		goto discard_and_relse;
 	}
 	bh_unlock_sock(sk);
-	if (skb_to_free)
-		__kfree_skb(skb_to_free);
 
 put_and_return:
 	if (refcounted)
@@ -2391,7 +2300,7 @@ static void get_tcp4_sock(struct sock *sk, struct seq_file *f, int i)
 		refcount_read(&sk->sk_refcnt), sk,
 		jiffies_to_clock_t(icsk->icsk_rto),
 		jiffies_to_clock_t(icsk->icsk_ack.ato),
-		(icsk->icsk_ack.quick << 1) | inet_csk_in_pingpong_mode(sk),
+		(icsk->icsk_ack.quick << 1) | icsk->icsk_ack.pingpong,
 		tp->snd_cwnd,
 		state == TCP_LISTEN ?
 		    fastopenq->max_qlen :

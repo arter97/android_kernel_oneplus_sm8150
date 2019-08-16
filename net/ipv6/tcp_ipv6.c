@@ -1401,7 +1401,6 @@ static void tcp_v6_fill_cb(struct sk_buff *skb, const struct ipv6hdr *hdr,
 
 static int tcp_v6_rcv(struct sk_buff *skb)
 {
-	struct sk_buff *skb_to_free;
 	int sdif = inet6_sdif(skb);
 	const struct tcphdr *th;
 	const struct ipv6hdr *hdr;
@@ -1517,17 +1516,12 @@ process:
 	tcp_segs_in(tcp_sk(sk), skb);
 	ret = 0;
 	if (!sock_owned_by_user(sk)) {
-		skb_to_free = sk->sk_rx_skb_cache;
-		sk->sk_rx_skb_cache = NULL;
 		ret = tcp_v6_do_rcv(sk, skb);
-	} else {
-		if (tcp_add_backlog(sk, skb))
-			goto discard_and_relse;
-		skb_to_free = NULL;
+	} else if (tcp_add_backlog(sk, skb)) {
+		goto discard_and_relse;
 	}
 	bh_unlock_sock(sk);
-	if (skb_to_free)
-		__kfree_skb(skb_to_free);
+
 put_and_return:
 	if (refcounted)
 		sock_put(sk);
@@ -1833,7 +1827,7 @@ static void get_tcp6_sock(struct seq_file *seq, struct sock *sp, int i)
 		   refcount_read(&sp->sk_refcnt), sp,
 		   jiffies_to_clock_t(icsk->icsk_rto),
 		   jiffies_to_clock_t(icsk->icsk_ack.ato),
-		   (icsk->icsk_ack.quick << 1) | inet_csk_in_pingpong_mode(sp),
+		   (icsk->icsk_ack.quick << 1) | icsk->icsk_ack.pingpong,
 		   tp->snd_cwnd,
 		   state == TCP_LISTEN ?
 			fastopenq->max_qlen :

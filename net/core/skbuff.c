@@ -3684,10 +3684,6 @@ normal:
 		skb_shinfo(nskb)->tx_flags |= skb_shinfo(head_skb)->tx_flags &
 					      SKBTX_SHARED_FRAG;
 
-		if (skb_orphan_frags(frag_skb, GFP_ATOMIC) ||
-		    skb_zerocopy_clone(nskb, frag_skb, GFP_ATOMIC))
-			goto err;
-
 		while (pos < offset + len) {
 			if (i >= nfrags) {
 				BUG_ON(skb_headlen(list_skb));
@@ -3698,11 +3694,6 @@ normal:
 				frag_skb = list_skb;
 
 				BUG_ON(!nfrags);
-
-				if (skb_orphan_frags(frag_skb, GFP_ATOMIC) ||
-				    skb_zerocopy_clone(nskb, frag_skb,
-						       GFP_ATOMIC))
-					goto err;
 
 				list_skb = list_skb->next;
 			}
@@ -3715,6 +3706,11 @@ normal:
 				err = -EINVAL;
 				goto err;
 			}
+
+			if (unlikely(skb_orphan_frags(frag_skb, GFP_ATOMIC)))
+				goto err;
+			if (skb_zerocopy_clone(nskb, frag_skb, GFP_ATOMIC))
+				goto err;
 
 			*nskb_frag = *frag;
 			__skb_frag_ref(nskb_frag);
@@ -4886,6 +4882,7 @@ EXPORT_SYMBOL(skb_try_coalesce);
  */
 void skb_scrub_packet(struct sk_buff *skb, bool xnet)
 {
+	skb->tstamp = 0;
 	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = 0;
 	skb->ignore_df = 0;
@@ -4904,7 +4901,6 @@ void skb_scrub_packet(struct sk_buff *skb, bool xnet)
 	ipvs_reset(skb);
 	skb_orphan(skb);
 	skb->mark = 0;
-	skb->tstamp = 0;
 }
 EXPORT_SYMBOL_GPL(skb_scrub_packet);
 
