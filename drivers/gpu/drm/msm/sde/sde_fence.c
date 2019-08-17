@@ -235,8 +235,8 @@ static int _sde_fence_create_fd(void *fence_ctx, uint32_t val)
 #ifdef SDE_NAME
 		SDE_ERROR("failed to get_unused_fd_flags(), %s\n",
 							sde_fence->name);
-		dma_fence_put(&sde_fence->base);
 #endif
+		dma_fence_put(&sde_fence->base);
 		goto exit;
 	}
 
