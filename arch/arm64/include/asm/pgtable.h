@@ -557,6 +557,7 @@ static inline void set_pgd(pgd_t *pgdp, pgd_t pgd)
 {
 	WRITE_ONCE(*pgdp, pgd);
 	dsb(ishst);
+	isb();
 }
 
 static inline void pgd_clear(pgd_t *pgdp)
