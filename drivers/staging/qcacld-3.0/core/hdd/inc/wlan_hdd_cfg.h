@@ -534,7 +534,7 @@ enum hdd_dot11_mode {
  * gNeighborScanChannelMaxTime - Set neighbor scan channel max time
  * @Min: 3
  * @Max: 300
- * @Default: 30
+ * @Default: 40
  *
  * This ini is used to set the maximum time in secs spent on each
  * channel in LFR scan inside firmware.
@@ -550,7 +550,7 @@ enum hdd_dot11_mode {
 #define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_NAME                  "gNeighborScanChannelMaxTime"
 #define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MIN                   (3)
 #define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MAX                   (300)
-#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_DEFAULT               (30)
+#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_DEFAULT               (40)
 
 /*
  * <ini>
@@ -11376,8 +11376,8 @@ enum hdd_wext_control {
  * <ini>
  * gAutoBmpsTimerValue - Set Auto BMPS Timer value
  * @Min: 0
- * @Max: 120
- * @Default: 90
+ * @Max: 1000
+ * @Default: 600
  *
  * This ini is used to set Auto BMPS Timer value in seconds
  *
@@ -11391,8 +11391,8 @@ enum hdd_wext_control {
  */
 #define CFG_AUTO_PS_ENABLE_TIMER_NAME          "gAutoBmpsTimerValue"
 #define CFG_AUTO_PS_ENABLE_TIMER_MIN           (0)
-#define CFG_AUTO_PS_ENABLE_TIMER_MAX           (120)
-#define CFG_AUTO_PS_ENABLE_TIMER_DEFAULT       (90)
+#define CFG_AUTO_PS_ENABLE_TIMER_MAX           (1000)
+#define CFG_AUTO_PS_ENABLE_TIMER_DEFAULT       (600)
 
 #ifdef WLAN_ICMP_DISABLE_PS
 /*
@@ -15274,7 +15274,7 @@ enum hdd_external_acs_policy {
  * </ini>
  */
 #define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_NAME    "gActionOUISwitchTo11nMode"
-#define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_DEFAULT "00904C 03 0418BF E0 21 40"
+#define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_DEFAULT "00904C 05 0418BF0CB2 F8 21 40"
 
 /*
  * <ini>
