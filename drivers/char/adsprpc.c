@@ -377,7 +377,7 @@ struct fastrpc_file {
 	int pd;
 	char *spdname;
 	int file_close;
-	int dsp_proc_init;
+	int dsp_process_init;
 	struct fastrpc_apps *apps;
 	struct hlist_head perf;
 	struct dentry *debugfs_file;
@@ -654,8 +654,8 @@ static int dma_alloc_memory(dma_addr_t *region_phys, void **vaddr, size_t size,
 	*vaddr = dma_alloc_attrs(me->dev, size, region_phys,
 					GFP_KERNEL, dma_attr);
 	if (IS_ERR_OR_NULL(*vaddr)) {
-		pr_err("adsprpc: %s: %s: dma_alloc_attrs failed for size 0x%zx, returned %ld\n",
-				current->comm, __func__, size, PTR_ERR(*vaddr));
+		pr_err("adsprpc: %s: %s: dma_alloc_attrs failed for size 0x%zx, returned %d\n",
+				current->comm, __func__, size, (int)(*vaddr));
 		return -ENOMEM;
 	}
 	return 0;
@@ -893,12 +893,6 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 				DMA_ATTR_SKIP_CPU_SYNC;
 		else if (map->attr & FASTRPC_ATTR_COHERENT)
 			map->attach->dma_map_attrs |= DMA_ATTR_FORCE_COHERENT;
-		/*
-		 * Skip CPU sync if IO Cohernecy is not supported
-		 * as we flush later
-		 */
-		else if (!sess->smmu.coherent)
-			map->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
 		VERIFY(err, !IS_ERR_OR_NULL(map->table =
 			dma_buf_map_attachment(map->attach,
@@ -1012,8 +1006,8 @@ static int fastrpc_buf_alloc(struct fastrpc_file *fl, size_t size,
 	}
 	if (err) {
 		err = -ENOMEM;
-		pr_err("adsprpc: %s: %s: dma_alloc_attrs failed for size 0x%zx, returned %ld\n",
-			current->comm, __func__, size, PTR_ERR(buf->virt));
+		pr_err("adsprpc: %s: %s: dma_alloc_attrs failed for size 0x%zx, returned %d\n",
+			current->comm, __func__, size, (int)buf->virt);
 		goto bail;
 	}
 	if (fl->sctx->smmu.cb && fl->cid != SDSP_DOMAIN_ID)
@@ -1441,12 +1435,10 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 
 		mutex_lock(&ctx->fl->map_mutex);
 		if (ctx->fds[i] && (ctx->fds[i] != -1))
-			err = fastrpc_mmap_create(ctx->fl, ctx->fds[i],
+			fastrpc_mmap_create(ctx->fl, ctx->fds[i],
 					ctx->attrs[i], buf, len,
 					mflags, &ctx->maps[i]);
 		mutex_unlock(&ctx->fl->map_mutex);
-		if (err)
-			goto bail;
 		ipage += 1;
 	}
 	PERF_END);
@@ -1457,10 +1449,9 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 
 		if (ctx->attrs && (ctx->attrs[i] & FASTRPC_ATTR_NOMAP))
 			dmaflags = FASTRPC_DMAHANDLE_NOMAP;
-		if (ctx->fds && (ctx->fds[i] != -1))
-			err = fastrpc_mmap_create(ctx->fl, ctx->fds[i],
-					FASTRPC_ATTR_NOVA, 0, 0, dmaflags,
-					&ctx->maps[i]);
+		VERIFY(err, !fastrpc_mmap_create(ctx->fl, ctx->fds[i],
+				FASTRPC_ATTR_NOVA, 0, 0, dmaflags,
+				&ctx->maps[i]));
 		if (err) {
 			mutex_unlock(&ctx->fl->map_mutex);
 			goto bail;
@@ -1643,9 +1634,9 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 			ctx->overps[oix]->mstart) {
 			if (map && map->buf) {
 				dma_buf_begin_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 				dma_buf_end_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 			} else
 				dmac_flush_range(uint64_to_ptr(rpra[i].buf.pv),
 					uint64_to_ptr(rpra[i].buf.pv
@@ -1749,9 +1740,9 @@ static void inv_args_pre(struct smq_invoke_ctx *ctx)
 				uint64_to_ptr(rpra[i].buf.pv))) {
 			if (map && map->buf) {
 				dma_buf_begin_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 				dma_buf_end_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 			} else
 				dmac_flush_range(
 					uint64_to_ptr(rpra[i].buf.pv), (char *)
@@ -1763,9 +1754,9 @@ static void inv_args_pre(struct smq_invoke_ctx *ctx)
 		if (!IS_CACHE_ALIGNED(end)) {
 			if (map && map->buf) {
 				dma_buf_begin_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 				dma_buf_end_cpu_access(map->buf,
-					DMA_TO_DEVICE);
+					DMA_BIDIRECTIONAL);
 			} else
 				dmac_flush_range((char *)end,
 					(char *)end + 1);
@@ -1800,9 +1791,9 @@ static void inv_args(struct smq_invoke_ctx *ctx)
 		}
 		if (map && map->buf) {
 			dma_buf_begin_cpu_access(map->buf,
-				DMA_FROM_DEVICE);
+				DMA_BIDIRECTIONAL);
 			dma_buf_end_cpu_access(map->buf,
-				DMA_FROM_DEVICE);
+				DMA_BIDIRECTIONAL);
 		} else
 			dmac_inv_range((char *)uint64_to_ptr(rpra[i].buf.pv),
 				(char *)uint64_to_ptr(rpra[i].buf.pv
@@ -1900,13 +1891,12 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 		}
 	}
 
-	VERIFY(err, fl->cid >= 0 && fl->cid < NUM_CHANNELS && fl->sctx != NULL);
-	if (err) {
-		pr_err("adsprpc: ERROR: %s: user application %s domain is not set\n",
-			__func__, current->comm);
-		err = -EBADR;
+	VERIFY(err, fl->sctx != NULL);
+	if (err)
 		goto bail;
-	}
+	VERIFY(err, fl->cid >= 0 && fl->cid < NUM_CHANNELS);
+	if (err)
+		goto bail;
 
 	if (!kernel) {
 		VERIFY(err, 0 == context_restore_interrupted(fl, inv,
@@ -2105,10 +2095,8 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 		err = fastrpc_buf_alloc(fl, memlen, imem_dma_attr, 0, 0, &imem);
 		if (err)
 			goto bail;
-		if (fl->init_mem)
-			fastrpc_buf_free(fl->init_mem, 0);
-
 		fl->init_mem = imem;
+
 		inbuf.pageslen = 1;
 		ra[0].buf.pv = (void *)&inbuf;
 		ra[0].buf.len = sizeof(inbuf);
@@ -2242,7 +2230,7 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 		err = -ENOTTY;
 		goto bail;
 	}
-	fl->dsp_proc_init = 1;
+	fl->dsp_process_init = 1;
 bail:
 	kfree(proc_name);
 	if (err && (init->flags == FASTRPC_INIT_CREATE_STATIC))
@@ -2257,12 +2245,6 @@ bail:
 		mutex_lock(&fl->map_mutex);
 		fastrpc_mmap_free(mem, 0);
 		mutex_unlock(&fl->map_mutex);
-	}
-	if (err) {
-		if (!IS_ERR_OR_NULL(fl->init_mem)) {
-			fastrpc_buf_free(fl->init_mem, 0);
-			fl->init_mem = NULL;
-		}
 	}
 	if (file) {
 		mutex_lock(&fl->map_mutex);
@@ -2302,7 +2284,7 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 	ioctl.crc = NULL;
 	VERIFY(err, 0 == (err = fastrpc_internal_invoke(fl,
 		FASTRPC_MODE_PARALLEL, 1, &ioctl)));
-	if (err && fl->dsp_proc_init)
+	if (err && fl->dsp_process_init)
 		pr_err("adsprpc: %s: releasing DSP process failed for %s, returned 0x%x",
 					__func__, current->comm, err);
 bail:
@@ -2593,13 +2575,6 @@ static int fastrpc_internal_munmap(struct fastrpc_file *fl,
 	struct fastrpc_buf *rbuf = NULL, *free = NULL;
 	struct hlist_node *n;
 
-	VERIFY(err, fl->dsp_proc_init == 1);
-	if (err) {
-		pr_err("adsprpc: ERROR: %s: user application %s trying to unmap without initialization\n",
-			 __func__, current->comm);
-		err = -EBADR;
-		goto bail;
-	}
 	mutex_lock(&fl->internal_map_mutex);
 
 	spin_lock(&fl->hlock);
@@ -2655,13 +2630,6 @@ static int fastrpc_internal_munmap_fd(struct fastrpc_file *fl,
 	VERIFY(err, (fl && ud));
 	if (err)
 		goto bail;
-	VERIFY(err, fl->dsp_proc_init == 1);
-	if (err) {
-		pr_err("adsprpc: ERROR: %s: user application %s trying to unmap without initialization\n",
-			__func__, current->comm);
-		err = -EBADR;
-		goto bail;
-	}
 	mutex_lock(&fl->map_mutex);
 	if (fastrpc_mmap_find(fl, ud->fd, ud->va, ud->len, 0, 0, &map)) {
 		pr_err("adsprpc: mapping not found to unmap fd 0x%x, va 0x%llx, len 0x%x\n",
@@ -2688,13 +2656,6 @@ static int fastrpc_internal_mmap(struct fastrpc_file *fl,
 	uintptr_t raddr = 0;
 	int err = 0;
 
-	VERIFY(err, fl->dsp_proc_init == 1);
-	if (err) {
-		pr_err("adsprpc: ERROR: %s: user application %s trying to map without initialization\n",
-			__func__, current->comm);
-		err = -EBADR;
-		goto bail;
-	}
 	mutex_lock(&fl->internal_map_mutex);
 	if (ud->flags == ADSP_MMAP_ADD_PAGES) {
 		if (ud->vaddrin) {
@@ -3225,14 +3186,13 @@ static int fastrpc_channel_open(struct fastrpc_file *fl)
 	int cid, err = 0;
 
 
-	VERIFY(err, fl && fl->sctx && fl->cid >= 0 && fl->cid < NUM_CHANNELS);
-	if (err) {
-		pr_err("adsprpc: ERROR: %s: user application %s domain is not set\n",
-			__func__, current->comm);
-		err = -EBADR;
+	VERIFY(err, fl && fl->sctx);
+	if (err)
 		return err;
-	}
 	cid = fl->cid;
+	VERIFY(err, cid >= 0 && cid < NUM_CHANNELS);
+	if (err)
+		return err;
 
 	mutex_lock(&me->channel[cid].rpmsg_mutex);
 	VERIFY(err, NULL != me->channel[cid].rpdev);
@@ -3329,7 +3289,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 		fl->debugfs_file = debugfs_file;
 	memset(&fl->perf, 0, sizeof(fl->perf));
 	fl->qos_request = 0;
-	fl->dsp_proc_init = 0;
+	fl->dsp_process_init = 0;
 	filp->private_data = fl;
 	mutex_init(&fl->internal_map_mutex);
 	mutex_init(&fl->map_mutex);
@@ -4149,68 +4109,6 @@ static void fastrpc_deinit(void)
 	}
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int fastrpc_restore(struct device *dev)
-{
-	int err = 0;
-	struct fastrpc_apps *me = &gfa;
-	struct smq_phy_page range;
-	struct device_node *ion_node, *node;
-	struct platform_device *ion_pdev;
-	struct cma *cma;
-	uint32_t val;
-
-	pr_info("adsprpc: restore enter\n");
-	if (of_device_is_compatible(dev->of_node,
-					"qcom,msm-adsprpc-mem-region")) {
-		me->dev = dev;
-		range.addr = 0;
-		ion_node = of_find_compatible_node(NULL, NULL, "qcom,msm-ion");
-		if (ion_node) {
-			for_each_available_child_of_node(ion_node, node) {
-				if (of_property_read_u32(node, "reg", &val))
-					continue;
-				if (val != ION_ADSP_HEAP_ID)
-					continue;
-				ion_pdev = of_find_device_by_node(node);
-				if (!ion_pdev)
-					break;
-				cma = dev_get_cma_area(&ion_pdev->dev);
-				if (cma) {
-					range.addr = cma_get_base(cma);
-					range.size = (size_t)cma_get_size(cma);
-				}
-				break;
-			}
-		}
-		if (range.addr && !of_property_read_bool(dev->of_node,
-							 "restrict-access")) {
-			int srcVM[1] = {VMID_HLOS};
-			int destVM[4] = {VMID_HLOS, VMID_MSS_MSA, VMID_SSC_Q6,
-						VMID_ADSP_Q6};
-			int destVMperm[4] = {PERM_READ | PERM_WRITE | PERM_EXEC,
-				PERM_READ | PERM_WRITE | PERM_EXEC,
-				PERM_READ | PERM_WRITE | PERM_EXEC,
-				PERM_READ | PERM_WRITE | PERM_EXEC,
-				};
-
-			VERIFY(err, !hyp_assign_phys(range.addr, range.size,
-					srcVM, 1, destVM, destVMperm, 4));
-			if (err)
-				return err;
-			me->range.addr = range.addr;
-			me->range.size = range.size;
-		}
-	}
-	pr_info("adsprpc: restore exit\n");
-	return 0;
-}
-
-static const struct dev_pm_ops fastrpc_pm = {
-	.restore = fastrpc_restore,
-};
-#endif
-
 static struct platform_driver fastrpc_driver = {
 	.probe = fastrpc_probe,
 	.driver = {
@@ -4218,9 +4116,6 @@ static struct platform_driver fastrpc_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = fastrpc_match_table,
 		.suppress_bind_attrs = true,
-#ifdef CONFIG_PM_SLEEP
-		.pm = &fastrpc_pm,
-#endif
 	},
 };
 
