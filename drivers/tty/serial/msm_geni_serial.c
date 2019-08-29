@@ -126,7 +126,6 @@
 
 #define DMA_RX_BUF_SIZE		(2048)
 #define UART_CONSOLE_RX_WM	(2)
-#define QUP_VER			(0x20050000)
 
 #if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
 #define SERIAL_CONSOLE
@@ -199,11 +198,6 @@ static int uart_line_id;
 static struct msm_geni_serial_port msm_geni_console_port;
 #endif
 static struct msm_geni_serial_port msm_geni_serial_ports[GENI_UART_NR_PORTS];
-
-static int hw_version_info(void __iomem *base_addr)
-{
-	return geni_read_reg(base_addr, QUPV3_HW_VER);
-}
 
 static void msm_geni_serial_config_port(struct uart_port *uport, int cfg_flags)
 {
@@ -404,8 +398,9 @@ static unsigned int msm_geni_serial_get_mctrl(struct uart_port *uport)
 {
 	u32 geni_ios = 0;
 	unsigned int mctrl = TIOCM_DSR | TIOCM_CAR;
+	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
 
-	if (device_pending_suspend(uport))
+	if (!uart_console(uport) && device_pending_suspend(uport))
 		return TIOCM_DSR | TIOCM_CAR | TIOCM_CTS;
 
 	geni_ios = geni_read_reg_nolog(uport->membase, SE_GENI_IOS);
@@ -1608,13 +1603,6 @@ static int msm_geni_serial_startup(struct uart_port *uport)
 		}
 	}
 
-	if (unlikely(get_se_proto(uport->membase) != UART)) {
-		dev_err(uport->dev, "%s: Invalid FW %d loaded.\n",
-				 __func__, get_se_proto(uport->membase));
-		ret = -ENXIO;
-		goto exit_startup;
-	}
-
 	get_tx_fifo_size(msm_port);
 	if (!msm_port->port_setup) {
 		if (msm_geni_serial_port_setup(uport))
@@ -1764,8 +1752,9 @@ static void msm_geni_serial_set_termios(struct uart_port *uport,
 	if (clk_div <= 0)
 		goto exit_set_termios;
 
-	if (hw_version_info(uport->membase) >= QUP_VER)
+	if (IS_ENABLED(CONFIG_SERIAL_MSM_WITH_HALF_SAMPLING))
 		clk_div *= 2;
+
 	uport->uartclk = clk_rate;
 	clk_set_rate(port->serial_rsc.se_clk, clk_rate);
 	ser_clk_cfg |= SER_CLK_EN;
@@ -2034,8 +2023,9 @@ msm_geni_serial_earlycon_setup(struct earlycon_device *dev,
 		goto exit_geni_serial_earlyconsetup;
 	}
 
-	if (hw_version_info(uport->membase) >= QUP_VER)
+	if (IS_ENABLED(CONFIG_SERIAL_MSM_WITH_HALF_SAMPLING))
 		clk_div *= 2;
+
 	s_clk_cfg |= SER_CLK_EN;
 	s_clk_cfg |= (clk_div << CLK_DIV_SHFT);
 
