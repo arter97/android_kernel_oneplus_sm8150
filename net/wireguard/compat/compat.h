@@ -21,6 +21,8 @@
 #ifdef UTS_UBUNTU_RELEASE_ABI
 #if LINUX_VERSION_CODE == KERNEL_VERSION(3, 13, 11)
 #define ISUBUNTU1404
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#define ISUBUNTU1604
 #endif
 #endif
 #ifdef CONFIG_SUSE_KERNEL
@@ -406,7 +408,7 @@ static inline u64 __compat_jiffies64_to_nsecs(u64 j)
 {
 #if !(NSEC_PER_SEC % HZ)
 	return (NSEC_PER_SEC / HZ) * j;
-# else
+#else
 	return div_u64(j * HZ_TO_USEC_NUM, HZ_TO_USEC_DEN) * 1000;
 #endif
 }
@@ -598,10 +600,6 @@ static int wg_get_device_dump_real(a, b)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 #define COMPAT_CANNOT_USE_IN6_DEV_GET
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-#define COMPAT_CANNOT_USE_DEV_CNF
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
@@ -838,6 +836,21 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && defined(__aarch64__)
 #define cpu_have_named_feature(name) (elf_hwcap & (HWCAP_ ## name))
+#endif
+
+#if defined(ISUBUNTU1604)
+#include <linux/siphash.h>
+#define hsiphash_2u32 siphash_2u32
+#define hsiphash_3u32 siphash_3u32
+#define hsiphash_key_t siphash_key_t
+#endif
+
+#ifdef CONFIG_VE
+#include <linux/netdev_features.h>
+#ifdef NETIF_F_VIRTUAL
+#undef NETIF_F_LLTX
+#define NETIF_F_LLTX (__NETIF_F(LLTX) | __NETIF_F(VIRTUAL))
+#endif
 #endif
 
 /* https://github.com/ClangBuiltLinux/linux/issues/7 */
