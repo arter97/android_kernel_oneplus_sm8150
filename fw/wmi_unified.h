@@ -257,6 +257,7 @@ typedef enum {
     WMI_GRP_SPATIAL_REUSE,  /* 0x40 */
     WMI_GRP_ESP,            /* 0x41 Estimate Service Parameters (802.11mc) */
     WMI_GRP_HPCS_PULSE,     /* 0x42 */
+    WMI_GRP_AUDIO,          /* 0x43 */
 } WMI_GRP_ID;
 
 #define WMI_CMD_GRP_START_ID(grp_id) (((grp_id) << 12) | 0x1)
@@ -750,7 +751,7 @@ typedef enum {
     /** AP power save specific config */
     /** set AP power save specific param */
     WMI_AP_PS_PEER_PARAM_CMDID = WMI_CMD_GRP_START_ID(WMI_GRP_AP_PS),
-    /** set AP UAPSD coex pecific param */
+    /** set AP UAPSD coex specific param */
     WMI_AP_PS_PEER_UAPSD_COEX_CMDID,
     /** set Enhanced Green AP param */
     WMI_AP_PS_EGAP_PARAM_CMDID,
@@ -1241,6 +1242,13 @@ typedef enum {
 
     /** WMI commands related to High Precision Clock Synchronization feature **/
     WMI_HPCS_PULSE_START_CMDID = WMI_CMD_GRP_START_ID(WMI_GRP_HPCS_PULSE),
+
+    /** WMI commands related to Audio Frame aggregation feature **/
+    WMI_AUDIO_AGGR_ENABLE_CMDID = WMI_CMD_GRP_START_ID(WMI_GRP_AUDIO),
+    WMI_AUDIO_AGGR_ADD_GROUP_CMDID,
+    WMI_AUDIO_AGGR_DEL_GROUP_CMDID,
+    WMI_AUDIO_AGGR_SET_GROUP_RATE_CMDID,
+    WMI_AUDIO_AGGR_SET_GROUP_RETRY_CMDID,
 } WMI_CMD_ID;
 
 typedef enum {
@@ -1937,6 +1945,7 @@ typedef enum {
 #define WMI_CHAN_FLAG_QUARTER_RATE  15  /* Indicates quarter rate channel */
 #define WMI_CHAN_FLAG_DFS_CFREQ2  16 /* Enable radar event reporting for sec80 in VHT80p80 */
 #define WMI_CHAN_FLAG_ALLOW_HE    17 /* HE (11ax) is allowed on this channel */
+#define WMI_CHAN_FLAG_PSC         18 /* Indicate it is a PSC (preferred scanning channel) */
 
 #define WMI_SET_CHANNEL_FLAG(pwmi_channel,flag) do { \
         (pwmi_channel)->info |=  (1 << flag);      \
@@ -3700,6 +3709,55 @@ typedef struct {
 #define WMI_SCAN_CHAN_GET_MODE(_c) ((_c) - 1)
 #define WMI_SCAN_CHAN_MODE_IS_SET(_c) (_c)
 
+typedef struct {
+    /*
+     * freq unit: MHz (upper 16bits -- value)
+     * flags (lower 16bits -- bitfield): valid for the freq short ssid
+     *     The flags bitfield contains a bitmask of WMI_SCAN_HINT_FLAG_ values.
+     */
+    A_UINT32 freq_flags;
+    /* per spec, only 4 bytes*/
+    A_UINT32 short_ssid;
+} wmi_hint_freq_short_ssid;
+
+/** following bssid mac address same as wmi_mac_addr
+ *  one example: freq -- 5980(0x175c), flags -- 0x1, mac -- 00:03:7f:12:34:56
+ *  freq_flags     will be: 0x175c0001
+ *  macaddr31to00 will be: 0x127f0300
+ *  macaddr47to32 will be: 0x00005634
+ */
+typedef struct {
+    /*
+     * freq unit: MHz (upper 16bits -- value)
+     * flags (lower 16bits -- bitfield): valid for the freq bssid
+     *     The flags bitfield contains a bitmask of WMI_SCAN_HINT_FLAG_ values.
+     */
+    A_UINT32 freq_flags;
+    /* legacy bssid addr, use same macro to convert: WMI_MAC_ADDR_TO_CHAR_ARRAY, WMI_CHAR_ARRAY_TO_MAC_ADDR */
+    wmi_mac_addr bssid;
+} wmi_hint_freq_bssid;
+
+/** macro to get freq and corresponding flags from wmi_hint_freq_short_ssid */
+#define WMI_GET_FREQ_FROM_HINT_FREQ_SHORT_SSID(pwmi_hint_freq_short_ssid_addr) ((((pwmi_hint_freq_short_ssid_addr)->freq_flags) >> 16) & 0xffff)
+#define WMI_GET_FLAGS_FROM_HINT_FREQ_SHORT_SSID(pwmi_hint_freq_short_ssid_addr) (((pwmi_hint_freq_short_ssid_addr)->freq_flags) & 0xffff)
+
+/** macro to set freq and corresponding flags in wmi_hint_freq_short_ssid */
+#define WMI_SET_FREQ_IN_HINT_FREQ_SHORT_SSID(freq, pwmi_hint_freq_short_ssid_addr) (((pwmi_hint_freq_short_ssid_addr)->freq_flags) |= ((freq) << 16))
+#define WMI_SET_FLAGS_IN_HINT_FREQ_SHORT_SSID(flags, pwmi_hint_freq_short_ssid_addr) (((pwmi_hint_freq_short_ssid_addr)->freq_flags) |= (flags))
+
+/** macro to get freq and corresponding flags from wmi_hint_freq_bssid */
+#define WMI_GET_FREQ_FROM_HINT_FREQ_BSSID(pwmi_hint_freq_bssid_addr) ((((pwmi_hint_freq_bssid_addr)->freq_flags) >> 16) & 0xffff)
+#define WMI_GET_FLAGS_FROM_HINT_FREQ_BSSID(pwmi_hint_freq_bssid_addr) (((pwmi_hint_freq_bssid_addr)->freq_flags) & 0xffff)
+
+/** macro to set freq and corresponding flags in wmi_hint_freq_bssid */
+#define WMI_SET_FREQ_IN_HINT_FREQ_BSSID(freq, pwmi_hint_freq_bssid_addr) (((pwmi_hint_freq_bssid_addr)->freq_flags) |= ((freq) << 16))
+#define WMI_SET_FLAGS_IN_HINT_FREQ_BSSID(flags, pwmi_hint_freq_bssid_addr) (((pwmi_hint_freq_bssid_addr)->freq_flags) |= (flags))
+
+/** other macro for 6GHZ, TU(time unit), 20TU normally it is 20ms */
+#define MAX_NUM_20TU_EACH_CH      4
+#define MAX_NUM_S_SSID_EACH_20TU  1
+#define MAX_NUM_BSSID_EACH_20TU   3
+
 /* prefix used by scan requestor ids on the host */
 #define WMI_HOST_SCAN_REQUESTOR_ID_PREFIX 0xA000
 /* prefix used by scan request ids generated on the host */
@@ -3779,6 +3837,16 @@ typedef struct {
     A_UINT32 scan_ctrl_flags_ext;
     /** dwell time in msec on active 2G channels, if it's not zero */
     A_UINT32 dwell_time_active_2g;
+    /**
+     * dwell time in msec when 6 GHz channel (PSC or non-PSC) is marked
+     * as an active channel
+     */
+    A_UINT32 dwell_time_active_6ghz;
+    /**
+     * dwell time in msec when 6 GHz channel (PSC or non-PSC) is marked
+     * as a passive channel
+     */
+    A_UINT32 dwell_time_passive_6ghz;
 
 /**
  * TLV (tag length value) parameters follow the scan_cmd
@@ -3789,6 +3857,12 @@ typedef struct {
  *     A_UINT8 ie_data[ie_len];
  *     wmi_vendor_oui vendor_oui[num_vendor_oui];
  *     A_UINT8 phymode_list[0 or num_chan]; // see WMI_SCAN_CHAN_MODE macros
+ *     wmi_hint_freq_short_ssid hint_freq_short_ssid[num]; // the num can be calculated by TLV len
+ *     wmi_hint_freq_bssid hint_freq_bssid[num]; // the num can be calculated by TLV len
+ *     *** NOTE:
+ *     *** Use caution when using further TLVs, in case the additional
+ *     *** TLVs cause the message size to exceed the of the buffer to
+ *     *** hold the message.
  */
 } wmi_start_scan_cmd_fixed_param;
 
@@ -3886,10 +3960,30 @@ typedef enum {
 #define WMI_SCAN_DBS_POLICY_RESERVED            0x3
 #define WMI_SCAN_DBS_POLICY_MAX                 0x3
 
-/** Enable Reception of Public Action frame with this flag
- * (inside scan_ctrl_flags_ext field of wmi_start_scan_cmd_fixed_param)
+/* Enable Reception of Public Action frame with this flag */
+#define WMI_SCAN_FLAG_EXT_FILTER_PUBLIC_ACTION_FRAME  0x00000004
+
+/* Indicate to scan all PSC channel */
+#define WMI_SCAN_FLAG_EXT_6GHZ_SCAN_ALL_PSC_CH        0x00000008
+
+/* Indicate to scan all NON-PSC channel */
+#define WMI_SCAN_FLAG_EXT_6GHZ_SCAN_ALL_NON_PSC_CH    0x00000010
+
+/* Indicate to save scan result matching hint from scan client */
+#define WMI_SCAN_FLAG_EXT_6GHZ_MATCH_HINT             0x00000020
+
+/* Skip any ch on which no any RNR had been received */
+#define WMI_SCAN_FLAG_EXT_6GHZ_SKIP_NON_RNR_CH        0x00000040
+
+/* Indicate client hint req is high priority than fw rnr or FILS disc */
+#define WMI_SCAN_FLAG_EXT_6GHZ_CLIENT_HIGH_PRIORITY   0x00000080
+
+/**
+ * new 6 GHz flags per chan (short ssid or bssid) in struct
+ * wmi_hint_freq_short_ssid or wmi_hint_freq_bssid
  */
-#define WMI_SCAN_FLAG_EXT_FILTER_PUBLIC_ACTION_FRAME      0x4
+/* Indicate not to send probe req for short_ssid or bssid on that channel */
+#define WMI_SCAN_HINT_FLAG_SKIP_TX_PROBE_REQ    0x00000001
 
 typedef struct {
     A_UINT32 tlv_header; /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_stop_scan_cmd_fixed_param */
@@ -8120,6 +8214,14 @@ typedef struct {
     A_UINT32 last_rx_bitrate_kbps;
     /** combined RSSI of the last received PPDU, in unit of dBm */
     A_INT32 peer_rssi;
+    /** number of succeed transmissions (MPDUs) (ACK) */
+    A_UINT32 tx_succeed;
+    /**
+     * The RSSI values are in dBm units, and are exponentially time-averaged.
+     * The averaging is performed on the dB values (rather than the linear
+     * values).
+     */
+    A_INT32 peer_rssi_per_chain[WMI_MAX_CHAINS];
 } wmi_peer_stats_info;
 
 typedef struct {
@@ -10104,6 +10206,9 @@ typedef enum {
      */
     WMI_VDEV_PARAM_MSDU_FLOW_OVERRIDE_CONFIG,  /* 0x95 */
 
+    /* Enable/Disable using NULL frame for leaky AP  */
+    WMI_VDEV_PARAM_ENABLE_NULL_FOR_LEAKY_AP,   /* 0x96 */
+
 
     /*=== ADD NEW VDEV PARAM TYPES ABOVE THIS LINE ===
      * The below vdev param types are used for prototyping, and are
@@ -10901,8 +11006,18 @@ typedef enum {
     WMI_AP_PS_EGAP_FLAG_MAX = 0x8000
 } wmi_ap_ps_egap_flag_type;
 
+#define WMI_EGAP_GET_REDUCED_2G_TX_CHM(txrx_chm)  WMI_GET_BITS(txrx_chm, 0, 8)
+#define WMI_EGAP_GET_REDUCED_2G_RX_CHM(txrx_chm)  WMI_GET_BITS(txrx_chm, 8, 8)
+#define WMI_EGAP_GET_REDUCED_5G_TX_CHM(txrx_chm)  WMI_GET_BITS(txrx_chm, 16, 8)
+#define WMI_EGAP_GET_REDUCED_5G_RX_CHM(txrx_chm)  WMI_GET_BITS(txrx_chm, 24, 8)
+
+#define WMI_EGAP_SET_REDUCED_2G_TX_CHM(txrx_chm, val)  WMI_SET_BITS(txrx_chm, 0, 8, val)
+#define WMI_EGAP_SET_REDUCED_2G_RX_CHM(txrx_chm, val)  WMI_SET_BITS(txrx_chm, 8, 8, val)
+#define WMI_EGAP_SET_REDUCED_5G_TX_CHM(txrx_chm, val)  WMI_SET_BITS(txrx_chm, 16, 8, val)
+#define WMI_EGAP_SET_REDUCED_5G_RX_CHM(txrx_chm, val)  WMI_SET_BITS(txrx_chm, 24, 8, val)
+
 /**
- * configure ehanced green ap parameters
+ * configure enhanced green ap parameters
  */
 typedef struct {
     A_UINT32 tlv_header; /* TLV tag and len; tag equals wmi_ap_powersave_egap_param_cmd_fixed_param  */
@@ -10922,6 +11037,13 @@ typedef struct {
     /** The param is used to turn on/off some functions within E-GAP.
      */
     A_UINT32 flags; /* wmi_ap_ps_egap_flag_type bitmap */
+    /** Reduced_txrx_chainmask
+     *    [7:0]   - 2G band tx chain mask
+     *    [15:8]  - 2G band rx chain mask
+     *    [23:16] - 5G band tx chain mask
+     *    [31:24] - 5G band rx chain mask
+     */
+    A_UINT32 reduced_txrx_chainmask;
 } wmi_ap_ps_egap_param_cmd_fixed_param;
 
 typedef enum {
@@ -13745,6 +13867,7 @@ typedef enum event_type_e {
     WOW_BSS_COLOR_COLLISION_DETECT_EVENT,
     WOW_TKIP_MIC_ERR_FRAME_RECVD_EVENT,
     WOW_ROAM_PREAUTH_START_EVENT,
+    WOW_ROAM_PMKID_REQUEST_EVENT,
 } WOW_WAKE_EVENT_TYPE;
 
 typedef enum wake_reason_e {
@@ -13810,6 +13933,7 @@ typedef enum wake_reason_e {
     WOW_REASON_PKT_CAPTURE_MODE_WAKE,
     WOW_REASON_PAGE_FAULT, /* Host wake up due to page fault */
     WOW_REASON_ROAM_PREAUTH_START,
+    WOW_REASON_ROAM_PMKID_REQUEST,
 
     /* add new WOW_REASON_ defs before this line */
     WOW_REASON_MAX,
@@ -23087,6 +23211,10 @@ typedef enum wmi_coex_config_type {
      * config to enable(1)/disable(0) WAR of BT 2nd harmonic issue function
      */
     WMI_COEX_CONFIG_ENABLE_2ND_HARMONIC_WAR     = 43,
+    /* WMI_COEX_CONFIG_BTCOEX_SEPARATE_CHAIN_MODE
+     * config BTC separate chain mode or shared mode
+     */
+    WMI_COEX_CONFIG_BTCOEX_SEPARATE_CHAIN_MODE  = 44,
 } WMI_COEX_CONFIG_TYPE;
 
 typedef struct {
@@ -24015,7 +24143,7 @@ static INLINE A_UINT8 *wmi_id_to_name(A_UINT32 wmi_command)
         /* AP power save specific config
          * set AP power save specific param */
         WMI_RETURN_STRING(WMI_AP_PS_PEER_PARAM_CMDID);
-        /* set AP UAPSD coex pecific param */
+        /* set AP UAPSD coex specific param */
         WMI_RETURN_STRING(WMI_AP_PS_PEER_UAPSD_COEX_CMDID);
 
         /* Rate-control specific commands */
@@ -24454,6 +24582,11 @@ static INLINE A_UINT8 *wmi_id_to_name(A_UINT32 wmi_command)
         WMI_RETURN_STRING(WMI_ROAM_PREAUTH_STATUS_CMDID);
         WMI_RETURN_STRING(WMI_SET_ELNA_BYPASS_CMDID);
         WMI_RETURN_STRING(WMI_GET_ELNA_BYPASS_CMDID);
+        WMI_RETURN_STRING(WMI_AUDIO_AGGR_ENABLE_CMDID);
+        WMI_RETURN_STRING(WMI_AUDIO_AGGR_ADD_GROUP_CMDID);
+        WMI_RETURN_STRING(WMI_AUDIO_AGGR_DEL_GROUP_CMDID);
+        WMI_RETURN_STRING(WMI_AUDIO_AGGR_SET_GROUP_RATE_CMDID);
+        WMI_RETURN_STRING(WMI_AUDIO_AGGR_SET_GROUP_RETRY_CMDID);
     }
 
     return "Invalid WMI cmd";
@@ -27318,6 +27451,10 @@ typedef struct {
 #define WMI_PEER_CFR_CAPTURE_EVT_STATUS_OK      0x80000000
 #define WMI_PEER_CFR_CAPTURE_EVT_STATUS_OK_S    31
 
+/* Failed to capture CFR as peer is in power save mode */
+#define WMI_PEER_CFR_CAPTURE_EVT_STATUS_PS_FAILED      0x40000000
+#define WMI_PEER_CFR_CAPTURE_EVT_STATUS_PS_FAILED_S    30
+
 #define WMI_PEER_CFR_CAPTURE_EVT_STATUS_TX      0x00000003
 #define WMI_PEER_CFR_CAPTURE_EVT_STATUS_TX_S    0
 
@@ -27527,6 +27664,46 @@ typedef struct {
     /** 1-Enable, 0-Disable */
     A_UINT32 en_dis;
 } wmi_get_elna_bypass_event_fixed_param;
+
+/* This command is to specify to enable/disable audio frame aggr */
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_audio_aggr_enable_cmd_fixed_param */
+    A_UINT32 aggr_enable; /* enable aggregation for audio frame */
+    A_UINT32 tbd_enable;  /* enable time_based discarding for audio frame */
+} wmi_audio_aggr_enable_cmd_fixed_param;
+
+typedef struct wmi_audio_aggr_rate_set_s {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_audio_aggr_rate_set */
+    A_UINT32 mcs;
+    A_UINT32 bandwidth; /* 0 for 20M, 1 for 40M and 2 for 80M, etc. */
+} WMI_AUDIO_AGGR_RATE_SET_T;
+
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_audio_aggr_add_group */
+    A_UINT32 group_id;      /* id of audio group */
+    wmi_mac_addr multicast_addr; /* multicast address of audio group */
+} wmi_audio_aggr_add_group_cmd_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_audio_aggr_del_group */
+    A_UINT32 group_id;
+} wmi_audio_aggr_del_group_cmd_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_audio_aggr_set_group_rate */
+    A_UINT32 group_id;
+    /**
+     * TLV (tag length value) parameters follow the
+     * structure. The TLV's are:
+     * WMI_AUDIO_AGGR_RATE_SET_T rate_set[];
+     **/
+} wmi_audio_aggr_set_group_rate_cmd_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_audio_aggr_set_group_retry */
+    A_UINT32 group_id;
+    A_UINT32 retry_thresh;
+} wmi_audio_aggr_set_group_retry_cmd_fixed_param;
 
 
 
