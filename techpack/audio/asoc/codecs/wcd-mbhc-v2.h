@@ -154,6 +154,7 @@ do {                                                    \
 #define ANC_DETECT_RETRY_CNT 7
 #define WCD_MBHC_SPL_HS_CNT  1
 
+
 enum wcd_mbhc_detect_logic {
 	WCD_DETECTION_LEGACY,
 	WCD_DETECTION_ADC,
@@ -574,6 +575,10 @@ struct wcd_mbhc {
 	struct snd_soc_jack headset_jack;
 	struct snd_soc_jack button_jack;
 	struct mutex codec_resource_lock;
+
+	bool use_usbc_detect;
+	bool usbc_analog_status;
+	struct delayed_work mbhc_usbc_detect_dwork;
 
 	/* Holds codec specific interrupt mapping */
 	const struct wcd_mbhc_intr *intr_ids;
