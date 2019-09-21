@@ -821,15 +821,10 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 		 * data from the working set, only to cache data that will
 		 * get overwritten with something else, is a waste of memory.
 		 */
-
 		WARN_ON_ONCE(PageActive(page));
 		if (!(gfp_mask & __GFP_WRITE) && shadow)
 			workingset_refault(page, shadow);
-
-		/* bin.zhong@ASTI add for CONFIG_SMART_BOOST */
-		if (!smb_uid_lru_add(page))
-			lru_cache_add(page);
-
+		lru_cache_add(page);
 	}
 	return ret;
 }
@@ -2496,9 +2491,6 @@ int filemap_fault(struct vm_fault *vmf)
 		fpin = do_async_mmap_readahead(vmf, page);
 	} else if (!page) {
 		/* No page in the page cache at all */
-#ifdef CONFIG_MEMPLUS
-		count_vm_event(FILEMAJFAULT);
-#endif
 		count_vm_event(PGMAJFAULT);
 		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;

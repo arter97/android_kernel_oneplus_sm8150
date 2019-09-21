@@ -72,8 +72,7 @@ static const struct fsa4480_reg_val fsa_reg_i2c_defaults[] = {
 static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
 		u32 switch_control, u32 switch_enable)
 {
-	int ret = 0;
-	int retry = 3;
+	int ret;
 	int i = 0;
 
 	if (!fsa_priv->regmap) {
@@ -82,7 +81,7 @@ static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
 	}
 
 //liuhaituo@MM.Audio, 2019/6/12, Add retry to solve regmap_write fail -13
-	for (i = 0; i < retry; i++) {
+	for (i = 0; i < 3; i++) {
 		ret = regmap_write(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS,
 				0x80);
 		if (!ret)
@@ -93,7 +92,7 @@ static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
 	}
 
 //liuhaituo@MM.Audio, 2019/6/12, Add retry to solve regmap_write fail -13
-	for (i = 0; i < retry; i++) {
+	for (i = 0; i < 3; i++) {
 		ret = regmap_write(fsa_priv->regmap, FSA4480_SWITCH_CONTROL,
 				switch_control);
 		if (!ret)
@@ -106,7 +105,7 @@ static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
 	/* FSA4480 chip hardware requirement */
 	usleep_range(50, 55);
 //liuhaituo@MM.Audio, 2019/6/12, Add retry to solve regmap_write fail -13
-	for (i = 0; i < retry; i++) {
+	for (i = 0; i < 3; i++) {
 		ret = regmap_write(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS,
 				switch_enable);
 		if (!ret)

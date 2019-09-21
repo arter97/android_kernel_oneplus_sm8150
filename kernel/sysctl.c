@@ -135,10 +135,6 @@ static int one_thousand = 1000;
 #ifdef CONFIG_SCHED_WALT
 static int two_million = 2000000;
 #endif
-
-/*dylanchang, 2019/4/30, add foreground task io opt*/
-unsigned int sysctl_fg_io_opt = 1;
-
 #ifdef CONFIG_PRINTK
 static int ten_thousand = 10000;
 #endif
@@ -314,6 +310,9 @@ static int min_extfrag_threshold;
 static int max_extfrag_threshold = 1000;
 #endif
 
+static int sysctl_fg_io_opt = 0;
+static int vm_breath_period = 0;
+static int vm_breath_priority = 0;
 static struct ctl_table kern_table[] = {
 	{
 		.procname	= "sched_child_runs_first",
@@ -957,7 +956,7 @@ static struct ctl_table kern_table[] = {
 		.data		= &console_loglevel,
 		.maxlen		= 4*sizeof(int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec_oem,
+		.proc_handler	= proc_dointvec,
 	},
 	{
 		.procname	= "printk_ratelimit",
@@ -2690,24 +2689,6 @@ int proc_dointvec(struct ctl_table *table, int write,
 {
 	return do_proc_dointvec(table, write, buffer, lenp, ppos, NULL, NULL);
 }
-static unsigned int oem_en_chg_prk_lv = 1;
-module_param(oem_en_chg_prk_lv, uint, 0644);
-
-int proc_dointvec_oem(struct ctl_table *table, int write,
-		     void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-    if(oem_en_chg_prk_lv || !write )
-		return do_proc_dointvec(table, write, buffer, lenp, ppos, NULL, NULL);
-    else
-		return -ENOSYS;
-}
-static int __init oem_disable_chg_prk_lv(char *str)
-{
-	oem_en_chg_prk_lv = 0;
-	return 0;
-}
-early_param("debug", oem_disable_chg_prk_lv);
-
 
 /**
  * proc_douintvec - read a vector of unsigned integers

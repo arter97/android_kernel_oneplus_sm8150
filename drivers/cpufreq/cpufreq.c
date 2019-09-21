@@ -83,8 +83,6 @@ static struct qos_request_value c2_qos_request_value = {
 	.max_cpufreq = INT_MAX,
 	.min_cpufreq = MIN_CPUFREQ,
 };
-unsigned int cluster1_first_cpu = GOLD_CPU_NUMBER;
-unsigned int cluster2_first_cpu = GOLD_PLUS_CPU_NUMBER;
 
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
@@ -1939,10 +1937,10 @@ unsigned int cpufreq_driver_fast_switch(struct cpufreq_policy *policy,
 		target_freq = clamp_val(target_freq, policy->cc_min, policy->cc_max);
 #endif
 	target_freq = clamp_val(target_freq, policy->min, policy->max);
-	if (policy->cpu >= cluster2_first_cpu)
+	if (policy->cpu >= GOLD_PLUS_CPU_NUMBER)
 		qos = &c2_qos_request_value;
 	else {
-		qos = policy->cpu >= cluster1_first_cpu ?
+		qos = policy->cpu >= GOLD_CPU_NUMBER ?
 		&c1_qos_request_value : &c0_qos_request_value;
 	}
 	target_freq = clamp_val(target_freq, qos->min_cpufreq,
@@ -2923,7 +2921,7 @@ static int c1_cpufreq_qos_handler(struct notifier_block *b,
 	struct cpufreq_policy *policy;
 	int ret = -1;
 
-	policy = cpufreq_cpu_get(cluster1_first_cpu);
+	policy = cpufreq_cpu_get(GOLD_CPU_NUMBER);
 
 	if (!policy)
 		return NOTIFY_BAD;
@@ -2961,7 +2959,7 @@ static int c2_cpufreq_qos_handler(struct notifier_block *b,
 	struct cpufreq_policy *policy;
 	int ret = -1;
 
-	policy = cpufreq_cpu_get(cluster2_first_cpu);
+	policy = cpufreq_cpu_get(GOLD_PLUS_CPU_NUMBER);
 
 	if (!policy)
 		return NOTIFY_BAD;

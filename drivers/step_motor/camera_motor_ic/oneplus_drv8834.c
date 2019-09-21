@@ -719,7 +719,7 @@ static int  drv8834_get_all_config(int* config ,int count)
 	config[3] = gpio_get_value(g_the_chip->m1_gpio);
 	config[4] = gpio_get_value(g_the_chip->dir_gpio);
 
-	MOTOR_ERR("config change %d %d %d %d %d %d\n", config[0], config[1],
+	MOTOR_ERR("config change %d %d %d %d %d\n", config[0], config[1],
 		config[2], config[3], config[4]);
 
 	return 0;

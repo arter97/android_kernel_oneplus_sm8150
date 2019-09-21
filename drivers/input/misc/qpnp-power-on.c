@@ -40,8 +40,6 @@
 #include <linux/oem/param_rw.h>
 #include <linux/oneplus/boot_mode.h>
 
-#include <linux/oem_force_dump.h>
-
 #include <linux/sched/debug.h>
 #include <linux/msm_drm_notify.h>
 
@@ -944,7 +942,6 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	input_sync(pon->pon_input);
 
 	cfg->old_state = !!key_status;
-	oem_check_force_dump_key(cfg->key_code, key_status);
 
 	return 0;
 }

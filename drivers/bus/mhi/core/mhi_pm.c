@@ -499,8 +499,6 @@ static int mhi_pm_mission_mode_transition(struct mhi_controller *mhi_cntrl)
 
 	/* add supported devices */
 	mhi_create_devices(mhi_cntrl);
-	/* setup sysfs nodes for userspace votes */
-	mhi_create_vote_sysfs(mhi_cntrl);
 
 	/* setup sysfs nodes for userspace votes */
 	mhi_create_vote_sysfs(mhi_cntrl);

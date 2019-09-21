@@ -757,15 +757,8 @@ struct task_struct {
 	unsigned int			flags;
 	unsigned int			ptrace;
 
-    /* add for fd leak debug */
-	bool dump_fd_leak;
-
 	int compensate_time;
 	int compensate_need;
-
-        /* huruihuan add for kill task in D status */
-	unsigned int kill_flag;
-	struct timespec ttu;
 
 #ifdef CONFIG_SMP
 	struct llist_node		wake_entry;
@@ -843,12 +836,6 @@ struct task_struct {
 	struct sched_info		sched_info;
 
 	struct list_head		tasks;
-
-#ifdef CONFIG_ADJ_CHAIN
-	struct list_head adj_chain_tasks;
-	u32 adj_chain_status;
-#endif
-
 #ifdef CONFIG_SMP
 	struct plist_node		pushable_tasks;
 	struct rb_node			pushable_dl_tasks;
@@ -1375,10 +1362,6 @@ struct task_struct {
 	 * they are included in the randomized portion of task_struct.
 	 */
 	randomized_struct_fields_end
-
-#ifdef CONFIG_SMART_BOOST
-	int hot_count;
-#endif
 
 	/* CPU-specific state of this task: */
 	struct thread_struct		thread;

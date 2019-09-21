@@ -26,7 +26,6 @@
 static struct component_info component_info_desc[COMPONENT_MAX];
 static struct kobject *project_info_kobj;
 static struct project_info *project_info_desc;
-static struct dump_info *dp_info;
 extern void *panic_info;
 
 static struct kobject *component_info;
@@ -53,77 +52,6 @@ static DEVICE_ATTR(platform_id, 0444, project_info_get, NULL);
 static DEVICE_ATTR(serialno, 0444, project_info_get, NULL);
 static DEVICE_ATTR(feature_id, 0444, project_info_get, NULL);
 static DEVICE_ATTR(aboard_id, 0444, project_info_get, NULL);
-
-char *parse_regs_pc(unsigned long address, int *length)
-{
-	static char function_name[KSYM_SYMBOL_LEN];
-	if (!address)
-		return NULL;
-	*length = sprint_symbol(function_name, address);
-
-	return function_name;
-}
-
-void save_dump_reason_to_smem(char *info, char *function_name)
-{
-	int strl = 0, strl1 = 0, length = 0;
-	size_t size;
-	static int flag;
-	char buf[7], *buf1;
-	struct pt_regs *regs;
-	char *caller_function_name;
-
-	/* Make sure save_dump_reason_to_smem() is not
-	 * called infinite times by nested panic caller fns etc
-	 */
-	if (flag > 1)
-		return;
-
-	dp_info = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_DUMP_INFO, &size);
-
-	if (IS_ERR_OR_NULL(dp_info))
-		pr_debug("%s: get dp_info failure\n", __func__);
-	else {
-		pr_debug("%s: info : %s\n", __func__, info);
-
-		if (info != NULL) {
-			strl   = strlen(info)+1;
-			strl   = strl  <  DUMP_REASON_SIZE ? strl : DUMP_REASON_SIZE;
-			if ((strlen(dp_info->dump_reason) + strl) < DUMP_REASON_SIZE)
-				strncat(dp_info->dump_reason, info, strl);
-		}
-		if (function_name != NULL) {
-			strl1  = strlen(function_name)+1;
-			strl1  = strl1 <  DUMP_REASON_SIZE ? strl1 : DUMP_REASON_SIZE;
-			if ((strlen(dp_info->dump_reason) + strl1 + 3) < DUMP_REASON_SIZE) {
-				strncat(dp_info->dump_reason, "\r\n", 2);
-				strncat(dp_info->dump_reason, function_name, strl1);
-			}
-			pr_debug("%s: function caused panic :%s strl1=%d\n", __func__,
-				function_name, strl1);
-		}
-		caller_function_name = parse_function_builtin_return_address(
-			(unsigned long)__builtin_return_address(0));
-		if ((strcmp(caller_function_name, "panic") == 0)) {
-			regs = (struct pt_regs *)panic_info;
-			if (regs) {
-				buf1 = parse_regs_pc(regs->pc, &length);
-				length = length < DUMP_REASON_SIZE ? length : DUMP_REASON_SIZE;
-				if ((strlen(dp_info->dump_reason) + length + 12) < DUMP_REASON_SIZE) {
-					strncat(dp_info->dump_reason, "\r\n", 2);
-					strncpy(buf, "PC at:", 7);
-					strncat(dp_info->dump_reason, buf, 7);
-					strncat(dp_info->dump_reason, buf1, length);
-					strncat(dp_info->dump_reason, "\r\n", 2);
-				}
-			}
-		}
-	}
-	pr_debug("\r%s: dump_reason : %s strl=%d\n", __func__,
-		dp_info->dump_reason, strl);
-	save_dump_reason_to_device_info(dp_info->dump_reason);
-	flag++;
-}
 
 uint8 get_secureboot_fuse_status(void)
 {

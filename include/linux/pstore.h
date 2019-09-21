@@ -46,7 +46,6 @@ enum pstore_type_id {
 	PSTORE_TYPE_PPC_COMMON	= 6,
 	PSTORE_TYPE_PMSG	= 7,
 	PSTORE_TYPE_PPC_OPAL	= 8,
-	PSTORE_TYPE_DEVICE_INFO	= 9,
 	PSTORE_TYPE_UNKNOWN	= 255
 };
 
@@ -309,6 +308,5 @@ struct ramoops_context {
 	unsigned int device_info_read_cnt;
 	struct pstore_info pstore;
 };
-void save_dump_reason_to_device_info(char *buf);
 
 #endif /*_LINUX_PSTORE_H*/

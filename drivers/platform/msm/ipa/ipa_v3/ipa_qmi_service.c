@@ -1482,8 +1482,6 @@ static void ipa3_q6_clnt_svc_arrive(struct work_struct *work)
 		IPAWANERR("Couldnt connect Server\n");
 		return;
 	}
-	if (!send_qmi_init_q6)
-		return;
 
 	if (!send_qmi_init_q6)
 		return;

@@ -89,9 +89,6 @@
 #include <linux/sysctl.h>
 #include <linux/kcov.h>
 #include <linux/livepatch.h>
-#ifdef CONFIG_ADJ_CHAIN
-#include <linux/oem/adj_chain.h>
-#endif
 #include <linux/thread_info.h>
 #include <linux/cpufreq_times.h>
 
@@ -1472,10 +1469,6 @@ static int copy_signal(unsigned long clone_flags, struct task_struct *tsk)
 	sig->oom_score_adj = current->signal->oom_score_adj;
 	sig->oom_score_adj_min = current->signal->oom_score_adj_min;
 
-	/* CONFIG_MEMPLUS add start by bin.zhong@ASTI */
-	memplus_init_task_reclaim_stat(sig);
-	/* add end */
-
 	mutex_init(&sig->cred_guard_mutex);
 
 	return 0;
@@ -1939,9 +1932,6 @@ static __latent_entropy struct task_struct *copy_process(
 	if (likely(p->pid)) {
 		ptrace_init_task(p, (clone_flags & CLONE_PTRACE) || trace);
 
-#ifdef CONFIG_ADJ_CHAIN
-		adj_chain_init_list(p);
-#endif
 		init_task_pid(p, PIDTYPE_PID, pid);
 		if (thread_group_leader(p)) {
 			init_task_pid(p, PIDTYPE_PGID, task_pgrp(current));
@@ -1963,9 +1953,6 @@ static __latent_entropy struct task_struct *copy_process(
 							 p->real_parent->signal->is_child_subreaper;
 			list_add_tail(&p->sibling, &p->real_parent->children);
 			list_add_tail_rcu(&p->tasks, &init_task.tasks);
-#ifdef CONFIG_ADJ_CHAIN
-			adj_chain_attach(p);
-#endif
 			attach_pid(p, PIDTYPE_PGID);
 			attach_pid(p, PIDTYPE_SID);
 			__this_cpu_inc(process_counts);
@@ -2130,9 +2117,6 @@ long _do_fork(unsigned long clone_flags,
 		cpufreq_task_times_alloc(p);
 
 		trace_sched_process_fork(current, p);
-
-		/* bin.zhong@ASTI add for CONFIG_SMART_BOOST */
-		SMB_HOT_COUNT_INIT((clone_flags & CLONE_VM), p);
 
 		pid = get_task_pid(p, PIDTYPE_PID);
 		nr = pid_vnr(pid);

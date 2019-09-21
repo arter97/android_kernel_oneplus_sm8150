@@ -208,7 +208,6 @@ EXPORT_SYMBOL(loops_per_jiffy);
 static int __init debug_kernel(char *str)
 {
 	console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
-	default_message_loglevel = CONSOLE_LOGLEVEL_DEBUG;
 	return 0;
 }
 

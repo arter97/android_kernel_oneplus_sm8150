@@ -82,6 +82,7 @@ walt_dec_cfs_rq_stats(struct cfs_rq *cfs_rq, struct task_struct *p) {}
 
 #define walt_inc_throttled_cfs_rq_stats(...)
 #define walt_dec_throttled_cfs_rq_stats(...)
+
 #endif
 
 // add for chainboost CONFIG_ONEPLUS_CHAIN_BOOST
@@ -4072,9 +4073,6 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 // add for chainboost CONFIG_ONEPLUS_CHAIN_BOOST
 	if (flags & ENQUEUE_WAKEUP && !boost_flag)
 		place_entity(cfs_rq, se, 0);
-	/*if (flags & ENQUEUE_WAKEUP)
-	 *	place_entity(cfs_rq, se, 0);
-	 */
 
 	check_schedstat_required();
 	update_stats_enqueue(cfs_rq, se, flags);
@@ -8340,8 +8338,8 @@ out:
 
 	trace_sched_task_util(p, next_cpu, backup_cpu, target_cpu, sync,
 			need_idle, fbt_env.fastpath, placement_boost,
-			rtg_target ? cpumask_first(rtg_target) : -1, is_uxtop,
-			start_t, boosted);
+			rtg_target ? cpumask_first(rtg_target) : -1, start_t,
+			boosted);
 	return target_cpu;
 }
 

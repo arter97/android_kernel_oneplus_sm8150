@@ -1217,10 +1217,9 @@ static int diag_cmd_get_log_mask(unsigned char *src_buf, int src_len,
 	mask_info = (!info) ? &log_mask : info->log_mask;
 	if (!src_buf || !dest_buf || dest_len <= 0 || !mask_info ||
 		src_len < sizeof(struct diag_log_config_get_req_t)) {
-
-		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d, mask_info: %pK,structure size %d\n",
+		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d, mask_info: %pK\n",
 		       __func__, src_buf, src_len, dest_buf, dest_len,
-		       mask_info, sizeof(struct diag_log_config_get_req_t));
+		       mask_info);
 		mutex_unlock(&driver->md_session_lock);
 		return -EINVAL;
 	}

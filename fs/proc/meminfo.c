@@ -19,8 +19,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include "internal.h"
-/* bin.zhong@ASTI add CONFIG_DEFRAG */
-#include <oneplus/defrag/defrag_helper.h>
 #ifdef CONFIG_ONEPLUS_HEALTHINFO
 #include <linux/oem/oneplus_ion.h>
 #endif
@@ -77,25 +75,12 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "Buffers:        ", i.bufferram);
 	show_val_kb(m, "Cached:         ", cached);
 	show_val_kb(m, "SwapCached:     ", total_swapcache_pages());
-#ifndef CONFIG_MEMPLUS
 	show_val_kb(m, "Active:         ", pages[LRU_ACTIVE_ANON] +
 					   pages[LRU_ACTIVE_FILE]);
 	show_val_kb(m, "Inactive:       ", pages[LRU_INACTIVE_ANON] +
 					   pages[LRU_INACTIVE_FILE]);
 	show_val_kb(m, "Active(anon):   ", pages[LRU_ACTIVE_ANON]);
 	show_val_kb(m, "Inactive(anon): ", pages[LRU_INACTIVE_ANON]);
-#else
-	show_val_kb(m, "Active:         ", pages[LRU_ACTIVE_ANON] +
-			pages[LRU_ACTIVE_FILE] +
-			pages[LRU_ACTIVE_ANON_SWPCACHE]);
-	show_val_kb(m, "Inactive:       ", pages[LRU_INACTIVE_ANON] +
-			pages[LRU_INACTIVE_FILE] +
-			pages[LRU_INACTIVE_ANON_SWPCACHE]);
-	show_val_kb(m, "Active(anon):   ", pages[LRU_ACTIVE_ANON] +
-			pages[LRU_ACTIVE_ANON_SWPCACHE]);
-	show_val_kb(m, "Inactive(anon): ", pages[LRU_INACTIVE_ANON] +
-			pages[LRU_INACTIVE_ANON_SWPCACHE]);
-#endif
 	show_val_kb(m, "Active(file):   ", pages[LRU_ACTIVE_FILE]);
 	show_val_kb(m, "Inactive(file): ", pages[LRU_INACTIVE_FILE]);
 	show_val_kb(m, "Unevictable:    ", pages[LRU_UNEVICTABLE]);
@@ -178,11 +163,6 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "IonTotalUsed:   ", ion_total() >> PAGE_SHIFT);
 #endif
 #endif
-/* bin.zhong@ASTI add CONFIG_DEFRAG */
-	show_defrag_free(m);
-	show_real_freemem(m, i.freeram);
-
-
 	hugetlb_report_meminfo(m);
 
 	arch_report_meminfo(m);
