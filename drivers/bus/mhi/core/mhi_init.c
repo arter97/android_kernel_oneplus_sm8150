@@ -1568,7 +1568,6 @@ static int mhi_driver_probe(struct device *dev)
 
 exit_probe:
 	mhi_device_put(mhi_dev, MHI_VOTE_DEVICE);
-
 	return ret;
 }
 

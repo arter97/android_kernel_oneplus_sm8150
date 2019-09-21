@@ -206,6 +206,16 @@
 	status = "disabled";
 };
 
+
+&icnss {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm3>;
+};
+
+&icnss {
+	qcom,clk-monitor-enable;
+};
+
 &soc {
 	qmi-tmd-devices {
 		compatible = "qcom,qmi-cooling-devices";

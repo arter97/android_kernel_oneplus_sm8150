@@ -1379,6 +1379,7 @@ static int ipa_mpm_vote_unvote_pcie_clk(enum ipa_mpm_clk_vote_type vote,
 			mutex_unlock(&ipa_mpm_ctx->md[probe_id].mhi_mutex);
 			return 0;
 		}
+
 		mhi_device_put(ipa_mpm_ctx->md[probe_id].mhi_dev, MHI_VOTE_BUS);
 		IPA_MPM_DBG("probe_id %d PCIE clock off\n", probe_id);
 		atomic_dec(&ipa_mpm_ctx->md[probe_id].clk_cnt.pcie_clk_cnt);

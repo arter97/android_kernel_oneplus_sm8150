@@ -34,6 +34,8 @@
 
 #define PP_TIMEOUT_MAX_TRIALS	4
 
+
+
 /*
  * Tearcheck sync start and continue thresholds are empirically found
  * based on common panels In the future, may want to allow panels to override
@@ -526,6 +528,7 @@ static void sde_encoder_phys_cmd_mode_set(
 
 	_sde_encoder_phys_cmd_setup_irq_hw_idx(phys_enc);
 }
+
 
 static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 		struct sde_encoder_phys *phys_enc,
