@@ -1,0 +1,177 @@
+﻿### LICENSE:
+#--- COMMON SYSTEM STRING RESOURCE
+#
+text_ok=Ok
+text_next=Next >
+text_back=Back
+text_yes=Yes
+text_no=No
+text_about=About
+text_calibrating=Calibrating Tools
+text_quit=Quit
+text_quit_msg=Are you sure you want to quit?
+text_done=Done
+global_done=Done
+
+#
+#-- CUSTOM STRING RESOURCE
+#
+lang.name=选择语言/Select Language
+lang.title_name=请选择语言/Select Language
+lang.desc=lang selected
+default_name=default_name
+default_title=default_title
+default_desc=Your phone will reboot
+
+mainmenu.name= OxygenOS Recovery
+mainmenu.title_name=MAIN MENU
+mainmenu.install.name=install from SD
+mainmenu.tools.name=tools
+
+advance.name=Advanced
+
+back.name=Back
+back.title_name=Back to main menu
+
+sd.back.name=Back
+sd.back.desc=back to previous
+
+sd.name=Install from internal storage
+sd.title_name=Install from storage
+externalsd.title_name=SD card
+sd.desc=Install from SD
+batt.name=BATTARY
+time.name=TIME
+
+sd.install.name=choose zip from sd
+sd.update.name=apply /sdcard/update.zip
+sd.internal.name=Internal storage
+sd.external.name=SD card
+sd.install.confirm.name=Update
+sd.install.confirm.desc=Installing package
+sd.install.success.name=Prompt
+sd.install.failed.name=Install failed
+sd.install.notice=Prompt
+sd.install.success.desc=Install success
+sd.install.failed.desc=Installation failed
+sd.install.caplow.desc=Battery < 20%, please connect to power source
+sd.install.space.desc=Data space is less than 500MB
+install.package.name=Updating, please wait
+install.package.desc=Do not turn off your phone
+sd.install.success.leftbutton=Reboot
+
+adbd.confirm=Yes
+adbd.null=Install from ADB
+adbd.null.title=Upgrade Android from USB?
+sideload.package.name=You are in sideload mode
+sideload.package.desc=Load package with adb sideload <filename>
+
+ums.name=Usb mass storage mode
+ums.btn.name=Exit the UMS mode
+ums.notice.name=UMS mode
+ums.notice.desc=UMS mode is enabled
+
+power.name=power
+power.title=power operation
+reboot.null= Reboot
+reboot.null.title= Reboot now
+reboot.recovery= Reboot to recovery
+reboot.bootloader= Reboot to fastboot
+reboot.poweroff= Power off
+poweroff.desc=Your phone will power off
+poweroff.confirm=Power off
+reboot.confirm=Reboot
+
+alert.result=FAIL!
+alert.desc=Operation failed
+
+mount.name=mount
+mount.title=mount and toogle usb storage
+mount.cache.name=mount cache
+mount.data.name=mount data
+mount.system.name=mount system
+mount.sdcard.name=mount sdcard
+mount.toggle.name=toggle usb storage
+
+wipe.name=Wipe data and cache
+wipe.title=Wipe data or format partition operation
+wipe.cache.name=Wipe cache
+wipe.cache.desc=Cache will be wiped, continue?
+wipe.factory.name=Reset system setting
+wipe.factory.desc=System data & Cache will be reset, continue?
+wipe.data.name=Wipe data
+wipe.data.desc=Your data will be wiped, continue?
+wipe.progress.namd=Wiping, please wait
+wipe.progress.desc=Do not remove battery or turn off your phone
+wipe.result.title=Prompt
+wipe.result.success.title=Wipe success
+wipe.result.failed.title=Wipe failed
+wipe.result.factory.ok=Wipe success
+wipe.result.factory.failed=Wipe failed
+wipe.result.data.ok=Wipe success
+wipe.result.data.failed=Wipe  failed
+wipe.result.cache.ok=Wipe success
+wipe.result.cache.failed=Wipe failed
+format.system.name=Format system
+format.data.name=Erase everything(Music, pics, etc)
+format.cache.name=Format cache
+format.boot.name=Format boot
+format.sdcard.name=Format sdcard
+format.all.name=Format all(except sdcard and boot)
+format.data.desc=Userdata partition will be formatted
+format.data.confirm=This can not be undone, continue?
+format.result.success.title=Format success
+format.result.failed.title=Format failed
+
+backup.name=Backup and restore
+backup.title=Backup and restore from sdcard
+backup.backup.name=backup
+backup.restore.name=restore
+advanced_backup.name=advanced backup
+advanced_backup.cache.name=backup cache
+advanced_backup.data.name=backup data
+advanced_backup.system.name=backup system
+advanced_backup.boot.name=backup boot
+advanced_backup.recovery.name=backup recovery
+advanced_restore.name=advanced restore
+advanced_restore.cache.name=restore cache
+advanced_restore.data.name=restore data
+advanced_restore.system.name=restore system
+advanced_restore.boot.name=restore boot
+advanced_restore.recovery.name=restore recovery
+
+tool.name=tool
+tool.title=advanced tools
+tool.key.name=key test
+tool.time.name=timer setting
+tool.battary.name=wipe battery stats
+tool.log.name=copy log to sdcard
+tool.log.desc=are you sure you want to copy log to
+tool.permission.name=fix permission
+
+info.name=Ver 2.0
+info.title=OEM recovery information
+info.mount.name=Storage info
+info.log.name=log
+info.about.name=About OEM recovery
+
+about.device=Device:
+about.name=Name:
+about.version=Version:
+about.date=Date:
+
+oemunlock.confirm.name=Unlock to use fastboot flash and erase
+oemunlock.confirm.desc=Unlock will erase user data, continue?
+
+exit.recovery.name=Exit
+exit.recovery.title=Exit Recovery
+
+password.forget=Forgot Password
+delete.string=DEL
+keyboard.space=Space
+decrypt.process=Decrypting...
+
+forget.password.confirm1=You will LOSE everything(Music, pics, etc)
+forget.password.confirm2=This can not be undone, continue?
+
+retry_timeout=Please try again after 30s

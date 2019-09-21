@@ -1,0 +1,35 @@
+img.titlebg=titlebg.9
+img.progress=progress_bg.9
+img.progress.fill=progress_fg.9
+img.progress.failed.fill=progress_failed_fg.9
+img.list_bg=list_bg.9
+img.list_bg.select=list_bg.select.9
+img.list_line=list_line.9
+img.button.focus=button_focus.9
+img.button=button.9
+img.button_bg=button_bg.9
+img.pattern_bg=patternbg.9
+
+color.winbg           =        #000000
+color.selectbg         =       #000000
+color.txt_title           = #4e4f4c
+color.txt_menu      =       #ffffff
+color.txt_select        =   #23aff3
+color.txt_version      =        #a1a6a4
+color.txt_pic_tit    = #ffffff
+color.txt_pic_desc     = #c0c0c0
+color.menuline_top          = #000000
+color.menuline_bot     =   #000000
+color.title_line       =       #0b984c
+color.border       =           #000000
+color.statusbg       =         #232323
+color.txt_status       =    #ffffff
+
+config.roundsize             = 2
+config.button_roundsize      = 1
+config.window_roundsize      = 1
+config.transition_frame      = 5
+
+font.small                   = font.notosans.small
+font.big                     = font.notosans.big
+forget.bg=forget_bg.9
