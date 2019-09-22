@@ -60,7 +60,9 @@ struct qpnp_pon {
 	struct input_dev	*pon_input;
 	struct qpnp_pon_config	*pon_cfg;
 	struct pon_regulator	*pon_reg_cfg;
+	struct list_head	restore_regs;
 	struct list_head	list;
+	struct mutex		restore_lock;
 	struct delayed_work	bark_work;
 	struct delayed_work     press_work;
 	struct work_struct  up_work;
