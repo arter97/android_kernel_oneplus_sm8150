@@ -370,10 +370,7 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 		u64 total_stime = uid_entry->stime +
 							uid_entry->active_stime;
 		seq_printf(m, "%d: %llu %llu\n", uid_entry->uid,
-			(unsigned long long)ktime_to_ms(
-					total_utime) * USEC_PER_MSEC,
-			(unsigned long long)ktime_to_ms(
-					total_stime) * USEC_PER_MSEC);
+			ktime_to_us(total_utime), ktime_to_us(total_stime));
 	}
 
 	rt_mutex_unlock(&uid_lock);

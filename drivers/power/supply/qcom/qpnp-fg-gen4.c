@@ -101,12 +101,20 @@
 #define KI_COEFF_MED_DISCHG_OFFSET	0
 #define KI_COEFF_HI_DISCHG_WORD		26
 #define KI_COEFF_HI_DISCHG_OFFSET	1
+#define KI_COEFF_LO_MED_DCHG_THR_WORD	27
+#define KI_COEFF_LO_MED_DCHG_THR_OFFSET	0
+#define KI_COEFF_MED_HI_DCHG_THR_WORD	27
+#define KI_COEFF_MED_HI_DCHG_THR_OFFSET	1
 #define KI_COEFF_LOW_CHG_WORD		28
 #define KI_COEFF_LOW_CHG_OFFSET		0
 #define KI_COEFF_MED_CHG_WORD		28
 #define KI_COEFF_MED_CHG_OFFSET		1
 #define KI_COEFF_HI_CHG_WORD		29
 #define KI_COEFF_HI_CHG_OFFSET		0
+#define KI_COEFF_LO_MED_CHG_THR_WORD	29
+#define KI_COEFF_LO_MED_CHG_THR_OFFSET	1
+#define KI_COEFF_MED_HI_CHG_THR_WORD	30
+#define KI_COEFF_MED_HI_CHG_THR_OFFSET	0
 #define DELTA_BSOC_THR_WORD		30
 #define DELTA_BSOC_THR_OFFSET		1
 #define SLOPE_LIMIT_WORD		32
@@ -252,12 +260,16 @@ struct fg_dt_props {
 	int	ki_coeff_low_chg;
 	int	ki_coeff_med_chg;
 	int	ki_coeff_hi_chg;
+	int	ki_coeff_lo_med_chg_thr_ma;
+	int	ki_coeff_med_hi_chg_thr_ma;
 	int	ki_coeff_cutoff_gain;
 	int	ki_coeff_full_soc_dischg[2];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_low_dischg[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_med_dischg[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_hi_dischg[KI_COEFF_SOC_LEVELS];
+	int	ki_coeff_lo_med_dchg_thr_ma;
+	int	ki_coeff_med_hi_dchg_thr_ma;
 	int	slope_limit_coeffs[SLOPE_LIMIT_NUM_COEFFS];
 };
 
@@ -267,6 +279,7 @@ struct fg_gen4_chip {
 	struct cycle_counter	*counter;
 	struct cap_learning	*cl;
 	struct ttf		*ttf;
+	struct soh_profile	*sp;
 	struct device_node	*pbs_dev;
 	struct nvmem_device	*fg_nvmem;
 	struct votable		*delta_esr_irq_en_votable;
@@ -536,12 +549,24 @@ static struct fg_sram_param pm8150b_v2_sram_params[] = {
 	PARAM(KI_COEFF_HI_DISCHG, KI_COEFF_HI_DISCHG_WORD,
 		KI_COEFF_HI_DISCHG_OFFSET, 1, 1000, 61035, 0,
 		fg_encode_default, NULL),
+	PARAM(KI_COEFF_LO_MED_DCHG_THR, KI_COEFF_LO_MED_DCHG_THR_WORD,
+		KI_COEFF_LO_MED_DCHG_THR_OFFSET, 1, 1000, 15625, 0,
+		fg_encode_default, NULL),
+	PARAM(KI_COEFF_MED_HI_DCHG_THR, KI_COEFF_MED_HI_DCHG_THR_WORD,
+		KI_COEFF_MED_HI_DCHG_THR_OFFSET, 1, 1000, 15625, 0,
+		fg_encode_default, NULL),
 	PARAM(KI_COEFF_LOW_CHG, KI_COEFF_LOW_CHG_WORD, KI_COEFF_LOW_CHG_OFFSET,
 		1, 1000, 61035, 0, fg_encode_default, NULL),
 	PARAM(KI_COEFF_MED_CHG, KI_COEFF_MED_CHG_WORD, KI_COEFF_MED_CHG_OFFSET,
 		1, 1000, 61035, 0, fg_encode_default, NULL),
 	PARAM(KI_COEFF_HI_CHG, KI_COEFF_HI_CHG_WORD, KI_COEFF_HI_CHG_OFFSET, 1,
 		1000, 61035, 0, fg_encode_default, NULL),
+	PARAM(KI_COEFF_LO_MED_CHG_THR, KI_COEFF_LO_MED_CHG_THR_WORD,
+		KI_COEFF_LO_MED_CHG_THR_OFFSET, 1, 1000, 15625, 0,
+		fg_encode_default, NULL),
+	PARAM(KI_COEFF_MED_HI_CHG_THR, KI_COEFF_MED_HI_CHG_THR_WORD,
+		KI_COEFF_MED_HI_CHG_THR_OFFSET, 1, 1000, 15625, 0,
+		fg_encode_default, NULL),
 	PARAM(SLOPE_LIMIT, SLOPE_LIMIT_WORD, SLOPE_LIMIT_OFFSET, 1, 8192,
 		1000000, 0, fg_encode_default, NULL),
 	PARAM(BATT_TEMP_COLD, BATT_TEMP_CONFIG_WORD, BATT_TEMP_COLD_OFFSET, 1,
@@ -1418,8 +1443,8 @@ static void fg_gen4_update_rslow_coeff(struct fg_dev *fg, int batt_temp)
 	}
 }
 
-#define KI_COEFF_FULL_SOC_NORM_DEFAULT		733
-#define KI_COEFF_FULL_SOC_LOW_DEFAULT		184
+#define KI_COEFF_FULL_SOC_NORM_DEFAULT	2442
+#define KI_COEFF_FULL_SOC_LOW_DEFAULT	2442
 static int fg_gen4_adjust_ki_coeff_full_soc(struct fg_gen4_chip *chip,
 						int batt_temp)
 {
@@ -1427,15 +1452,13 @@ static int fg_gen4_adjust_ki_coeff_full_soc(struct fg_gen4_chip *chip,
 	int rc, ki_coeff_full_soc_norm, ki_coeff_full_soc_low;
 	u8 val;
 
-	if (batt_temp < 0) {
+	if ((batt_temp < 0) ||
+		(fg->charge_status == POWER_SUPPLY_STATUS_DISCHARGING)) {
 		ki_coeff_full_soc_norm = 0;
 		ki_coeff_full_soc_low = 0;
-	} else if (fg->charge_status == POWER_SUPPLY_STATUS_DISCHARGING) {
+	} else if (fg->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
 		ki_coeff_full_soc_norm = chip->dt.ki_coeff_full_soc_dischg[0];
 		ki_coeff_full_soc_low = chip->dt.ki_coeff_full_soc_dischg[1];
-	} else {
-		ki_coeff_full_soc_norm = KI_COEFF_FULL_SOC_NORM_DEFAULT;
-		ki_coeff_full_soc_low = KI_COEFF_FULL_SOC_LOW_DEFAULT;
 	}
 
 	if (chip->ki_coeff_full_soc[0] == ki_coeff_full_soc_norm &&
@@ -1467,9 +1490,63 @@ static int fg_gen4_adjust_ki_coeff_full_soc(struct fg_gen4_chip *chip,
 	return 0;
 }
 
-#define KI_COEFF_LOW_DISCHG_DEFAULT	428
-#define KI_COEFF_MED_DISCHG_DEFAULT	245
-#define KI_COEFF_HI_DISCHG_DEFAULT	123
+static int fg_gen4_set_ki_coeff_dischg(struct fg_dev *fg, int ki_coeff_low,
+		int ki_coeff_med, int ki_coeff_hi)
+{
+	int rc;
+	u8 val;
+
+	if (ki_coeff_low >= 0) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LOW_DISCHG, ki_coeff_low,
+			&val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_low, rc=%d\n", rc);
+			return rc;
+		}
+		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_low %d\n", ki_coeff_low);
+	}
+
+	if (ki_coeff_med >= 0) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_DISCHG, ki_coeff_med,
+			&val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_med, rc=%d\n", rc);
+			return rc;
+		}
+		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_med %d\n", ki_coeff_med);
+	}
+
+	if (ki_coeff_hi >= 0) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_HI_DISCHG, ki_coeff_hi,
+			&val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_hi, rc=%d\n", rc);
+			return rc;
+		}
+		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_hi %d\n", ki_coeff_hi);
+	}
+
+	return 0;
+}
+
+#define KI_COEFF_LOW_DISCHG_DEFAULT	122
+#define KI_COEFF_MED_DISCHG_DEFAULT	62
+#define KI_COEFF_HI_DISCHG_DEFAULT	0
 static int fg_gen4_adjust_ki_coeff_dischg(struct fg_dev *fg)
 {
 	struct fg_gen4_chip *chip = container_of(fg, struct fg_gen4_chip, fg);
@@ -1477,7 +1554,6 @@ static int fg_gen4_adjust_ki_coeff_dischg(struct fg_dev *fg)
 	int ki_coeff_low = KI_COEFF_LOW_DISCHG_DEFAULT;
 	int ki_coeff_med = KI_COEFF_MED_DISCHG_DEFAULT;
 	int ki_coeff_hi = KI_COEFF_HI_DISCHG_DEFAULT;
-	u8 val;
 
 	if (!chip->ki_coeff_dischg_en)
 		return 0;
@@ -1498,50 +1574,10 @@ static int fg_gen4_adjust_ki_coeff_dischg(struct fg_dev *fg)
 		}
 	}
 
-	if (ki_coeff_low > 0) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LOW_DISCHG, ki_coeff_low,
-			&val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_DISCHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_low, rc=%d\n", rc);
-			return rc;
-		}
-		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_low %d\n", ki_coeff_low);
-	}
-
-	if (ki_coeff_med > 0) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_DISCHG, ki_coeff_med,
-			&val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_MED_DISCHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_med, rc=%d\n", rc);
-			return rc;
-		}
-		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_med %d\n", ki_coeff_med);
-	}
-
-	if (ki_coeff_hi > 0) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_HI_DISCHG, ki_coeff_hi,
-			&val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_HI_DISCHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_hi, rc=%d\n", rc);
-			return rc;
-		}
-		fg_dbg(fg, FG_STATUS, "Wrote ki_coeff_hi %d\n", ki_coeff_hi);
-	}
+	rc = fg_gen4_set_ki_coeff_dischg(fg,
+			ki_coeff_low, ki_coeff_med, ki_coeff_hi);
+	if (rc < 0)
+		return rc;
 
 	return 0;
 }
@@ -1662,11 +1698,33 @@ static int fg_gen4_get_batt_profile(struct fg_dev *fg)
 		return -ENODATA;
 	}
 
-	if (chip->dt.multi_profile_load &&
-		chip->batt_age_level != avail_age_level) {
-		fg_dbg(fg, FG_STATUS, "Batt_age_level %d doesn't exist, using %d\n",
-			chip->batt_age_level, avail_age_level);
-		chip->batt_age_level = avail_age_level;
+	if (chip->dt.multi_profile_load) {
+		if (chip->batt_age_level != avail_age_level) {
+			fg_dbg(fg, FG_STATUS, "Batt_age_level %d doesn't exist, using %d\n",
+				chip->batt_age_level, avail_age_level);
+			chip->batt_age_level = avail_age_level;
+		}
+
+		if (!chip->sp)
+			chip->sp = devm_kzalloc(fg->dev, sizeof(*chip->sp),
+						GFP_KERNEL);
+		if (!chip->sp)
+			return -ENOMEM;
+
+		if (!chip->sp->initialized) {
+			chip->sp->batt_id_kohms = fg->batt_id_ohms / 1000;
+			chip->sp->last_batt_age_level = chip->batt_age_level;
+			chip->sp->bp_node = batt_node;
+			chip->sp->bms_psy = fg->fg_psy;
+			rc = soh_profile_init(fg->dev, chip->sp);
+			if (rc < 0) {
+				devm_kfree(fg->dev, chip->sp);
+				chip->sp = NULL;
+			} else {
+				fg_dbg(fg, FG_STATUS, "SOH profile count: %d\n",
+					chip->sp->profile_count);
+			}
+		}
 	}
 
 	rc = of_property_read_string(profile_node, "qcom,battery-type",
@@ -4443,6 +4501,8 @@ static int fg_psy_set_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_SOH:
 		chip->soh = pval->intval;
+		if (chip->sp)
+			soh_profile_update(chip->sp, chip->soh);
 		break;
 	case POWER_SUPPLY_PROP_CLEAR_SOH:
 		if (chip->first_profile_load && !pval->intval) {
@@ -4909,6 +4969,139 @@ static int fg_gen4_esr_calib_config(struct fg_gen4_chip *chip)
 	return rc;
 }
 
+static int fg_gen4_init_ki_coeffts(struct fg_gen4_chip *chip)
+{
+	int rc;
+	u8 val;
+	struct fg_dev *fg = &chip->fg;
+
+	if (chip->dt.ki_coeff_low_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LOW_CHG,
+			chip->dt.ki_coeff_low_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_low_chg, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_med_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_CHG,
+			chip->dt.ki_coeff_med_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_med_chg, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_hi_chg != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_HI_CHG,
+			chip->dt.ki_coeff_hi_chg, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_hi_chg, rc=%d\n", rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_lo_med_chg_thr_ma != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LO_MED_CHG_THR,
+			chip->dt.ki_coeff_lo_med_chg_thr_ma, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_LO_MED_CHG_THR].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_LO_MED_CHG_THR].addr_byte,
+			&val, fg->sp[FG_SRAM_KI_COEFF_LO_MED_CHG_THR].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_lo_med_chg_thr_ma, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_med_hi_chg_thr_ma != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_HI_CHG_THR,
+			chip->dt.ki_coeff_med_hi_chg_thr_ma, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_MED_HI_CHG_THR].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_MED_HI_CHG_THR].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_MED_HI_CHG_THR].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_med_hi_chg_thr_ma, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_lo_med_dchg_thr_ma != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LO_MED_DCHG_THR,
+			chip->dt.ki_coeff_lo_med_dchg_thr_ma, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_LO_MED_DCHG_THR].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_LO_MED_DCHG_THR].addr_byte,
+			&val, fg->sp[FG_SRAM_KI_COEFF_LO_MED_DCHG_THR].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_lo_med_dchg_thr_ma, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_med_hi_dchg_thr_ma != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_HI_DCHG_THR,
+			chip->dt.ki_coeff_med_hi_dchg_thr_ma, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_MED_HI_DCHG_THR].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_MED_HI_DCHG_THR].addr_byte,
+			&val, fg->sp[FG_SRAM_KI_COEFF_MED_HI_DCHG_THR].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_med_hi_dchg_thr_ma, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.ki_coeff_cutoff_gain != -EINVAL) {
+		fg_encode(fg->sp, FG_SRAM_KI_COEFF_CUTOFF,
+			  chip->dt.ki_coeff_cutoff_gain, &val);
+		rc = fg_sram_write(fg,
+			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].addr_word,
+			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].addr_byte, &val,
+			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].len,
+			FG_IMA_DEFAULT);
+		if (rc < 0) {
+			pr_err("Error in writing ki_coeff_cutoff_gain, rc=%d\n",
+				rc);
+			return rc;
+		}
+	}
+
+	rc = fg_gen4_set_ki_coeff_dischg(fg, KI_COEFF_LOW_DISCHG_DEFAULT,
+		KI_COEFF_MED_DISCHG_DEFAULT, KI_COEFF_HI_DISCHG_DEFAULT);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
 #define BATT_TEMP_HYST_MASK	GENMASK(3, 0)
 #define BATT_TEMP_DELTA_MASK	GENMASK(7, 4)
 #define BATT_TEMP_DELTA_SHIFT	4
@@ -5117,64 +5310,9 @@ static int fg_gen4_hw_init(struct fg_gen4_chip *chip)
 		}
 	}
 
-	if (chip->dt.ki_coeff_low_chg != -EINVAL) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_LOW_CHG,
-			chip->dt.ki_coeff_low_chg, &val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_LOW_CHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_low_chg, rc=%d\n",
-				rc);
-			return rc;
-		}
-	}
-
-	if (chip->dt.ki_coeff_med_chg != -EINVAL) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_MED_CHG,
-			chip->dt.ki_coeff_med_chg, &val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_MED_CHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_med_chg, rc=%d\n",
-				rc);
-			return rc;
-		}
-	}
-
-	if (chip->dt.ki_coeff_hi_chg != -EINVAL) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_HI_CHG,
-			chip->dt.ki_coeff_hi_chg, &val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_HI_CHG].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_hi_chg, rc=%d\n", rc);
-			return rc;
-		}
-	}
-
-	if (chip->dt.ki_coeff_cutoff_gain != -EINVAL) {
-		fg_encode(fg->sp, FG_SRAM_KI_COEFF_CUTOFF,
-			  chip->dt.ki_coeff_cutoff_gain, &val);
-		rc = fg_sram_write(fg,
-			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].addr_word,
-			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].addr_byte, &val,
-			fg->sp[FG_SRAM_KI_COEFF_CUTOFF].len,
-			FG_IMA_DEFAULT);
-		if (rc < 0) {
-			pr_err("Error in writing ki_coeff_cutoff_gain, rc=%d\n",
-				rc);
-			return rc;
-		}
-	}
+	rc = fg_gen4_init_ki_coeffts(chip);
+	if (rc < 0)
+		return rc;
 
 	rc = fg_gen4_esr_calib_config(chip);
 	if (rc < 0)
@@ -5236,6 +5374,9 @@ static int fg_parse_ki_coefficients(struct fg_dev *fg)
 	struct device_node *node = fg->dev->of_node;
 	int rc, i;
 
+	chip->dt.ki_coeff_full_soc_dischg[0] = KI_COEFF_FULL_SOC_NORM_DEFAULT;
+	chip->dt.ki_coeff_full_soc_dischg[1] = KI_COEFF_FULL_SOC_LOW_DEFAULT;
+
 	if (of_find_property(node, "qcom,ki-coeff-full-dischg", NULL)) {
 		rc = fg_parse_dt_property_u32_array(node,
 			"qcom,ki-coeff-full-dischg",
@@ -5252,21 +5393,43 @@ static int fg_parse_ki_coefficients(struct fg_dev *fg)
 		}
 	}
 
-	chip->dt.ki_coeff_low_chg = -EINVAL;
+	chip->dt.ki_coeff_low_chg = 183;
 	of_property_read_u32(node, "qcom,ki-coeff-low-chg",
 		&chip->dt.ki_coeff_low_chg);
 
-	chip->dt.ki_coeff_med_chg = -EINVAL;
+	chip->dt.ki_coeff_med_chg = 62;
 	of_property_read_u32(node, "qcom,ki-coeff-med-chg",
 		&chip->dt.ki_coeff_med_chg);
 
-	chip->dt.ki_coeff_hi_chg = -EINVAL;
+	chip->dt.ki_coeff_hi_chg = 0;
 	of_property_read_u32(node, "qcom,ki-coeff-hi-chg",
 		&chip->dt.ki_coeff_hi_chg);
+
+	chip->dt.ki_coeff_lo_med_chg_thr_ma = 1000;
+	of_property_read_u32(node, "qcom,ki-coeff-chg-low-med-thresh-ma",
+		&chip->dt.ki_coeff_lo_med_chg_thr_ma);
+
+	chip->dt.ki_coeff_med_hi_chg_thr_ma = 1500;
+	of_property_read_u32(node, "qcom,ki-coeff-chg-med-hi-thresh-ma",
+		&chip->dt.ki_coeff_med_hi_chg_thr_ma);
+
+	chip->dt.ki_coeff_lo_med_dchg_thr_ma = 50;
+	of_property_read_u32(node, "qcom,ki-coeff-dischg-low-med-thresh-ma",
+		&chip->dt.ki_coeff_lo_med_dchg_thr_ma);
+
+	chip->dt.ki_coeff_med_hi_dchg_thr_ma = 100;
+	of_property_read_u32(node, "qcom,ki-coeff-dischg-med-hi-thresh-ma",
+		&chip->dt.ki_coeff_med_hi_dchg_thr_ma);
 
 	chip->dt.ki_coeff_cutoff_gain = -EINVAL;
 	of_property_read_u32(node, "qcom,ki-coeff-cutoff",
 		&chip->dt.ki_coeff_cutoff_gain);
+
+	for (i = 0; i < KI_COEFF_SOC_LEVELS; i++) {
+		chip->dt.ki_coeff_low_dischg[i] = KI_COEFF_LOW_DISCHG_DEFAULT;
+		chip->dt.ki_coeff_med_dischg[i] = KI_COEFF_MED_DISCHG_DEFAULT;
+		chip->dt.ki_coeff_hi_dischg[i] = KI_COEFF_HI_DISCHG_DEFAULT;
+	}
 
 	if (!of_find_property(node, "qcom,ki-coeff-soc-dischg", NULL) ||
 		(!of_find_property(node, "qcom,ki-coeff-low-dischg", NULL) &&
