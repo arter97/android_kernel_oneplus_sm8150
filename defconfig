@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.14.117 Kernel Configuration
+# Linux/arm64 4.14.135 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -127,6 +127,7 @@ CONFIG_RCU_NOCB_CPU=y
 CONFIG_BUILD_BIN2C=y
 CONFIG_IKCONFIG=y
 CONFIG_IKCONFIG_PROC=y
+# CONFIG_IKHEADERS is not set
 CONFIG_LOG_BUF_SHIFT=17
 # CONFIG_CONSOLE_FLUSH_ON_HOTPLUG is not set
 CONFIG_LOG_CPU_MAX_BUF_SHIFT=17
@@ -5700,6 +5701,16 @@ CONFIG_DEFAULT_SECURITY_SELINUX=y
 # CONFIG_DEFAULT_SECURITY_SMACK is not set
 # CONFIG_DEFAULT_SECURITY_DAC is not set
 CONFIG_DEFAULT_SECURITY="selinux"
+
+#
+# Kernel hardening options
+#
+
+#
+# Memory initialization
+#
+CONFIG_INIT_STACK_NONE=y
+# CONFIG_INIT_STACK_ALL is not set
 CONFIG_CRYPTO=y
 
 #
