@@ -16,7 +16,6 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "atoll-idp.dtsi"
-#include "atoll-audio-overlay.dtsi"
 
 / {
 	model = "IDP";
