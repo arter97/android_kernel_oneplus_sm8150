@@ -851,7 +851,7 @@ static inline void do_cpufreq_boost_helper(
 static void do_fps_boost(unsigned int val, unsigned int period_us)
 {
 	int ais_active = ais_enable;
-	int i;
+	int i = 0;
 	int boost_cluster[HT_CLUSTERS] = {0};
 	unsigned int cur[HT_CLUSTERS] = {0}, orig[HT_CLUSTERS] = {0};
 	struct task_struct *t;
