@@ -1813,30 +1813,6 @@ static int tfa98xx_append_i2c_address(struct device *dev,
 	return 0;
 }
 
-static struct snd_soc_dapm_widget tfa98xx_dapm_widgets_common[] = {
-	/* Stream widgets */
-	SND_SOC_DAPM_AIF_IN("AIF IN", "AIF Playback", 0, SND_SOC_NOPM, 0, 0),
-	SND_SOC_DAPM_AIF_OUT("AIF OUT", "AIF Capture", 0, SND_SOC_NOPM, 0, 0),
-
-	SND_SOC_DAPM_OUTPUT("OUTL"),
-	SND_SOC_DAPM_INPUT("AEC Loopback"),
-};
-
-static struct snd_soc_dapm_widget tfa98xx_dapm_widgets_stereo[] = {
-	SND_SOC_DAPM_OUTPUT("OUTR"),
-};
-
-static struct snd_soc_dapm_widget tfa98xx_dapm_widgets_saam[] = {
-	SND_SOC_DAPM_INPUT("SAAM MIC"),
-};
-
-static struct snd_soc_dapm_widget tfa9888_dapm_inputs[] = {
-	SND_SOC_DAPM_INPUT("DMIC1"),
-	SND_SOC_DAPM_INPUT("DMIC2"),
-	SND_SOC_DAPM_INPUT("DMIC3"),
-	SND_SOC_DAPM_INPUT("DMIC4"),
-};
-
 static const struct snd_soc_dapm_route tfa98xx_dapm_routes_common[] = {
 	{ "OUTL", NULL, "AIF IN" },
 	{ "AIF OUT", NULL, "AEC Loopback" },
@@ -1866,13 +1842,11 @@ static struct snd_soc_dapm_context *snd_soc_codec_get_dapm(struct snd_soc_codec 
 
 static void tfa98xx_add_widgets(struct tfa98xx *tfa98xx)
 {
+	//add by Multimedia,do not add the following non-used widgets to hold mic.
+#if 0
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(tfa98xx->codec);
 	struct snd_soc_dapm_widget *widgets;
 	unsigned int num_dapm_widgets = ARRAY_SIZE(tfa98xx_dapm_widgets_common);
-
-//add by Multimedia,do not add the following non-used widgets to hold mic.
-    if(1)
-        return;
 
 	widgets = devm_kzalloc(&tfa98xx->i2c->dev,
 			sizeof(struct snd_soc_dapm_widget) *
@@ -1916,6 +1890,7 @@ static void tfa98xx_add_widgets(struct tfa98xx *tfa98xx)
 		snd_soc_dapm_add_routes(dapm, tfa98xx_dapm_routes_saam,
 					ARRAY_SIZE(tfa98xx_dapm_routes_saam));
 	}
+#endif
 }
 
 /* I2C wrapper functions */
@@ -2892,37 +2867,37 @@ int tfa98xx_keyreg_print(struct tfa98xx *tfa98xx)
 
        ret = regmap_read(tfa98xx->regmap, 0, &SYS_CONTROL0);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 0-SYS_CONTROL0\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 0-SYS_CONTROL0\n");
               return -EIO;
        }
 
        ret = regmap_read(tfa98xx->regmap, 0x10, &STATUS_FLAGS0);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 10h-STATUS_FLAGS0\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 10h-STATUS_FLAGS0\n");
               return -EIO;
        }
 
        ret = regmap_read(tfa98xx->regmap, 0x11, &STATUS_FLAGS1);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 11h-STATUS_FLAGS0\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 11h-STATUS_FLAGS0\n");
               return -EIO;
        }
 
        ret = regmap_read(tfa98xx->regmap, 0x13, &STATUS_FLAGS3);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 13h-STATUS_FLAGS3\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 13h-STATUS_FLAGS3\n");
               return -EIO;
        }
 
        ret = regmap_read(tfa98xx->regmap, 0x14, &STATUS_FLAGS4);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 14h-STATUS_FLAGS4\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 14h-STATUS_FLAGS4\n");
               return -EIO;
        }
 
        ret = regmap_read(tfa98xx->regmap, 0x6e, &STATUS_FLAGS5);
        if (ret < 0) {
-              dev_err(&tfa98xx->i2c->dev, "Failed to read 6eh-STATUS_FLAGS5\n", ret);
+              dev_err(&tfa98xx->i2c->dev, "Failed to read 6eh-STATUS_FLAGS5\n");
               return -EIO;
        }
 
