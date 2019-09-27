@@ -243,6 +243,10 @@ static void ipa3_send_nop_desc(struct work_struct *work)
 	struct ipa3_tx_pkt_wrapper *tx_pkt;
 
 	IPADBG_LOW("gsi send NOP for ch: %lu\n", sys->ep->gsi_chan_hdl);
+
+	if (atomic_read(&sys->workqueue_flushed))
+		return;
+
 	tx_pkt = kmem_cache_zalloc(ipa3_ctx->tx_pkt_wrapper_cache, GFP_KERNEL);
 	if (!tx_pkt) {
 		queue_work(sys->wq, &sys->work);
@@ -473,6 +477,7 @@ int ipa3_send(struct ipa3_sys_context *sys,
 
 	/* set the timer for sending the NOP descriptor */
 	if (send_nop) {
+
 		ktime_t time = ktime_set(0, IPA_TX_SEND_COMPL_NOP_DELAY_NS);
 
 		IPADBG_LOW("scheduling timer for ch %lu\n",
@@ -1171,9 +1176,6 @@ int ipa3_setup_sys_pipe(struct ipa_sys_connect_params *sys_in, u32 *clnt_hdl)
 		goto fail_gen3;
 	}
 
-	if (!ep->keep_ipa_awake)
-		IPA_ACTIVE_CLIENTS_DEC_EP(sys_in->client);
-
 	IPADBG("client %d (ep: %d) connected sys=%pK\n", sys_in->client,
 			ipa_ep_idx, ep->sys);
 
@@ -1194,6 +1196,9 @@ int ipa3_setup_sys_pipe(struct ipa_sys_connect_params *sys_in, u32 *clnt_hdl)
 			goto fail_repl;
 		}
 	}
+
+	if (!ep->keep_ipa_awake)
+		IPA_ACTIVE_CLIENTS_DEC_EP(ep->client);
 
 	return 0;
 
@@ -1283,6 +1288,8 @@ int ipa3_teardown_sys_pipe(u32 clnt_hdl)
 	if (IPA_CLIENT_IS_CONS(ep->client))
 		cancel_delayed_work_sync(&ep->sys->replenish_rx_work);
 	flush_workqueue(ep->sys->wq);
+	if (IPA_CLIENT_IS_PROD(ep->client))
+		atomic_set(&ep->sys->workqueue_flushed, 1);
 
 	/* tear down the default pipe before we reset the channel*/
 	if (ep->client == IPA_CLIENT_APPS_WAN_COAL_CONS) {
@@ -2453,12 +2460,19 @@ static void free_rx_page(void *chan_user_data, void *xfer_user_data)
 {
 	struct ipa3_rx_pkt_wrapper *rx_pkt = (struct ipa3_rx_pkt_wrapper *)
 		xfer_user_data;
+	struct ipa3_sys_context *sys = rx_pkt->sys;
+	int i;
 
+	for (i = 0; i < sys->repl->capacity; i++)
+		if (sys->repl->cache[i] == rx_pkt)
+			break;
 	dma_unmap_page(ipa3_ctx->pdev, rx_pkt->page_data.dma_addr,
 		rx_pkt->len, DMA_FROM_DEVICE);
 	__free_pages(rx_pkt->page_data.page,
 		IPA_WAN_PAGE_ORDER);
 	kmem_cache_free(ipa3_ctx->rx_pkt_wrapper_cache, rx_pkt);
+	if (i < sys->repl->capacity)
+		sys->repl->cache[i] = NULL;
 }
 
 /**
@@ -2507,14 +2521,17 @@ static void ipa3_cleanup_rx(struct ipa3_sys_context *sys)
 		} else {
 			for (i = 0; i < sys->repl->capacity; i++) {
 				rx_pkt = sys->repl->cache[i];
-				dma_unmap_page(ipa3_ctx->pdev,
-					rx_pkt->page_data.dma_addr,
-					rx_pkt->len,
-					DMA_FROM_DEVICE);
-				__free_pages(rx_pkt->page_data.page,
-					IPA_WAN_PAGE_ORDER);
-				kmem_cache_free(ipa3_ctx->rx_pkt_wrapper_cache,
-					rx_pkt);
+				if (rx_pkt) {
+					dma_unmap_page(ipa3_ctx->pdev,
+						rx_pkt->page_data.dma_addr,
+						rx_pkt->len,
+						DMA_FROM_DEVICE);
+					__free_pages(rx_pkt->page_data.page,
+						IPA_WAN_PAGE_ORDER);
+					kmem_cache_free(
+						ipa3_ctx->rx_pkt_wrapper_cache,
+						rx_pkt);
+				}
 			}
 		}
 		kfree(sys->repl->cache);
@@ -3518,6 +3535,7 @@ static int ipa3_assign_policy(struct ipa_sys_connect_params *in,
 		sys->policy = IPA_POLICY_INTR_MODE;
 		sys->use_comm_evt_ring = true;
 		INIT_WORK(&sys->work, ipa3_send_nop_desc);
+		atomic_set(&sys->workqueue_flushed, 0);
 
 		/*
 		 * enable source notification status for exception packets
@@ -3547,6 +3565,7 @@ static int ipa3_assign_policy(struct ipa_sys_connect_params *in,
 			sys->policy = IPA_POLICY_INTR_MODE;
 			sys->use_comm_evt_ring = true;
 			INIT_WORK(&sys->work, ipa3_send_nop_desc);
+			atomic_set(&sys->workqueue_flushed, 0);
 		}
 	} else {
 		if (in->client == IPA_CLIENT_APPS_LAN_CONS ||
