@@ -516,6 +516,21 @@
 			reg = <0x0 0x85e00000 0x0 0x140000>;
 		};
 
+		abl_mem: abl_mem {
+			 no-map;
+			 reg = <0x0 0x88f00000 0x0 0x1C00000>;
+		};
+
+		abl_unmapped_mem: abl_unmapped_mem {
+			no-map;
+			reg = <0x0 0x85f40000 0x0 0xc0000>;
+		};
+
+		abl_unmapped_mem1: abl_unmapped_mem1 {
+			no-map;
+			reg = <0x0 0x85d00000 0x0 0x100000>;
+		};
+
 		sec_apps_mem: sec_apps_region@85fff000 {
 			compatible = "removed-dma-pool";
 			no-map;
