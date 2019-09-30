@@ -36,6 +36,7 @@
 
 #define DSI_PANEL_SAMSUNG_S6E3HC2 0
 #define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
+#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
 extern char gamma_para[2][413];
 extern char dsi_panel_name;
 /**
@@ -961,7 +962,54 @@ static ssize_t panel_serial_number_show(struct device *dev,
 					stage_string_info, production_string_info, panel_code_info,
 						panel_stage_info, panel_production_info);
 		}
-	} else {
+
+		if (panel_code_info == 0xEE) {
+			if (panel_stage_info == 0x12)
+				stage_string_info = "STAGE: T0/EVT1";
+			else if (panel_stage_info == 0x13)
+				stage_string_info = "STAGE: EVT2";
+			else if (panel_stage_info == 0x14)
+				stage_string_info = "STAGE: EVT2";
+			else if (panel_stage_info == 0x15)
+				stage_string_info = "STAGE: EVT3";
+			else if (panel_stage_info == 0x16)
+				stage_string_info = "STAGE: DVT";
+			else if (panel_stage_info == 0x17)
+				stage_string_info = "STAGE: DVT";
+			else if (panel_stage_info == 0x19)
+				stage_string_info = "STAGE: PVT";
+			else
+				stage_string_info = "STAGE: UNKNOWN";
+
+			ret = scnprintf(buf, PAGE_SIZE, "%04d/%02d/%02d %02d:%02d:%02d\n%s\nID: %02X %02X %02X\n",
+					panel_year, panel_mon, panel_day, panel_hour, panel_min, panel_sec,
+					stage_string_info, production_string_info, panel_code_info,
+						panel_stage_info, panel_production_info);
+		}
+
+	} else if (dsi_panel_name == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
+		if (panel_stage_info == 0x01)
+			stage_string_info = "STAGE: T0";
+		else if (panel_stage_info == 0x21)
+			stage_string_info = "STAGE: EVT1";
+		else if (panel_stage_info == 0x22)
+			stage_string_info = "STAGE: EVT2";
+		else if (panel_stage_info == 0x24)
+			stage_string_info = "STAGE: DVT1-1";
+		else if (panel_stage_info == 0x26)
+			stage_string_info = "STAGE: DVT1-2";
+		else if (panel_stage_info == 0x25)
+			stage_string_info = "STAGE: DVT2";
+		else if (panel_stage_info == 0x28)
+			stage_string_info = "STAGE: DVT3";
+		else if (panel_stage_info == 0x27)
+			stage_string_info = "STAGE: PVT/MP";
+
+		ret = scnprintf(buf, PAGE_SIZE, "%04d/%02d/%02d %02d:%02d:%02d\n%s\nID: %02X %02X %02X\n",
+				panel_year, panel_mon, panel_day, panel_hour, panel_min, panel_sec, stage_string_info,
+					panel_code_info, panel_stage_info, panel_production_info);
+	}
+	else {
 		ret = scnprintf(buf, PAGE_SIZE, "%04d/%02d/%02d %02d:%02d:%02d\n",
 				panel_year, panel_mon, panel_day, panel_hour, panel_min, panel_sec);
 	}

@@ -35,6 +35,7 @@
 #include <dt-bindings/clock/mdss-10nm-pll-clk.h>
 #include "dsi-panel-samsung_oneplus_dsc.dtsi"
 #include "dsi-panel-samsung_s6e3fc2x01.dtsi"
+#include "dsi-panel-samsung_sofef03f_m_fhd_dsc_cmd.dtsi"
 #include "dsi-panel-samsung_sofef00_m_video.dtsi"
 
 

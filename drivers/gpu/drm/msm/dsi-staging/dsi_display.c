@@ -307,6 +307,47 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		}
 	}
 
+	if (strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		if (bl_lvl != 0 && panel->bl_config.bl_level == 0) {
+			if (panel->naive_display_p3_mode) {
+				msleep(20);
+				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
+			}
+			if (panel->naive_display_wide_color_mode) {
+				msleep(20);
+				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON);
+			}
+			if (panel->naive_display_srgb_color_mode) {
+				msleep(20);
+				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON);
+			}
+			if (panel->naive_display_loading_effect_mode) {
+				pr_err("Send DSI_CMD_LOADING_EFFECT_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
+			} else {
+				pr_err("Send DSI_CMD_LOADING_EFFECT_OFF cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
+			}
+			if (panel->naive_display_customer_srgb_mode) {
+				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_ON);
+			} else {
+				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_OFF);
+			}
+			if (panel->naive_display_customer_p3_mode) {
+				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
+			} else {
+				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
+			}
+		}
+	}
+
 	panel->bl_config.bl_level = bl_lvl;
 
 	/* scale backlight */
@@ -343,7 +384,8 @@ error:
 	mutex_unlock(&panel->panel_lock);
 
 	if((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0
-		|| strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0) && (0 == SERIAL_NUMBER_flag)) {
+		|| strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0 ||
+		strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) && (0 == SERIAL_NUMBER_flag)) {
 		dsi_display_get_serial_number_AT(connector);
 	}
 
@@ -987,8 +1029,8 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 	u8 temp_buffer_5[2] = {0,};
 	u8 temp_buffer_6[16] = {0,};
 	u8 temp_buffer_7[34] = {0,};
-//	u8 register_0a[1] = {0};
-//	u8 register_b6[1] = {0};
+	u8 register_0a[1] = {0};
+	u8 register_b6[1] = {0};
 	u8 buf[48];
 	memset(buf, 0, sizeof(buf));
 
@@ -1188,6 +1230,60 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 			 rc = -1;
 		else
 			rc = 1;
+	} else if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		count = mode->priv_info->cmd_sets[DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_ON].count;
+		if (!count) {
+			pr_err("This panel does not support esd register reading\n");
+		} else {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_ON);
+		}
+
+		flags = 0;
+		cmds1 = mode->priv_info->cmd_sets[DSI_CMD_SET_PANEL_ID1].cmds;
+		if (cmds1->last_command) {
+			cmds1->msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
+			flags |= DSI_CTRL_CMD_LAST_COMMAND;
+		}
+		flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
+		cmds1->msg.rx_buf = register_0a;
+		cmds1->msg.rx_len = 1;
+		rc = dsi_ctrl_cmd_transfer(m_ctrl->ctrl, &cmds1->msg, flags);
+		if (rc <= 0)
+			pr_err("rx cmd transfer failed rc=%d\n", rc);
+
+		flags = 0;
+		cmds2 = mode->priv_info->cmd_sets[DSI_CMD_SET_PANEL_ID2].cmds;
+		if (cmds2->last_command) {
+			cmds2->msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
+			flags |= DSI_CTRL_CMD_LAST_COMMAND;
+		}
+		flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
+		cmds2->msg.rx_buf = register_b6;
+		cmds2->msg.rx_len = 1;
+		rc = dsi_ctrl_cmd_transfer(m_ctrl->ctrl, &cmds2->msg, flags);
+		if (rc <= 0)
+			pr_err("rx cmd transfer failed rc=%d\n", rc);
+
+		count = mode->priv_info->cmd_sets[DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_OFF].count;
+		if (!count) {
+			pr_err("This panel does not support esd register reading\n");
+		} else {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_OFF);
+		}
+
+		if ((register_0a[0] != 0x9c) || (register_b6[0] != 0x0a)) {
+			if (register_0a[0] != 0x9c)
+				esd_black_count++;
+			if (register_b6[0] != 0x0a)
+				esd_greenish_count++;
+			pr_err("%s:black_count=%d, greenish_count=%d, total=%d\n",
+				__func__, esd_black_count, esd_greenish_count,
+					esd_black_count + esd_greenish_count);
+			rc = -1;
+		}
+		else {
+			rc = 1;
+		}
 	} else {
 		rc = dsi_display_validate_status(m_ctrl, display->panel);
 	}
@@ -8471,7 +8567,8 @@ int dsi_display_read_serial_number(struct dsi_display *dsi_display,
 	dsi_panel_acquire_panel_lock(panel);
 	mode = panel->cur_mode;
 
-	if (strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if ((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) ||
+		(strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0)) {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LCDINFO_PRE);
 		if (rc) {
 			pr_err("Failed to send DSI_CMD_SET_LCDINFO_PRE commands\n");
@@ -8493,7 +8590,8 @@ int dsi_display_read_serial_number(struct dsi_display *dsi_display,
 	if (rc <= 0)
 		pr_err("Failed to get panel serial number, rc=%d\n", rc);
 
-	if (strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) {
+	if ((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0) ||
+		(strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0)) {
 
 		flags = 0;
 		cmds = mode->priv_info->cmd_sets[DSI_CMD_SET_CODE_INFO].cmds;
@@ -9106,7 +9204,8 @@ int dsi_display_set_hbm_brightness(struct drm_connector *connector, int level)
 
 	panel = dsi_display->panel;
 
-	if ((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) && (strcmp(dsi_display->panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") != 0)) {
+	if ((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) && (strcmp(dsi_display->panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") != 0)
+		&& (strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0)) {
 		dsi_display->panel->hbm_brightness = 0;
 		return 0;
 	}
@@ -9796,6 +9895,8 @@ int dsi_display_set_aod_mode(struct drm_connector *connector, int level)
 		printk(KERN_ERR"dsi_display_set_aod_mode\n");
 	}else if(strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0){
 		printk(KERN_ERR"oneplus SDC 2K OLED dsi_display_set_aod_mode\n");
+	}else if(strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		printk(KERN_ERR"samsung sofef03f_m fhd cmd mode dsc dsi panel\n");
 	}else{
 		dsi_display->panel->aod_mode=0;
 		return 0;
@@ -10095,7 +10196,8 @@ int dsi_display_update_dsi_panel_command(struct drm_connector *connector, const 
 
 	panel = dsi_display->panel;
 
-	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) {
+	if ((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) &&
+		(strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0)) {
 		return 0;
 	}
 
@@ -10204,11 +10306,12 @@ int dsi_display_update_dsi_seed_command(struct drm_connector *connector, const c
 
 	panel = dsi_display->panel;
 
-	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) {
+	if ((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) &&
+		(strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0)) {
 		return 0;
 	}
 
-	mutex_lock(&dsi_display->display_lock);
+	mutex_lock(&panel->panel_lock);
 
 	if (!dsi_panel_initialized(panel))
 		goto error;
@@ -10237,6 +10340,8 @@ int dsi_display_update_dsi_seed_command(struct drm_connector *connector, const c
 
 	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") == 0)
 		data[0] = WU_SEED_REGISTER;
+	if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0)
+		data[0] = UG_SEED_REGISTER;
 
 	rc = dsi_panel_update_dsi_seed_command(set->cmds, DSI_CMD_SET_SEED_COMMAND, data);
 	if (rc)
@@ -10264,7 +10369,7 @@ int dsi_display_update_dsi_seed_command(struct drm_connector *connector, const c
 	}
 
 error:
-	mutex_unlock(&dsi_display->display_lock);
+	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
 
@@ -10286,7 +10391,8 @@ int dsi_display_get_dsi_seed_command(struct drm_connector *connector, char *buf)
 	if ((dsi_display == NULL) || (dsi_display->panel == NULL))
 		return 0;
 
-	if (strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) {
+	if ((strcmp(dsi_display->panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) &&
+		(strcmp(dsi_display->panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0)) {
 		return 0;
 	}
 

@@ -1476,7 +1476,7 @@ static int cam_ois_fw_download(struct cam_ois_ctrl_t *o_ctrl)
         o_ctrl->io_master_info.cci_client->sid,
         o_ctrl->io_master_info.cci_client->cci_i2c_master,
         o_ctrl->ois_gyro_id,o_ctrl->cci_master_id);
-    //identify else fallback
+    //identify if hotdogb else fallback
     imx586_cci_master = (enum cci_i2c_master_t)o_ctrl->cci_master_id;
     if (imx586_cci_master == o_ctrl->io_master_info.cci_client->cci_i2c_master &&
         false == imx586_ois_initialized && strstr(o_ctrl->ois_name, "imx586"))

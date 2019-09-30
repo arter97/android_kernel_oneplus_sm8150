@@ -634,26 +634,16 @@ extern int op_dimlayer_bl_enabled;
 
 int sde_connector_update_backlight(struct drm_connector *connector)
 {
-	static int count;
-
-	if (op_dimlayer_bl_enabled == 0 && op_dimlayer_bl == 1)
-		count++;
-
-	if (op_dimlayer_bl != op_dimlayer_bl_enabled)
-		//set backlight to be 260 after one more frame
-		if ((op_dimlayer_bl_enabled == 0 && count == 2) ||
-		   op_dimlayer_bl_enabled == 1
-		   ) {
-			struct sde_connector *c_conn = to_sde_connector(connector);
-
-			if (!c_conn) {
-				SDE_ERROR("Invalid params sde_connector null\n");
-				return -EINVAL;
+	if (op_dimlayer_bl != op_dimlayer_bl_enabled) {
+		struct sde_connector *c_conn = to_sde_connector(connector);
+		if (!c_conn) {
+			SDE_ERROR("Invalid params sde_connector null\n");
+			return -EINVAL;
 			}
-			op_dimlayer_bl_enabled = op_dimlayer_bl;
-			_sde_connector_update_bl_scale(c_conn);
-			count = 0;
-		}
+		op_dimlayer_bl_enabled = op_dimlayer_bl;
+		_sde_connector_update_bl_scale(c_conn);
+	}
+
 	return 0;
 }
 

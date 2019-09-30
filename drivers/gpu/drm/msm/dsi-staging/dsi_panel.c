@@ -48,6 +48,7 @@
 
 #define DSI_PANEL_SAMSUNG_S6E3HC2 0
 #define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
+#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
 
 #define DSI_PANEL_DEFAULT_LABEL  "Default dsi panel"
 
@@ -718,6 +719,14 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
 
+	if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		msleep(10);
+		if (gpio_is_valid(panel->vddd_gpio)) {
+			gpio_set_value(panel->vddd_gpio, 0);
+			pr_err("disable vddd gpio\n");
+		}
+	}
+
 	if (gpio_is_valid(panel->poc)) {
 		gpio_set_value(panel->poc, 0);
 		pr_err("disable poc gpio\n");
@@ -907,16 +916,12 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	/*** DC backlight config ****/
 	if (op_dimlayer_bl_enabled != op_dimlayer_bl_enable_real) {
 		op_dimlayer_bl_enable_real = op_dimlayer_bl_enabled;
-		if (op_dimlayer_bl_enable_real) {
-		bl_lvl = op_dimlayer_bl_alpha;
-			pr_err("dc light enable\n");
-		} else {
-			pr_err("dc light disenable\n");
-		}
+		if (op_dimlayer_bl_enable_real && bl_lvl != 0)
+			bl_lvl = op_dimlayer_bl_alpha;
+		pr_err("dc light %d %d\n", op_dimlayer_bl_enable_real, bl_lvl);
 	}
-	if (op_dimlayer_bl_enable_real) {
+	if (op_dimlayer_bl_enable_real && bl_lvl != 0)
 		bl_lvl = op_dimlayer_bl_alpha;
-    }
 
 	if (panel->bl_config.bl_high2bit) {
 		if (HBM_flag == true)
@@ -2617,6 +2622,19 @@ error:
 	return rc;
 }
 
+static int oem_project;
+static int __init get_oem_project_init(char *str)
+{
+	if(!strcmp(str, "19861"))
+		oem_project = 19861;
+	else
+		oem_project = 0;
+	pr_err("kernel oem_project %d\n",oem_project);
+	return 0;
+}
+
+__setup("androidboot.project_name=", get_oem_project_init);
+
 static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -2624,7 +2642,10 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 	struct dsi_parser_utils *utils = &panel->utils;
 	char *reset_gpio_name, *mode_set_gpio_name;
 
-	if (!strcmp(panel->type, "primary")) {
+	if ((!strcmp(panel->type, "primary")) && (oem_project == 19861)) {
+		reset_gpio_name = "qcom,platform-reset-gpio-tmo";
+		mode_set_gpio_name = "qcom,panel-mode-gpio-tmo";
+	} else if (!strcmp(panel->type, "primary")) {
 		reset_gpio_name = "qcom,platform-reset-gpio";
 		mode_set_gpio_name = "qcom,panel-mode-gpio";
 	} else {
@@ -3838,6 +3859,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 		dsi_panel_name = DSI_PANEL_SAMSUNG_S6E3HC2;
 		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_S6E3HC2");
 	}
+	else if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0) {
+		dsi_panel_name = DSI_PANEL_SAMSUNG_SOFEF03F_M;
+		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_SOFEF03F_M");
+	}
 	else if (strcmp(panel->name, "samsung s6e3fc2x01 cmd mode dsi panel") == 0) {
 		dsi_panel_name = DSI_PANEL_SAMSUNG_S6E3FC2X01;
 		pr_err("Dsi panel name is DSI_PANEL_SAMSUNG_S6E3FC2X01");
@@ -4786,7 +4811,7 @@ int dsi_panel_switch(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	if (strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0)
+	if ((strcmp(panel->name, "samsung dsc cmd mode oneplus dsi panel") != 0) && (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") != 0))
 		return rc;
 
 	mutex_lock(&panel->panel_lock);
@@ -5192,6 +5217,7 @@ int dsi_panel_set_hbm_brightness(struct dsi_panel *panel, int level)
 		return 0;
 	}
 
+	mutex_lock(&panel->panel_lock);
 	if (hbm_brightness_flag == 0) {
 		count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_BRIGHTNESS_ON].count;
 		if (!count) {
@@ -5205,10 +5231,13 @@ int dsi_panel_set_hbm_brightness(struct dsi_panel *panel, int level)
 		}
 	}
 
+	if (strcmp(panel->name, "samsung sofef03f_m fhd cmd mode dsc dsi panel") == 0)
+		level = level + 1023;
 	rc= mipi_dsi_dcs_set_display_brightness_samsung(dsi, level);
 	pr_err("hbm backlight = %d\n", level);
 
 error:
+	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
 
@@ -5581,7 +5610,6 @@ int dsi_panel_send_dsi_seed_command(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 	mode = panel->cur_mode;
-	mutex_lock(&panel->panel_lock);
 
 	count = mode->priv_info->cmd_sets[DSI_CMD_SET_SEED_COMMAND].count;
 	if (!count) {
@@ -5594,7 +5622,6 @@ int dsi_panel_send_dsi_seed_command(struct dsi_panel *panel)
 //	pr_err("Send DSI_CMD_SET_SEED_COMMAND cmds.\n");
 
 error:
-	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
 

@@ -88,6 +88,7 @@
 
 #define DSI_PANEL_SAMSUNG_S6E3HC2 0
 #define DSI_PANEL_SAMSUNG_S6E3FC2X01 1
+#define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
 
 extern char dsi_panel_name;
 
@@ -1976,7 +1977,7 @@ static int _sde_encoder_update_rsc_client(
 	    (rsc_config->prefill_lines != prefill_lines) ||
 	    (rsc_config->jitter_numer != mode_info.jitter_numer) ||
 	    (rsc_config->jitter_denom != mode_info.jitter_denom)) {
-		if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) {
+		if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2 || dsi_panel_name == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
 			rsc_config->fps = 90;
 		}
 		else {
@@ -4742,7 +4743,7 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	if (sde_enc->cur_master && !sde_enc->cur_master->cont_splash_enabled)
 		sde_configure_qdss(sde_enc, sde_enc->cur_master->hw_qdss,
 				sde_enc->cur_master, sde_kms->qdss_enabled);
-	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2)
+	if ((dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2) || (dsi_panel_name == DSI_PANEL_SAMSUNG_SOFEF03F_M))
 		{
 		if (disp_info->intf_type == DRM_MODE_CONNECTOR_DSI && !_sde_encoder_is_dsc_enabled(drm_enc)) {
 				pr_err("DSC is disabled\n");

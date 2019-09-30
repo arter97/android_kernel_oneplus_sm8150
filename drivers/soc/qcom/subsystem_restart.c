@@ -1083,6 +1083,11 @@ int op_restart_modem_init(void)
 int op_restart_modem(void)
 {
 	struct subsys_device *subsys = find_subsys_device("modem");
+	if (get_oem_project() == 19861) {
+		pr_err("%s: Skip subsystem_restart(modem) for SDX55 platform\n",
+				__func__);
+		return 0;
+	}
 
 	if (!subsys)
 		return -ENODEV;

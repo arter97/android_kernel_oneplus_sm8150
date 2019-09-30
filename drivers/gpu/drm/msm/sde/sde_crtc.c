@@ -3535,27 +3535,32 @@ int oneplus_aod_dc = 0;
 	mode_config = &drm_dev->mode_config;
 	sscanf(buf, "%du", &dim_status);
 
-	if(dsi_display->panel->aod_status==0 && (dim_status == 2)){
+	if (dsi_display->panel->aod_status == 0 && (dim_status == 2)) {
 		pr_err("fp set it in normal status\n");
 		if (dim_status == oneplus_dim_status)
 			return count;
 		oneplus_dim_status = dim_status;
 		SDE_ATRACE_END("oneplus_display_notify_dim");
 		return count;
-	}else if(dsi_display->panel->aod_status==1&& dim_status == 2){
+	} else if (dsi_display->panel->aod_status == 1 && dim_status == 2) {
 		oneplus_onscreenfp_status = 1;
-        oneplus_aod_fod = 1;
-	}else if(dsi_display->panel->aod_status==1&& dim_status == 0){
+		oneplus_aod_fod = 1;
+	} else if (dsi_display->panel->aod_status == 1 && dim_status == 0) {
 		oneplus_onscreenfp_status = 0;
-    }else if(dsi_display->panel->aod_status==1&& dim_status == 5){
-        oneplus_aod_dc = 1;
-    }
-    if(dim_status == 0)
-        oneplus_onscreenfp_status = 0;
-    if (dim_status == oneplus_dim_status)
+	} else if (dsi_display->panel->aod_status == 1 && dim_status == 5) {
+		oneplus_aod_dc = 1;
+	}
+	if (dim_status == 0)
+		oneplus_onscreenfp_status = 0;
+	if (dim_status == oneplus_dim_status)
 		return count;
 	oneplus_dim_status = dim_status;
-    pr_err("notify dim %d,aod = %d press= %d aod_hide =%d\n", oneplus_dim_status,dsi_display->panel->aod_status,oneplus_onscreenfp_status,aod_layer_hide);
+	pr_err("notify dim %d,aod = %d press= %d aod_hide =%d\n",
+		oneplus_dim_status, dsi_display->panel->aod_status, oneplus_onscreenfp_status, aod_layer_hide);
+	if (oneplus_dim_status == 1 && HBM_flag) {
+		pr_err("notify dim not commit");
+		return count;
+	}
 	drm_modeset_lock_all(drm_dev);
 
 	state = drm_atomic_state_alloc(drm_dev);
@@ -7498,7 +7503,10 @@ struct drm_crtc *sde_crtc_init(struct drm_device *dev, struct drm_plane *plane)
 	if (dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3HC2 || dsi_panel_name == DSI_PANEL_SAMSUNG_S6E3FC2X01) {
 		for (i = 0; i < 21; i++)
 			brightness_alpha_lut[i] = brightness_alpha_lut_1[i];
-	}else {
+	} else if (dsi_panel_name == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
+		for (i = 0; i < 21; i++)
+			brightness_alpha_lut[i] = brightness_alpha_lut_2[i];
+	} else {
 		for (i = 0; i < 21; i++)
 			brightness_alpha_lut[i] = brightness_alpha_lut_1[i];
 	}

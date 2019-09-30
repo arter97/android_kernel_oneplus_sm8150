@@ -114,6 +114,8 @@ enum {
 	GAME_RTT_DETECTED_STREAM,
 };
 
+#ifdef CONFIG_SLA
+#ifndef CONFIG_SLA_ALGO
 struct op_game_app_info op_sla_game_app_list;
 struct op_dev_info op_sla_info[IFACE_NUM];
 int rtt_record_num;
@@ -124,3 +126,75 @@ int game_data[5];
 int op_sla_enable;
 int game_start_state;
 int sla_switch_enable;
+#else
+extern struct op_game_app_info op_sla_game_app_list;
+extern struct op_dev_info op_sla_info[IFACE_NUM];
+extern int rtt_record_num;
+extern int rtt_queue[MAX_RTT_RECORD_NUM];
+extern int rtt_rear;
+extern int game_rtt_wan_detect_flag;
+extern int game_data[5];
+extern int op_sla_enable;
+extern int game_start_state;
+extern int sla_switch_enable;
+
+int is_ping_pong(int game_type, int time_now);
+void op_rx_interval_error_estimator(int game_type,
+				    int time_error);
+void op_game_rtt_estimator(int *game_data);
+int op_get_ct_cell_quality(int game_type);
+int switch_to_cell(int cell_quality_good,
+		   int game_rtt,
+		   int gamelostcount,
+		   int game_switch_interval,
+		   int game_type);
+int switch_to_wifi(int wlan_bad,
+		   int game_rtt,
+		   int gamelostcount,
+		   int game_switch_interval,
+		   int game_type);
+void reset_sla_game_app_rx_error(int game_type);
+void reset_sla_game_app_rtt(int game_type);
+void record_sla_game_cell_state(int game_type,
+				int game_switch_interval,
+				int time_now);
+void record_sla_game_wifi_state(int game_type,
+				int game_switch_interval,
+				int time_now);
+int get_lost_count_threshold(int game_type);
+int get_game_interval(int game_type, int game_interval);
+int check_wan_detect_flag(int game_type);
+int is_detect_game_lost(int game_lost_count,
+			int game_lost_count_threshold,
+			int game_time_interval);
+int is_support_detect_game_tx(int game_type,
+			      int special_rx_pkt_last_timestamp);
+void get_rx_pkt_threshold(int game_type,
+			  int time_now,
+			  int special_rx_pkt_last_timestamp,
+			  int *rtt_callback);
+int data_stall_detect(int lastspecialrxtiming,
+		      int specialrxthreshold,
+		      int datastalltimer,
+		      int datastallthreshold);
+int get_game_tx_category(int game_type, int skb_len);
+int get_game_rx_category(int game_type, unsigned int skb_len);
+int drop_pkt_check(int game_type, int skb_len);
+int is_support_rtt_wan_detect(int game_type);
+int get_rx_interval_error(int game_category,
+			  int time_now,
+			  int rx_pkt_timestamp);
+int is_need_check_game_rtt(int game_detect_status,
+			   int game_timestamp,
+			   int skb_len);
+int get_game_rtt(int time_now, int game_timestamp, int game_type);
+int is_skip_rx_rtt(int game_type, int game_time_interval);
+int is_support_game_mark(int game_type);
+int need_enable_sla(int cell_quality_good);
+int need_enable_sla_for_wlan_score(int sla_screen_on);
+void set_sla_game_parameter(int num);
+void op_init_game_online_info(int num, int time_now);
+int op_get_wlan_quality(void);
+void update_wlan_score(void);
+#endif
+#endif

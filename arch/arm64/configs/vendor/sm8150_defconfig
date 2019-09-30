@@ -861,3 +861,4 @@ CONFIG_DEFAULT_IOSCHED="noop"
 # dylanchang,2019/4/1, add for kernel log reserve
 CONFIG_WB_KERNEL_LOG=y
 CONFIG_SLA=y
+CONFIG_SLA_ALGO=y

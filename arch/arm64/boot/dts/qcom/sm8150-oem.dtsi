@@ -18,6 +18,15 @@
 		qcom,dsi-panel = <&dsi_samsung_s6e3fc2x01_cmd>;
 	};
 
+	dsi_samsung_sofef03f_m_fhd_dsc_cmd_display: qcom,dsi-display@25 {
+		label = "dsi_samsung_sofef03f_m_fhd_dsc_cmd_display";
+		qcom,display-type = "primary";
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+		qcom,dsi-panel = <&dsi_samsung_sofef03f_m_fhd_dsc_cmd>;
+	};
+
 	dsi_samsung_sofef00_m_video_display: qcom,dsi-display@27 {
 		label = "dsi_samsung_sofef00_m_video_display";
 		qcom,display-type = "primary";
@@ -83,6 +92,7 @@
 	qcom,dsi-display-list =
 		<&dsi_samsung_oneplus_dsc_cmd_display
 		 &dsi_samsung_s6e3fc2x01_cmd_display
+		 &dsi_samsung_sofef03f_m_fhd_dsc_cmd_display
 		 &dsi_samsung_sofef00_m_video_display>;
 };
 
@@ -456,6 +466,7 @@
 /* Add for NXP eSE */
 &qupv3_se0_spi {
     status = "ok";
+	qcom,disable-autosuspend;
 
     ese@0 {
         compatible = "nxp,p61";
@@ -1332,9 +1343,9 @@ tp_irq_active: tp_irq_active {
 &icnss {
 	qcom,smmu-s1-bypass;
 };
+/* #endif VENDOR_EDIT */
 
 /* eleven.xie@Connectivity, 2019/05/20, disable wil6210 dts config */
 &wil6210 {
 	status = "disabled";
 };
-
