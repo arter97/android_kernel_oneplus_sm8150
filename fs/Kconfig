@@ -308,6 +308,7 @@ endif # NETWORK_FILESYSTEMS
 
 source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
+source "fs/unicode/Kconfig"
 
 config FILE_TABLE_DEBUG
 	bool "Enable FILE_TABLE_DEBUG"
