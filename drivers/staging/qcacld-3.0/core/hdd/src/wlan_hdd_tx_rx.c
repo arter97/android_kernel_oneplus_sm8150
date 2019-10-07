@@ -2481,6 +2481,7 @@ void hdd_reset_tcp_delack(struct hdd_context *hdd_ctx)
  *
  * Return: True if vote level is high
  */
+#ifdef RX_PERFORMANCE
 bool hdd_is_current_high_throughput(struct hdd_context *hdd_ctx)
 {
 	if (hdd_ctx->cur_vote_level < PLD_BUS_WIDTH_HIGH)
@@ -2488,4 +2489,5 @@ bool hdd_is_current_high_throughput(struct hdd_context *hdd_ctx)
 	else
 		return true;
 }
+#endif
 #endif /* MSM_PLATFORM */
