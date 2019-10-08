@@ -11,11 +11,10 @@ if [ -e boot.img ] ; then
 	rm arter97-kernel-$VERSION.zip 2>/dev/null
 	cp boot.img arter97-kernel-$VERSION.img
 
-	# Pack AnyKernel2
+	# Pack AnyKernel3
 	rm -rf kernelzip
-	mkdir -p kernelzip/dtbs
+	mkdir kernelzip
 	cp arch/arm64/boot/Image.gz kernelzip/
-	find arch/arm64/boot -name '*.dtb' -exec cp {} kernelzip/dtbs/ \;
 	echo "
 kernel.string=arter97 kernel $(cat version) @ xda-developers
 do.devicecheck=1
@@ -28,9 +27,10 @@ device.name3=guacamoleb
 device.name4=guacamole
 block=/dev/block/bootdevice/by-name/boot
 is_slot_device=1
-ramdisk_compression=lz4-l
+ramdisk_compression=gzip
 " > kernelzip/props
 	cp -rp ~/android/anykernel/* kernelzip/
+	find arch/arm64/boot/dts -name '*.dtb' -exec cat {} + > kernelzip/dtb
 	cd kernelzip/
 	7z a -mx0 arter97-kernel-$VERSION-tmp.zip *
 	zipalign -v 4 arter97-kernel-$VERSION-tmp.zip ../arter97-kernel-$VERSION.zip
