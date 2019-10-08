@@ -64,6 +64,7 @@ ls -lh $RAMFS_TMP.cpio.lz4
 cd $KERNELDIR
 
 echo "Making new boot image"
+find arch/arm64/boot/dts -name '*.dtb' -exec cat {} + > $RAMFS_TMP.dtb
 mkbootimg \
     --kernel $KERNELDIR/arch/arm64/boot/Image.gz \
     --ramdisk $RAMFS_TMP.cpio.lz4 \
@@ -74,7 +75,7 @@ mkbootimg \
     --ramdisk_offset 0x01000000 \
     --second_offset  0x00f00000 \
     --tags_offset    0x00000100 \
-    --dtb            arch/arm64/boot/dts/qcom/sm8150-v2.dtb \
+    --dtb            $RAMFS_TMP.dtb \
     --dtb_offset     0x01f00000 \
     --os_version     $OS \
     --os_patch_level $SPL \
