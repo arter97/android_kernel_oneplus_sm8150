@@ -2,38 +2,37 @@
 
 exec > /dev/kmsg 2>&1
 
-# Setup binaries
-RESETPROPSIZE=47297
-MKSWAPSIZE=$((6081+$RESETPROPSIZE))
-tail -c $MKSWAPSIZE "$0" > /dev/mkswap
-echo SIZE: $(($(stat -c%s "$0") - $MKSWAPSIZE))
-head -c $(($(stat -c%s "$0") - $MKSWAPSIZE)) "$0" >> "$0".tmp
-mv "$0".tmp "$0"
-chmod 755 "$0"
-chmod 755 /dev/mkswap
-
-tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
-chmod 755 /dev/resetprop
-
-# Google Camera AUX mod
-/dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
-rm /dev/resetprop
-
-# Setup swap
-while [ ! -e /dev/block/vnswap0 ]; do
-  sleep 1
-done
-if ! grep -q vnswap /proc/swaps; then
-  # 4GB
-  echo 4294967296 > /sys/devices/virtual/block/vnswap0/disksize
-  echo 130 > /proc/sys/vm/swappiness
-  # System mkswap behaves incorrectly with vnswap
-  /dev/mkswap /dev/block/vnswap0
-  swapon /dev/block/vnswap0
-  rm /dev/mkswap
-fi
-
 if [ ! -f /sbin/recovery ]; then
+  # Setup binaries
+  RESETPROPSIZE=47297
+  MKSWAPSIZE=$((6081+$RESETPROPSIZE))
+  tail -c $MKSWAPSIZE "$0" > /dev/mkswap
+  echo SIZE: $(($(stat -c%s "$0") - $MKSWAPSIZE))
+  head -c $(($(stat -c%s "$0") - $MKSWAPSIZE)) "$0" >> "$0".tmp
+  mv "$0".tmp "$0"
+  chmod 755 "$0"
+  chmod 755 /dev/mkswap
+
+  # Google Camera AUX mod
+  tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
+  chmod 755 /dev/resetprop
+  /dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
+  rm /dev/resetprop
+
+  # Setup swap
+  while [ ! -e /dev/block/vnswap0 ]; do
+    sleep 1
+  done
+  if ! grep -q vnswap /proc/swaps; then
+    # 4GB
+    echo 4294967296 > /sys/devices/virtual/block/vnswap0/disksize
+    echo 130 > /proc/sys/vm/swappiness
+    # System mkswap behaves incorrectly with vnswap
+    /dev/mkswap /dev/block/vnswap0
+    swapon /dev/block/vnswap0
+    rm /dev/mkswap
+  fi
+
   # Hook up to existing init.qcom.post_boot.sh
   while [ ! -f /vendor/bin/init.qcom.post_boot.sh ]; do
     sleep 1
