@@ -2,7 +2,10 @@
 
 exec > /dev/kmsg 2>&1
 
-if [ ! -f /sbin/recovery ]; then
+if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
+  # Run once
+  touch /dev/.post_boot
+
   # Setup binaries
   RESETPROPSIZE=47297
   MKSWAPSIZE=$((6081+$RESETPROPSIZE))
