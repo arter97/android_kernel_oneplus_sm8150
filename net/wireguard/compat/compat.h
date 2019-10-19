@@ -47,6 +47,7 @@
 #endif
 
 #include <linux/cache.h>
+#include <linux/init.h>
 #ifndef __ro_after_init
 #define __ro_after_init __read_mostly
 #endif
@@ -89,7 +90,7 @@
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 27) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) || \
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 8) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)) || \
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 40) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)) || \
-    (LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 54))) && !defined(ISUBUNTU1404)
+    (LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 54))) && !defined(ISUBUNTU1404) && (!defined(ISRHEL7) || RHEL_MINOR < 7) /* TODO: remove < 7 workaround once CentOS 7.7 comes out. */
 #include <linux/if.h>
 #include <net/ip_tunnels.h>
 #define IP6_ECN_set_ce(a, b) IP6_ECN_set_ce(b)
@@ -840,9 +841,11 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 
 #if defined(ISUBUNTU1604)
 #include <linux/siphash.h>
+#ifndef _WG_LINUX_SIPHASH_H
 #define hsiphash_2u32 siphash_2u32
 #define hsiphash_3u32 siphash_3u32
 #define hsiphash_key_t siphash_key_t
+#endif
 #endif
 
 #ifdef CONFIG_VE
