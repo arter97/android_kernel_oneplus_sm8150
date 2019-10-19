@@ -329,11 +329,10 @@ static int smb5_chg_config_init(struct smb5 *chip)
 {
 	struct smb_charger *chg = &chip->chg;
 	struct pmic_revid_data *pmic_rev_id;
-	struct device_node *revid_dev_node;
+	struct device_node *revid_dev_node, *node = chg->dev->of_node;
 	int rc = 0;
 
-	revid_dev_node = of_parse_phandle(chip->chg.dev->of_node,
-					  "qcom,pmic-revid", 0);
+	revid_dev_node = of_parse_phandle(node, "qcom,pmic-revid", 0);
 	if (!revid_dev_node) {
 		pr_err("Missing qcom,pmic-revid property\n");
 		return -EINVAL;
@@ -397,9 +396,11 @@ static int smb5_chg_config_init(struct smb5 *chip)
 	chg->chg_freq.freq_below_otg_threshold	= 800;
 	chg->chg_freq.freq_above_otg_threshold	= 800;
 
-	if (of_property_read_bool(chip->chg.dev->of_node,
-				      "qcom,disable-sw-thermal-regulation"))
+	if (of_property_read_bool(node, "qcom,disable-sw-thermal-regulation"))
 		chg->wa_flags &= ~SW_THERM_REGULATION_WA;
+
+	if (of_property_read_bool(node, "qcom,disable-fcc-restriction"))
+		chg->main_fcc_max = -EINVAL;
 
 out:
 	of_node_put(revid_dev_node);
@@ -1708,6 +1709,8 @@ static int smb5_usb_main_set_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_FORCE_MAIN_FCC:
 		vote_override(chg->fcc_main_votable, CC_MODE_VOTER,
 				(val->intval < 0) ? false : true, val->intval);
+		/* Main FCC updated re-calculate FCC */
+		rerun_election(chg->fcc_votable);
 		break;
 	case POWER_SUPPLY_PROP_FORCE_MAIN_ICL:
 		vote_override(chg->usb_icl_votable, CC_MODE_VOTER,

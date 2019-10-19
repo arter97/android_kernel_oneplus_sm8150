@@ -968,10 +968,10 @@ static int smblib_set_usb_pd_allowed_voltage(struct smb_charger *chg,
 	if (vbus_allowance != CONTINUOUS)
 		return 0;
 
+	aicl_threshold = min_allowed_uv / 1000 - CONT_AICL_HEADROOM_MV;
 	if (chg->adapter_cc_mode)
-		aicl_threshold = AICL_THRESHOLD_MV_IN_CC;
-	else
-		aicl_threshold = min_allowed_uv / 1000 - CONT_AICL_HEADROOM_MV;
+		aicl_threshold = min(aicl_threshold, AICL_THRESHOLD_MV_IN_CC);
+
 	rc = smblib_set_charge_param(chg, &chg->param.aicl_cont_threshold,
 							aicl_threshold);
 	if (rc < 0) {
@@ -2199,7 +2199,7 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	 * If charge termination WA is active and has suspended charging, then
 	 * continue reporting charging status as FULL.
 	 */
-	if (is_client_vote_enabled(chg->usb_icl_votable,
+	if (is_client_vote_enabled_locked(chg->usb_icl_votable,
 						CHG_TERMINATION_VOTER)) {
 		val->intval = POWER_SUPPLY_STATUS_FULL;
 		return 0;
@@ -3407,7 +3407,7 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 		return rc;
 	}
 
-	if (is_client_vote_enabled(chg->usb_icl_votable,
+	if (is_client_vote_enabled_locked(chg->usb_icl_votable,
 					CHG_TERMINATION_VOTER)) {
 		rc = smblib_get_prop_usb_present(chg, val);
 		return rc;

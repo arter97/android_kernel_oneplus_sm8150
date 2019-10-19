@@ -930,7 +930,7 @@
 				config {
 					pins = "gpio44", "gpio45";
 					drive-strength = <2>;
-					bias-disable;
+					bias-pull-down;
 				};
 			};
 		};
@@ -1122,7 +1122,7 @@
 		cam_sensor_rear2_suspend: cam_sensor_rear2_suspend {
 			/* RESET */
 			mux {
-				pins = "gpioi25";
+				pins = "gpio25";
 				function = "gpio";
 			};
 
