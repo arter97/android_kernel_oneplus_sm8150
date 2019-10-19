@@ -2795,6 +2795,7 @@ static void hdd_update_ipa_component_config(struct hdd_context *hdd_ctx)
 	ipa_cfg.ipa_bw_high = cfg->IpaHighBandwidthMbps;
 	ipa_cfg.ipa_bw_medium = cfg->IpaMediumBandwidthMbps;
 	ipa_cfg.ipa_bw_low = cfg->IpaLowBandwidthMbps;
+	ipa_cfg.ipa_force_voting = cfg->IpaForceVoting;
 
 	ucfg_ipa_update_config(&ipa_cfg);
 }
@@ -6039,7 +6040,6 @@ static void hdd_reset_scan_operation(struct hdd_context *hdd_ctx,
 		break;
 	case QDF_SAP_MODE:
 		qdf_atomic_set(&adapter->session.ap.acs_in_progress, 0);
-		wlan_hdd_undo_acs(adapter);
 		break;
 	default:
 		break;
