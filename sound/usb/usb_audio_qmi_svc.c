@@ -872,34 +872,32 @@ static void uaudio_disconnect_cb(struct snd_usb_audio *chip)
 		goto done;
 	}
 
-	if (atomic_read(&dev->in_use)) {
-		mutex_unlock(&chip->dev_lock);
-		uaudio_dbg("sending qmi indication disconnect\n");
-		uaudio_dbg("sq->sq_family:%x sq->sq_node:%x sq->sq_port:%x\n",
-				svc->client_sq.sq_family,
-				svc->client_sq.sq_node, svc->client_sq.sq_port);
-		disconnect_ind.dev_event = USB_AUDIO_DEV_DISCONNECT_V01;
-		disconnect_ind.slot_id = dev->udev->slot_id;
-		disconnect_ind.controller_num = dev->usb_core_id;
-		disconnect_ind.controller_num_valid = 1;
-		ret = qmi_send_indication(svc->uaudio_svc_hdl, &svc->client_sq,
-				QMI_UADUIO_STREAM_IND_V01,
-				QMI_UAUDIO_STREAM_IND_MSG_V01_MAX_MSG_LEN,
-				qmi_uaudio_stream_ind_msg_v01_ei,
-				&disconnect_ind);
-		if (ret < 0) {
-			uaudio_err("qmi send failed wiht err: %d\n", ret);
-			return;
-		}
-
-		ret = wait_event_interruptible(dev->disconnect_wq,
-				!atomic_read(&dev->in_use));
-		if (ret < 0) {
-			uaudio_dbg("failed with ret %d\n", ret);
-			return;
-		}
-		mutex_lock(&chip->dev_lock);
+	mutex_unlock(&chip->dev_lock);
+	uaudio_dbg("sending qmi indication disconnect\n");
+	uaudio_dbg("sq->sq_family:%x sq->sq_node:%x sq->sq_port:%x\n",
+			svc->client_sq.sq_family,
+			svc->client_sq.sq_node, svc->client_sq.sq_port);
+	disconnect_ind.dev_event = USB_AUDIO_DEV_DISCONNECT_V01;
+	disconnect_ind.slot_id = dev->udev->slot_id;
+	disconnect_ind.controller_num = dev->usb_core_id;
+	disconnect_ind.controller_num_valid = 1;
+	ret = qmi_send_indication(svc->uaudio_svc_hdl, &svc->client_sq,
+			QMI_UADUIO_STREAM_IND_V01,
+			QMI_UAUDIO_STREAM_IND_MSG_V01_MAX_MSG_LEN,
+			qmi_uaudio_stream_ind_msg_v01_ei,
+			&disconnect_ind);
+	if (ret < 0) {
+		uaudio_err("qmi send failed wiht err: %d\n", ret);
+		return;
 	}
+
+	ret = wait_event_interruptible(dev->disconnect_wq,
+			!atomic_read(&dev->in_use));
+	if (ret < 0) {
+		uaudio_dbg("failed with ret %d\n", ret);
+		return;
+	}
+	mutex_lock(&chip->dev_lock);
 
 	uaudio_dev_cleanup(dev);
 done:
