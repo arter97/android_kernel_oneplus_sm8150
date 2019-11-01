@@ -44,7 +44,10 @@ static void remove_safetynet_flags(char *cmd)
 {
 	remove_flag(cmd, "androidboot.enable_dm_verity=");
 	remove_flag(cmd, "androidboot.secboot=");
-	remove_flag(cmd, "androidboot.verifiedbootstate=");
+	if (strstr(saved_command_line, "project_name=18857") ||
+		strstr(saved_command_line, "project_name=18821")) {
+		remove_flag(cmd, "androidboot.verifiedbootstate=");
+	}
 	remove_flag(cmd, "androidboot.veritymode=");
 }
 
