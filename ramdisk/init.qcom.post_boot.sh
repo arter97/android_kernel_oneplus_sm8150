@@ -6,6 +6,17 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   # Run once
   touch /dev/.post_boot
 
+  # Disable Houston and cc_ctl
+  mount --bind /dev/.post_boot /system/priv-app/Houston/Houston.apk
+  mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
+  rm -f /data/dalvik-cache/arm64/system@priv-app@Houston*
+  rm -f /data/dalvik-cache/arm64/system@priv-app@OPAppCategoryProvider*
+  # Hide app dirs as well
+  mkdir /dev/.empty_dir
+  while [ ! -e /data/data/ ]; do sleep 0.01; done
+  mount --bind /dev/.empty_dir /data/data/com.oneplus.houston
+  mount --bind /dev/.empty_dir /data/data/net.oneplus.provider.appcategoryprovider
+
   # Setup binaries
   RESETPROPSIZE=47297
   MKSWAPSIZE=$((6081+$RESETPROPSIZE))
