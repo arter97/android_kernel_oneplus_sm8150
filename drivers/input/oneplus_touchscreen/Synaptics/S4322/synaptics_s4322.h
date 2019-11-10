@@ -38,7 +38,7 @@
 #define SWIPE_DETECT    0x07
 #define DTAP_DETECT     0x03
 
-#define RESET_TO_NORMAL_TIME 80    /*Sleep time after reset*/
+#define RESET_TO_NORMAL_TIME 80	/*Sleep time after reset */
 
 #define SPURIOUS_FP_LIMIT 100
 #define SPURIOUS_FP_RX_NUM 8
@@ -52,7 +52,7 @@
 #define EXTEND_EE_SHORT_TX_ON_COUNT  146
 #define EXTEND_EE_SHORT_RX_ON_COUNT  146
 #define EXTEND_EE_SHORT_TEST_LIMIT_PART1  160
-#define EXTEND_EE_SHORT_TEST_LIMIT_PART2  80         // ( unit = ratio )
+#define EXTEND_EE_SHORT_TEST_LIMIT_PART2  80	// ( unit = ratio )
 
 /* tddi f54 test reporting - */
 #define ELEC_OPEN_TEST_TX_ON_COUNT 2
@@ -137,97 +137,96 @@ struct f54_control_182 {
 };
 
 /*********PART3:Struct Area**********************/
-struct synaptics_register
-{
-    uint8_t F01_RMI_QUERY_BASE;
-    uint8_t F01_RMI_CMD_BASE;
-    uint8_t F01_RMI_CTRL_BASE;
-    uint8_t F01_RMI_DATA_BASE;
+struct synaptics_register {
+	uint8_t F01_RMI_QUERY_BASE;
+	uint8_t F01_RMI_CMD_BASE;
+	uint8_t F01_RMI_CTRL_BASE;
+	uint8_t F01_RMI_DATA_BASE;
 
-    uint8_t F01_RMI_QUERY11;
-    uint8_t F01_RMI_DATA01;
-    uint8_t F01_RMI_CMD00;
-    uint8_t F01_RMI_CTRL00;
-    uint8_t F01_RMI_CTRL01;
-    uint8_t F01_RMI_CTRL02;
+	uint8_t F01_RMI_QUERY11;
+	uint8_t F01_RMI_DATA01;
+	uint8_t F01_RMI_CMD00;
+	uint8_t F01_RMI_CTRL00;
+	uint8_t F01_RMI_CTRL01;
+	uint8_t F01_RMI_CTRL02;
 
-    uint8_t F12_2D_QUERY_BASE;
-    uint8_t F12_2D_CMD_BASE;
-    uint8_t F12_2D_CTRL_BASE;
-    uint8_t F12_2D_DATA_BASE;
+	uint8_t F12_2D_QUERY_BASE;
+	uint8_t F12_2D_CMD_BASE;
+	uint8_t F12_2D_CTRL_BASE;
+	uint8_t F12_2D_DATA_BASE;
 
-    uint8_t F12_2D_CTRL08;
-    uint8_t F12_2D_CTRL20;
-    uint8_t F12_2D_CTRL23;
-    uint8_t F12_2D_CTRL27;
-    uint8_t F12_2D_CTRL32;
-    uint8_t F12_2D_DATA04;
-    uint8_t F12_2D_DATA15;
-    uint8_t F12_2D_DATA38;
-    uint8_t F12_2D_DATA39;
-    uint8_t F12_2D_CMD00;
+	uint8_t F12_2D_CTRL08;
+	uint8_t F12_2D_CTRL20;
+	uint8_t F12_2D_CTRL23;
+	uint8_t F12_2D_CTRL27;
+	uint8_t F12_2D_CTRL32;
+	uint8_t F12_2D_DATA04;
+	uint8_t F12_2D_DATA15;
+	uint8_t F12_2D_DATA38;
+	uint8_t F12_2D_DATA39;
+	uint8_t F12_2D_CMD00;
 
-    uint8_t F34_FLASH_QUERY_BASE;
-    uint8_t F34_FLASH_CMD_BASE;
-    uint8_t F34_FLASH_CTRL_BASE;
-    uint8_t F34_FLASH_DATA_BASE;
+	uint8_t F34_FLASH_QUERY_BASE;
+	uint8_t F34_FLASH_CMD_BASE;
+	uint8_t F34_FLASH_CTRL_BASE;
+	uint8_t F34_FLASH_DATA_BASE;
 
-    uint8_t SynaF34_FlashControl;
-    uint8_t SynaF34_FlashStatus;
-    uint8_t SynaF34Reflash_BlockNum;
-    uint8_t SynaF34Reflash_BlockData;
-    uint8_t SynaF34ReflashQuery_BootID;
-    uint8_t SynaF34ReflashQuery_FlashPropertyQuery;
-    uint8_t SynaF34ReflashQuery_FirmwareBlockSize;
-    uint8_t SynaF34ReflashQuery_FirmwareBlockCount;
-    uint8_t SynaF34ReflashQuery_ConfigBlockSize;
-    uint8_t SynaF34ReflashQuery_ConfigBlockCount;
+	uint8_t SynaF34_FlashControl;
+	uint8_t SynaF34_FlashStatus;
+	uint8_t SynaF34Reflash_BlockNum;
+	uint8_t SynaF34Reflash_BlockData;
+	uint8_t SynaF34ReflashQuery_BootID;
+	uint8_t SynaF34ReflashQuery_FlashPropertyQuery;
+	uint8_t SynaF34ReflashQuery_FirmwareBlockSize;
+	uint8_t SynaF34ReflashQuery_FirmwareBlockCount;
+	uint8_t SynaF34ReflashQuery_ConfigBlockSize;
+	uint8_t SynaF34ReflashQuery_ConfigBlockCount;
 
-    uint8_t F51_CUSTOM_QUERY_BASE;
-    uint8_t F51_CUSTOM_CMD_BASE;
-    uint8_t F51_CUSTOM_CTRL_BASE;
-    uint8_t F51_CUSTOM_DATA_BASE;
+	uint8_t F51_CUSTOM_QUERY_BASE;
+	uint8_t F51_CUSTOM_CMD_BASE;
+	uint8_t F51_CUSTOM_CTRL_BASE;
+	uint8_t F51_CUSTOM_DATA_BASE;
 
-    uint8_t F51_CUSTOM_CTRL00;
-    uint8_t F51_CUSTOM_CTRL31;
-    uint8_t F51_CUSTOM_CTRL42;
-    uint8_t F51_CUSTOM_CTRL48;   //ESD Mode Ctrl, bit2:1 ps near , bit2:0 ps far
-    uint8_t F51_CUSTOM_GRIP_CTRL;//edge function register,the enable bit of Grip suppression
-    uint8_t F51_CUSTOM_DATA;
+	uint8_t F51_CUSTOM_CTRL00;
+	uint8_t F51_CUSTOM_CTRL31;
+	uint8_t F51_CUSTOM_CTRL42;
+	uint8_t F51_CUSTOM_CTRL48;	//ESD Mode Ctrl, bit2:1 ps near , bit2:0 ps far
+	uint8_t F51_CUSTOM_GRIP_CTRL;	//edge function register,the enable bit of Grip suppression
+	uint8_t F51_CUSTOM_DATA;
 
-    uint8_t F54_ANALOG_QUERY_BASE;
-    uint8_t F54_ANALOG_COMMAND_BASE;
-    uint8_t F54_ANALOG_CONTROL_BASE;
-    uint8_t F54_ANALOG_DATA_BASE;
-    uint8_t F54_ANALOG_CTRL123;
-    uint8_t F54_ANALOG_CTRL91;
-    uint8_t F54_ANALOG_CTRL99;
-    uint8_t F54_ANALOG_CTRL182;
-    uint8_t F54_ANALOG_CTRL225;
+	uint8_t F54_ANALOG_QUERY_BASE;
+	uint8_t F54_ANALOG_COMMAND_BASE;
+	uint8_t F54_ANALOG_CONTROL_BASE;
+	uint8_t F54_ANALOG_DATA_BASE;
+	uint8_t F54_ANALOG_CTRL123;
+	uint8_t F54_ANALOG_CTRL91;
+	uint8_t F54_ANALOG_CTRL99;
+	uint8_t F54_ANALOG_CTRL182;
+	uint8_t F54_ANALOG_CTRL225;
 
-    uint8_t F55_SENSOR_QUERY_BASE;
-    uint8_t F55_SENSOR_CMD_BASE;
-    uint8_t F55_SENSOR_CTRL_BASE;
-    uint8_t F55_SENSOR_DATA_BASE;
+	uint8_t F55_SENSOR_QUERY_BASE;
+	uint8_t F55_SENSOR_CMD_BASE;
+	uint8_t F55_SENSOR_CTRL_BASE;
+	uint8_t F55_SENSOR_DATA_BASE;
 
-    uint8_t F55_SENSOR_CTRL01;
-    uint8_t F55_SENSOR_CTRL02;
-    uint8_t F55_SENSOR_CTRL43;
+	uint8_t F55_SENSOR_CTRL01;
+	uint8_t F55_SENSOR_CTRL02;
+	uint8_t F55_SENSOR_CTRL43;
 };
 
 struct chip_data_s4322 {
-    uint32_t *p_tp_fw;
-    tp_dev tp_type;
-    struct i2c_client *client;
-    struct synaptics_proc_operations *syna_ops; /*synaptics func provide to synaptics common driver*/
+	uint32_t *p_tp_fw;
+	tp_dev tp_type;
+	struct i2c_client *client;
+	struct synaptics_proc_operations *syna_ops;	/*synaptics func provide to synaptics common driver */
 #ifdef CONFIG_SYNAPTIC_RED
-    int    enable_remote;                       /*Redremote connect state*/
-    struct remotepanel_data *premote_data;
-#endif/*CONFIG_SYNAPTIC_RED*/
-    struct synaptics_register     reg_info;
-    struct hw_resource          *hw_res;
-    int16_t *spuri_fp_data;
-    struct spurious_fp_touch *p_spuri_fp_touch;
+	int enable_remote;	/*Redremote connect state */
+	struct remotepanel_data *premote_data;
+#endif				/*CONFIG_SYNAPTIC_RED */
+	struct synaptics_register reg_info;
+	struct hw_resource *hw_res;
+	int16_t *spuri_fp_data;
+	struct spurious_fp_touch *p_spuri_fp_touch;
 };
 
 #endif

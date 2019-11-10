@@ -38,7 +38,6 @@
 #define GESTURE_SINGLE_TAP                      0x0E
 #define GESTURE_S                               0x0F
 
-
 #define GESTURE_EARSENSE                        0x0E
 
 #define RESET_TO_NORMAL_TIME                    (70)
@@ -79,7 +78,7 @@
 #define SEC_ERR_EVENT_ESD                       0x2
 
 //earsense status
-#define SEC_STATUS_EARDETECTED                  0x6A		//84 (70.4 change to 6A)
+#define SEC_STATUS_EARDETECTED                  0x6A	//84 (70.4 change to 6A)
 
 //touchhold status
 #define SEC_STATUS_TOUCHHOLD					0x6B
@@ -100,8 +99,8 @@
 #define SEC_READ_ALL_EVENT                      0x61
 #define SEC_CMD_CLEAR_EVENT_STACK               0x62
 #define SEC_READ_GESTURE_EVENT                  0x63
-#define SEC_READ_DEVICE_ID                      0x22    //for custom to print IC info
-#define SEC_READ_ID                             0x52    //for debug with IC touch mode
+#define SEC_READ_DEVICE_ID                      0x22	//for custom to print IC info
+#define SEC_READ_ID                             0x52	//for debug with IC touch mode
 #define SEC_READ_FIRMWARE_INTEGRITY             0x21
 #define SEC_READ_BOOT_STATUS                    0x55
 #define SEC_READ_TS_STATUS                      0xAF
@@ -126,13 +125,13 @@
 #define SEC_CMD_FACTORY_PANELCALIBRATION        0x14
 #define SEC_CMD_MUTU_RAW_TYPE                   0x70
 #define SEC_CMD_SELF_RAW_TYPE                   0x71
-#define SEC_READ_TOUCH_RAWDATA                  0x72    //read all frame rawdata(ordered by RX len)
+#define SEC_READ_TOUCH_RAWDATA                  0x72	//read all frame rawdata(ordered by RX len)
 #define SEC_READ_TOUCH_SELF_RAWDATA             0x73
-#define SEC_READ_TOUCH_SETLEN_RAWDATA           0x74    //read out self define length rawdata(ordered by TX len)
-#define SEC_CMD_TOUCH_RAWDATA_SETLEN            0x75    //set rawdata length of reading
-#define SEC_CMD_TOUCH_DELTA_READ                0x76    //cmd to read delta data
-#define SEC_CMD_TOUCH_RAWDATA_READ              0x77    //cmd to read rawdata data
-#define SEC_CMD_TOUCH_SELFDATA_READ             0x78    //cmd to read self data
+#define SEC_READ_TOUCH_SETLEN_RAWDATA           0x74	//read out self define length rawdata(ordered by TX len)
+#define SEC_CMD_TOUCH_RAWDATA_SETLEN            0x75	//set rawdata length of reading
+#define SEC_CMD_TOUCH_DELTA_READ                0x76	//cmd to read delta data
+#define SEC_CMD_TOUCH_RAWDATA_READ              0x77	//cmd to read rawdata data
+#define SEC_CMD_TOUCH_SELFDATA_READ             0x78	//cmd to read self data
 #define SEC_CMD_SELFTEST                        0xAE
 #define SEC_READ_SELFTEST_RESULT                0x80
 #define SEC_CMD_STATEMANAGE_ON                  0x8E
@@ -152,135 +151,132 @@
 #define SEC_CMD_PORTRAIT_CORNER					0xAB
 #define SEC_CMD_LANDSPACE_CORNER				0xAC
 
-
-
-
 /*********PART3:Struct Area**********************/
 typedef struct {
-    u32 signature;          /* signature */
-    u32 version;            /* version */
-    u32 totalsize;          /* total size */
-    u32 checksum;           /* checksum */
-    u32 img_ver;            /* image file version */
-    u32 img_date;           /* image file date */
-    u32 img_description;    /* image file description */
-    u32 fw_ver;             /* firmware version */
-    u32 fw_date;            /* firmware date */
-    u32 fw_description;     /* firmware description */
-    u32 para_ver;           /* parameter version */
-    u32 para_date;          /* parameter date */
-    u32 para_description;   /* parameter description */
-    u32 num_chunk;          /* number of chunk */
-    u32 reserved1;
-    u32 reserved2;
+	u32 signature;		/* signature */
+	u32 version;		/* version */
+	u32 totalsize;		/* total size */
+	u32 checksum;		/* checksum */
+	u32 img_ver;		/* image file version */
+	u32 img_date;		/* image file date */
+	u32 img_description;	/* image file description */
+	u32 fw_ver;		/* firmware version */
+	u32 fw_date;		/* firmware date */
+	u32 fw_description;	/* firmware description */
+	u32 para_ver;		/* parameter version */
+	u32 para_date;		/* parameter date */
+	u32 para_description;	/* parameter description */
+	u32 num_chunk;		/* number of chunk */
+	u32 reserved1;
+	u32 reserved2;
 } sec_fw_header;
 
 typedef struct {
-    u32 signature;
-    u32 addr;
-    u32 size;
-    u32 reserved;
+	u32 signature;
+	u32 addr;
+	u32 size;
+	u32 reserved;
 } sec_fw_chunk;
 
 struct sec_gesture_status {
-    u8 eid:2;
-    u8 gtype:4;
-    u8 stype:2;
-    u8 gestureId;
-    u8 coordLen;
-    u8 data;
-    u8 reserved[4];
+	u8 eid:2;
+	u8 gtype:4;
+	u8 stype:2;
+	u8 gestureId;
+	u8 coordLen;
+	u8 data;
+	u8 reserved[4];
 } __attribute__ ((packed));
 
 /* 8 byte */
 struct sec_event_status {
-    u8 eid:2;
-    u8 stype:4;
-    u8 sf:2;
-    u8 status_id;
-    u8 status_data_1;
-    u8 status_data_2;
-    u8 status_data_3;
-    u8 status_data_4;
-    u8 status_data_5;
-    u8 left_event_5_0:6;
-    u8 reserved_2:2;
+	u8 eid:2;
+	u8 stype:4;
+	u8 sf:2;
+	u8 status_id;
+	u8 status_data_1;
+	u8 status_data_2;
+	u8 status_data_3;
+	u8 status_data_4;
+	u8 status_data_5;
+	u8 left_event_5_0:6;
+	u8 reserved_2:2;
 } __attribute__ ((packed));
 
 /* 8 byte */
 struct sec_event_coordinate {
-    u8 eid:2;
-    u8 tid:4;
-    u8 tchsta:2;
-    u8 x_11_4;
-    u8 y_11_4;
-    u8 y_3_0:4;
-    u8 x_3_0:4;
-    u8 major;
-    u8 minor;
-    u8 z:6;
-    u8 ttype_3_2:2;
-    u8 left_event:6;
-    u8 ttype_1_0:2;
+	u8 eid:2;
+	u8 tid:4;
+	u8 tchsta:2;
+	u8 x_11_4;
+	u8 y_11_4;
+	u8 y_3_0:4;
+	u8 x_3_0:4;
+	u8 major;
+	u8 minor;
+	u8 z:6;
+	u8 ttype_3_2:2;
+	u8 left_event:6;
+	u8 ttype_1_0:2;
 } __attribute__ ((packed));
 
 typedef enum {
-    TOUCH_SYSTEM_MODE_BOOT          = 0,
-    TOUCH_SYSTEM_MODE_CALIBRATION   = 1,
-    TOUCH_SYSTEM_MODE_TOUCH         = 2,
-    TOUCH_SYSTEM_MODE_SELFTEST      = 3,
-    TOUCH_SYSTEM_MODE_FLASH         = 4,
-    TOUCH_SYSTEM_MODE_LOWPOWER      = 5,
-    TOUCH_SYSTEM_MODE_LISTEN
+	TOUCH_SYSTEM_MODE_BOOT = 0,
+	TOUCH_SYSTEM_MODE_CALIBRATION = 1,
+	TOUCH_SYSTEM_MODE_TOUCH = 2,
+	TOUCH_SYSTEM_MODE_SELFTEST = 3,
+	TOUCH_SYSTEM_MODE_FLASH = 4,
+	TOUCH_SYSTEM_MODE_LOWPOWER = 5,
+	TOUCH_SYSTEM_MODE_LISTEN
 } TOUCH_SYSTEM_MODE;
 
 typedef enum {
-    TOUCH_MODE_STATE_IDLE           = 0,
-    TOUCH_MODE_STATE_HOVER          = 1,
-    TOUCH_MODE_STATE_TOUCH          = 2,
-    TOUCH_MODE_STATE_NOISY          = 3,
-    TOUCH_MODE_STATE_CAL            = 4,
-    TOUCH_MODE_STATE_CAL2           = 5,
-    TOUCH_MODE_STATE_WAKEUP         = 10
+	TOUCH_MODE_STATE_IDLE = 0,
+	TOUCH_MODE_STATE_HOVER = 1,
+	TOUCH_MODE_STATE_TOUCH = 2,
+	TOUCH_MODE_STATE_NOISY = 3,
+	TOUCH_MODE_STATE_CAL = 4,
+	TOUCH_MODE_STATE_CAL2 = 5,
+	TOUCH_MODE_STATE_WAKEUP = 10
 } TOUCH_MODE_STATE;
 
 enum {
-    TYPE_RAW_DATA               = 0,    /* Total - Offset : delta data */
-    TYPE_SIGNAL_DATA            = 1,    /* Signal - Filtering & Normalization */
-    TYPE_AMBIENT_BASELINE       = 2,    /* Cap Baseline */
-    TYPE_AMBIENT_DATA           = 3,    /* Cap Ambient */
-    TYPE_REMV_BASELINE_DATA     = 4,
-    TYPE_DECODED_DATA           = 5,    /* Raw */
-    TYPE_REMV_AMB_DATA          = 6,    /*  TYPE_RAW_DATA - TYPE_AMBIENT_DATA */
-    TYPE_OFFSET_DATA_SEC        = 19,    /* Cap Offset in SEC Manufacturing Line */
-    TYPE_OFFSET_DATA_SDC        = 29,    /* Cap Offset in SDC Manufacturing Line */
-    TYPE_NOI_P2P_MIN            = 30,    /* Peak-to-peak noise Min */
-    TYPE_NOI_P2P_MAX            = 31,     /* Peak-to-peak noise Max */
-    TYPE_DATA_DELTA             = 60,    /* delta */
-    TYPE_DATA_RAWDATA           = 61,    /* rawdata */
-    TYPE_INVALID_DATA           = 0xFF,    /* Invalid data type for release factory mode */
+	TYPE_RAW_DATA = 0,	/* Total - Offset : delta data */
+	TYPE_SIGNAL_DATA = 1,	/* Signal - Filtering & Normalization */
+	TYPE_AMBIENT_BASELINE = 2,	/* Cap Baseline */
+	TYPE_AMBIENT_DATA = 3,	/* Cap Ambient */
+	TYPE_REMV_BASELINE_DATA = 4,
+	TYPE_DECODED_DATA = 5,	/* Raw */
+	TYPE_REMV_AMB_DATA = 6,	/*  TYPE_RAW_DATA - TYPE_AMBIENT_DATA */
+	TYPE_OFFSET_DATA_SEC = 19,	/* Cap Offset in SEC Manufacturing Line */
+	TYPE_OFFSET_DATA_SDC = 29,	/* Cap Offset in SDC Manufacturing Line */
+	TYPE_NOI_P2P_MIN = 30,	/* Peak-to-peak noise Min */
+	TYPE_NOI_P2P_MAX = 31,	/* Peak-to-peak noise Max */
+	TYPE_DATA_DELTA = 60,	/* delta */
+	TYPE_DATA_RAWDATA = 61,	/* rawdata */
+	TYPE_INVALID_DATA = 0xFF,	/* Invalid data type for release factory mode */
 };
 
 struct chip_data_s6sy761 {
-    tp_dev                          tp_type;
-    struct i2c_client               *client;
-    u8                              boot_ver[3];
-    bool                            is_power_down;
-    struct hw_resource              *hw_res;
-    uint32_t                        flash_page_size;
-    u8                              first_event[SEC_EVENT_BUFF_SIZE];
-	u8								wet_mode;
-	u8								proximity_status;
-	u8								touch_noise_status;
-	short 							*pFrame;
-	bool 							print_num;
+	tp_dev tp_type;
+	struct i2c_client *client;
+	u8 boot_ver[3];
+	bool is_power_down;
+	struct hw_resource *hw_res;
+	uint32_t flash_page_size;
+	u8 first_event[SEC_EVENT_BUFF_SIZE];
+	u8 wet_mode;
+	u8 proximity_status;
+	u8 touch_noise_status;
+	short *pFrame;
+	bool print_num;
 };
 
 struct fp_underscreen_info {
-    uint8_t touch_state;
-    uint8_t area_rate;
-    uint16_t x;
-    uint16_t y;
+	uint8_t touch_state;
+	uint8_t area_rate;
+	uint16_t x;
+	uint16_t y;
 };
 
 #endif

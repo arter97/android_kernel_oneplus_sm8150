@@ -38,7 +38,7 @@
 #define SWIPE_DETECT    0x07
 #define DTAP_DETECT     0x03
 
-#define RESET_TO_NORMAL_TIME 100    /*Sleep time after reset*/
+#define RESET_TO_NORMAL_TIME 100	/*Sleep time after reset */
 
 #define SPURIOUS_FP_LIMIT 100
 #define SPURIOUS_FP_RX_NUM 8
@@ -52,7 +52,7 @@
 #define EXTEND_EE_SHORT_TX_ON_COUNT  146
 #define EXTEND_EE_SHORT_RX_ON_COUNT  146
 #define EXTEND_EE_SHORT_TEST_LIMIT_PART1  120
-#define EXTEND_EE_SHORT_TEST_LIMIT_PART2  70         // ( unit = ratio )
+#define EXTEND_EE_SHORT_TEST_LIMIT_PART2  70	// ( unit = ratio )
 
 /* tddi f54 test reporting - */
 #define ELEC_OPEN_TEST_TX_ON_COUNT 2
@@ -157,8 +157,7 @@ struct f54_control_182 {
 };
 
 /*********PART3:Struct Area**********************/
-struct synaptics_register
-{
+struct synaptics_register {
 	uint8_t F01_RMI_QUERY_BASE;
 	uint8_t F01_RMI_CMD_BASE;
 	uint8_t F01_RMI_CTRL_BASE;
@@ -212,7 +211,7 @@ struct synaptics_register
 	uint8_t F51_CUSTOM_CTRL31;
 	uint8_t F51_CUSTOM_CTRL36;
 	uint8_t F51_CUSTOM_CTRL42;
-	uint8_t F51_CUSTOM_GRIP_CTRL;//edge function register,the enable bit of Grip suppression
+	uint8_t F51_CUSTOM_GRIP_CTRL;	//edge function register,the enable bit of Grip suppression
 	uint8_t F51_CUSTOM_DATA;
 	uint8_t F51_CUSTOM_DATA57;
 
@@ -242,13 +241,13 @@ struct synaptics_register
 struct chip_data_td4310 {
 	tp_dev tp_type;
 	struct i2c_client *client;
-	struct synaptics_proc_operations *syna_ops; /*synaptics func provide to synaptics common driver*/
+	struct synaptics_proc_operations *syna_ops;	/*synaptics func provide to synaptics common driver */
 #ifdef CONFIG_SYNAPTIC_RED
-	int    enable_remote;                       /*Redremote connect state*/
+	int enable_remote;	/*Redremote connect state */
 	struct remotepanel_data *premote_data;
-#endif/*CONFIG_SYNAPTIC_RED*/
-	struct synaptics_register     reg_info;
-	struct hw_resource          *hw_res;
+#endif				/*CONFIG_SYNAPTIC_RED */
+	struct synaptics_register reg_info;
+	struct hw_resource *hw_res;
 	int16_t *spuri_fp_data;
 	struct spurious_fp_touch *p_spuri_fp_touch;
 

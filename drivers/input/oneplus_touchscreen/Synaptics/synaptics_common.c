@@ -18,15 +18,13 @@
 		pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
 	}while(0)
 
-
 /*******Part1:Call Back Function implement*******/
 
 unsigned int extract_uint_le(const unsigned char *ptr)
 {
 	return (unsigned int)ptr[0] +
-		(unsigned int)ptr[1] * 0x100 +
-		(unsigned int)ptr[2] * 0x10000 +
-		(unsigned int)ptr[3] * 0x1000000;
+	    (unsigned int)ptr[1] * 0x100 +
+	    (unsigned int)ptr[2] * 0x10000 + (unsigned int)ptr[3] * 0x1000000;
 }
 
 /*******************Limit File With "limit_block" Format*************************************/
@@ -43,12 +41,13 @@ int synaptics_get_limit_data(char *type, const unsigned char *fw_image)
 	offset = sizeof(struct limit_info);
 	for (i = 0; i < count; i++) {
 		limit_block = (struct limit_block *)(fw_image + offset);
-		pr_info("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
+		pr_info("name: %s, size: %d, offset %d\n", limit_block->name,
+			limit_block->size, offset);
 		if (strncmp(limit_block->name, type, MAX_LIMIT_NAME_SIZE) == 0) {
 			break;
 		}
 
-		offset += (sizeof(struct limit_block) - 4 + 2*limit_block->size); /*minus 4, because byte align*/
+		offset += (sizeof(struct limit_block) - 4 + 2 * limit_block->size);	/*minus 4, because byte align */
 	}
 
 	if (i == count) {
@@ -59,7 +58,8 @@ int synaptics_get_limit_data(char *type, const unsigned char *fw_image)
 }
 
 /*************************************TCM Firmware Parse Funtion**************************************/
-int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char *fw_image)
+int synaptics_parse_header_v2(struct image_info *image_info,
+			      const unsigned char *fw_image)
 {
 	struct image_header_v2 *header;
 	unsigned int magic_value;
@@ -88,7 +88,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 		descriptor = (struct area_descriptor *)(fw_image + addr);
 		offset += 4;
 
-		magic_value =  le4_to_uint(descriptor->magic_value);
+		magic_value = le4_to_uint(descriptor->magic_value);
 		if (magic_value != FLASH_AREA_MAGIC_VALUE)
 			continue;
 
@@ -98,8 +98,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 		checksum = le4_to_uint(descriptor->checksum);
 
 		if (0 == strncmp((char *)descriptor->id_string,
-					BOOT_CONFIG_ID,
-					strlen(BOOT_CONFIG_ID))) {
+				 BOOT_CONFIG_ID, strlen(BOOT_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				pr_err("Boot config checksum error\n");
 				return -EINVAL;
@@ -107,10 +106,11 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->boot_config.size = length;
 			image_info->boot_config.data = content;
 			image_info->boot_config.flash_addr = flash_addr;
-			pr_info("Boot config size = %d, address = 0x%08x\n", length, flash_addr);
-		} else if (0 == strncmp((char *)descriptor->id_string,
-					APP_CODE_ID,
-					strlen(APP_CODE_ID))) {
+			pr_info("Boot config size = %d, address = 0x%08x\n",
+				length, flash_addr);
+		} else if (0 ==
+			   strncmp((char *)descriptor->id_string, APP_CODE_ID,
+				   strlen(APP_CODE_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				pr_err("Application firmware checksum error\n");
 				return -EINVAL;
@@ -118,10 +118,12 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->app_firmware.size = length;
 			image_info->app_firmware.data = content;
 			image_info->app_firmware.flash_addr = flash_addr;
-			pr_info("Application firmware size = %d address = 0x%08x\n", length, flash_addr);
-		} else if (0 == strncmp((char *)descriptor->id_string,
-					APP_CONFIG_ID,
-					strlen(APP_CONFIG_ID))) {
+			pr_info
+			    ("Application firmware size = %d address = 0x%08x\n",
+			     length, flash_addr);
+		} else if (0 ==
+			   strncmp((char *)descriptor->id_string, APP_CONFIG_ID,
+				   strlen(APP_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				pr_err("Application config checksum error\n");
 				return -EINVAL;
@@ -129,10 +131,12 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->app_config.size = length;
 			image_info->app_config.data = content;
 			image_info->app_config.flash_addr = flash_addr;
-			pr_info("Application config size = %d address = 0x%08x\n",length, flash_addr);
-		} else if (0 == strncmp((char *)descriptor->id_string,
-					DISP_CONFIG_ID,
-					strlen(DISP_CONFIG_ID))) {
+			pr_info
+			    ("Application config size = %d address = 0x%08x\n",
+			     length, flash_addr);
+		} else if (0 ==
+			   strncmp((char *)descriptor->id_string,
+				   DISP_CONFIG_ID, strlen(DISP_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				pr_err("Display config checksum error\n");
 				return -EINVAL;
@@ -140,14 +144,16 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->disp_config.size = length;
 			image_info->disp_config.data = content;
 			image_info->disp_config.flash_addr = flash_addr;
-			pr_info("Display config size = %d address = 0x%08x\n", length, flash_addr);
+			pr_info("Display config size = %d address = 0x%08x\n",
+				length, flash_addr);
 		}
 	}
 	return 0;
 }
 
 /**********************************RMI Firmware Parse Funtion*****************************************/
-void synaptics_parse_header(struct image_header_data *header, const unsigned char *fw_image)
+void synaptics_parse_header(struct image_header_data *header,
+			    const unsigned char *fw_image)
 {
 	struct image_header *data = (struct image_header *)fw_image;
 
@@ -163,32 +169,38 @@ void synaptics_parse_header(struct image_header_data *header, const unsigned cha
 	header->config_size = extract_uint_le(data->config_size);
 	TPD_DEBUG(" header->config_size is %x\n", header->config_size);
 
-	/* only available in s4322 , reserved in other, begin*/
-	header->bootloader_offset = extract_uint_le(data->bootloader_addr );
+	/* only available in s4322 , reserved in other, begin */
+	header->bootloader_offset = extract_uint_le(data->bootloader_addr);
 	header->bootloader_size = extract_uint_le(data->bootloader_size);
-	TPD_DEBUG(" header->bootloader_offset is %x\n", header->bootloader_offset);
+	TPD_DEBUG(" header->bootloader_offset is %x\n",
+		  header->bootloader_offset);
 	TPD_DEBUG(" header->bootloader_size is %x\n", header->bootloader_size);
 
 	header->disp_config_offset = extract_uint_le(data->dsp_cfg_addr);
 	header->disp_config_size = extract_uint_le(data->dsp_cfg_size);
-	TPD_DEBUG(" header->disp_config_offset is %x\n", header->disp_config_offset);
-	TPD_DEBUG(" header->disp_config_size is %x\n", header->disp_config_size);
-	/* only available in s4322 , reserved in other ,  end*/
+	TPD_DEBUG(" header->disp_config_offset is %x\n",
+		  header->disp_config_offset);
+	TPD_DEBUG(" header->disp_config_size is %x\n",
+		  header->disp_config_size);
+	/* only available in s4322 , reserved in other ,  end */
 
 	memcpy(header->product_id, data->product_id, sizeof(data->product_id));
 	header->product_id[sizeof(data->product_id)] = 0;
 
-	memcpy(header->product_info, data->product_info, sizeof(data->product_info));
+	memcpy(header->product_info, data->product_info,
+	       sizeof(data->product_info));
 
 	header->contains_firmware_id = data->options_firmware_id;
-	TPD_DEBUG(" header->contains_firmware_id is %x\n", header->contains_firmware_id);
+	TPD_DEBUG(" header->contains_firmware_id is %x\n",
+		  header->contains_firmware_id);
 	if (header->contains_firmware_id)
 		header->firmware_id = extract_uint_le(data->firmware_id);
 
 	return;
 }
 
-void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts, const struct firmware *fw)
+void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts,
+			      const struct firmware *fw)
 {
 	int i = 0, index = 0;
 	int row, col;
@@ -199,20 +211,22 @@ void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts, co
 	struct limit_block *limit_block;
 	const char *data = fw->data;
 
-	limit_info = (struct limit_info*)data;
+	limit_info = (struct limit_info *)data;
 	count = limit_info->count;
 
 	offset = sizeof(struct limit_info);
 	for (i = 0; i < count; i++) {
 		limit_block = (struct limit_block *)(data + offset);
-		pr_info("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
+		pr_info("name: %s, size: %d, offset %d\n", limit_block->name,
+			limit_block->size, offset);
 
 		seq_printf(s, "%s\n", limit_block->name);
 
 		data_16 = &limit_block->data;
-		offset += (sizeof(struct limit_block) - 4 + 2*limit_block->size); /*minus 4, because byte align*/
+		offset += (sizeof(struct limit_block) - 4 + 2 * limit_block->size);	/*minus 4, because byte align */
 
-		if ((ts->hw_res.TX_NUM*ts->hw_res.RX_NUM) != limit_block->size/2) {
+		if ((ts->hw_res.TX_NUM * ts->hw_res.RX_NUM) !=
+		    limit_block->size / 2) {
 			continue;
 		}
 
@@ -220,10 +234,12 @@ void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts, co
 		rows = ts->hw_res.RX_NUM;
 
 		index = 0;
-		for (row = 0; row < rows; row++){
+		for (row = 0; row < rows; row++) {
 			seq_printf(s, "[%02d]:", row);
-			for(col = 0; col < cols; col++) {
-				seq_printf(s, "%4d %4d,", *(data_16 + 2*index), *(data_16 + 2*index + 1));
+			for (col = 0; col < cols; col++) {
+				seq_printf(s, "%4d %4d,",
+					   *(data_16 + 2 * index),
+					   *(data_16 + 2 * index + 1));
 				index++;
 			}
 			seq_printf(s, "\n");
@@ -233,7 +249,8 @@ void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts, co
 	return;
 }
 
-void synaptics_print_limit_v1(struct seq_file *s, struct touchpanel_data *ts, const struct firmware *fw)
+void synaptics_print_limit_v1(struct seq_file *s, struct touchpanel_data *ts,
+			      const struct firmware *fw)
 {
 	uint16_t *prow = NULL;
 	uint16_t *prowcbc = NULL;
@@ -241,14 +258,15 @@ void synaptics_print_limit_v1(struct seq_file *s, struct touchpanel_data *ts, co
 	struct test_header *ph = NULL;
 
 	ph = (struct test_header *)(fw->data);
-	prow = (uint16_t *)(fw->data + ph->array_limit_offset);
-	prowcbc = (uint16_t *)(fw->data + ph->array_limitcbc_offset);
-	TPD_INFO("synaptics_test_limit_show:array_limit_offset = %x array_limitcbc_offset = %x \n",
-			ph->array_limit_offset, ph->array_limitcbc_offset);
+	prow = (uint16_t *) (fw->data + ph->array_limit_offset);
+	prowcbc = (uint16_t *) (fw->data + ph->array_limitcbc_offset);
+	TPD_INFO
+	    ("synaptics_test_limit_show:array_limit_offset = %x array_limitcbc_offset = %x \n",
+	     ph->array_limit_offset, ph->array_limitcbc_offset);
 	TPD_DEBUG("test begin:\n");
 	seq_printf(s, "Without cbc:");
 
-	for (i = 0 ; i < (ph->array_limit_size / 2); i++) {
+	for (i = 0; i < (ph->array_limit_size / 2); i++) {
 		if (i % (2 * ts->hw_res.RX_NUM) == 0)
 			seq_printf(s, "\n[%2d] ", (i / ts->hw_res.RX_NUM) / 2);
 		seq_printf(s, "%4d, ", prow[i]);
@@ -256,9 +274,10 @@ void synaptics_print_limit_v1(struct seq_file *s, struct touchpanel_data *ts, co
 	}
 	if (ph->withCBC == 1) {
 		seq_printf(s, "\nWith cbc:");
-		for (i = 0 ; i < (ph->array_limitcbc_size / 2); i++) {
+		for (i = 0; i < (ph->array_limitcbc_size / 2); i++) {
 			if (i % (2 * ts->hw_res.RX_NUM) == 0)
-				seq_printf(s, "\n[%2d] ", (i / ts->hw_res.RX_NUM) / 2);
+				seq_printf(s, "\n[%2d] ",
+					   (i / ts->hw_res.RX_NUM) / 2);
 			seq_printf(s, "%4d, ", prowcbc[i]);
 			TPD_DEBUG("%d, ", prowcbc[i]);
 		}
@@ -268,7 +287,6 @@ void synaptics_print_limit_v1(struct seq_file *s, struct touchpanel_data *ts, co
 	return;
 }
 
-
 void synaptics_limit_read(struct seq_file *s, struct touchpanel_data *ts)
 {
 	int ret = 0;
@@ -277,8 +295,10 @@ void synaptics_limit_read(struct seq_file *s, struct touchpanel_data *ts)
 
 	ret = request_firmware(&fw, ts->panel_data.test_limit_name, ts->dev);
 	if (ret < 0) {
-		TPD_INFO("Request firmware failed - %s (%d)\n", ts->panel_data.test_limit_name, ret);
-		seq_printf(s, "Request failed, Check the path %s\n",ts->panel_data.test_limit_name);
+		TPD_INFO("Request firmware failed - %s (%d)\n",
+			 ts->panel_data.test_limit_name, ret);
+		seq_printf(s, "Request failed, Check the path %s\n",
+			   ts->panel_data.test_limit_name);
 		return;
 	}
 
@@ -305,8 +325,7 @@ static int tp_auto_test_read_func(struct seq_file *s, void *v)
 	int ret = 0;
 	int fd = -1;
 
-	struct syna_testdata syna_testdata =
-	{
+	struct syna_testdata syna_testdata = {
 		.TX_NUM = 0,
 		.RX_NUM = 0,
 		.fd = -1,
@@ -327,12 +346,11 @@ static int tp_auto_test_read_func(struct seq_file *s, void *v)
 		return 0;
 	}
 
-	/*if resume not completed, do not do screen on test*/
+	/*if resume not completed, do not do screen on test */
 	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
 		seq_printf(s, "Step 0-2:Not in resume state\n");
 		return 0;
 	}
-
 	//step1:disable_irq && get mutex locked
 	if (ts->int_mode == BANNABLE) {
 		disable_irq_nosync(ts->irq);
@@ -342,15 +360,18 @@ static int tp_auto_test_read_func(struct seq_file *s, void *v)
 	//step2: create a file to store test data in /sdcard/Tp_Test
 	getnstimeofday(&now_time);
 	rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
-	sprintf(data_buf, "/sdcard/tp_testlimit_%02d%02d%02d-%02d%02d%02d-utc.csv",
-			(rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
-			rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+	sprintf(data_buf,
+		"/sdcard/tp_testlimit_%02d%02d%02d-%02d%02d%02d-utc.csv",
+		(rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1,
+		rtc_now_time.tm_mday, rtc_now_time.tm_hour, rtc_now_time.tm_min,
+		rtc_now_time.tm_sec);
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	fd = sys_open(data_buf, O_WRONLY | O_CREAT | O_TRUNC, 0);
 	if (fd < 0) {
 		TPD_INFO("Open log file '%s' failed.\n", data_buf);
-		seq_printf(s, "Step 0-3:Open log file '%s' failed.\n", data_buf);
+		seq_printf(s, "Step 0-3:Open log file '%s' failed.\n",
+			   data_buf);
 		set_fs(old_fs);
 		mutex_unlock(&ts->mutex);
 		if (ts->int_mode == BANNABLE) {
@@ -358,11 +379,11 @@ static int tp_auto_test_read_func(struct seq_file *s, void *v)
 		}
 		return 0;
 	}
-
 	//step3:request test limit data from userspace
 	ret = request_firmware(&fw, ts->panel_data.test_limit_name, ts->dev);
 	if (ret < 0) {
-		TPD_INFO("Request firmware failed - %s (%d)\n", ts->panel_data.test_limit_name, ret);
+		TPD_INFO("Request firmware failed - %s (%d)\n",
+			 ts->panel_data.test_limit_name, ret);
 		seq_printf(s, "Step 0-4:No limit IMG\n");
 		sys_close(fd);
 		set_fs(old_fs);
@@ -415,8 +436,8 @@ static int baseline_autotest_open(struct inode *inode, struct file *file)
 
 static const struct file_operations tp_auto_test_proc_fops = {
 	.owner = THIS_MODULE,
-	.open  = baseline_autotest_open,
-	.read  = seq_read,
+	.open = baseline_autotest_open,
+	.read = seq_read,
 	.release = single_release,
 };
 
@@ -427,7 +448,8 @@ static int tp_RT251_read_func(struct seq_file *s, void *v)
 
 	if (!ts)
 		return 0;
-	debug_info_ops = (struct debug_info_proc_operations *)ts->debug_info_ops;
+	debug_info_ops =
+	    (struct debug_info_proc_operations *)ts->debug_info_ops;
 
 	if (!debug_info_ops)
 		return 0;
@@ -451,8 +473,8 @@ static int RT251_open(struct inode *inode, struct file *file)
 
 static const struct file_operations tp_RT251_proc_fops = {
 	.owner = THIS_MODULE,
-	.open  = RT251_open,
-	.read  = seq_read,
+	.open = RT251_open,
+	.read = seq_read,
 	.release = single_release,
 };
 
@@ -463,7 +485,8 @@ static int tp_RT76_read_func(struct seq_file *s, void *v)
 
 	if (!ts)
 		return 0;
-	debug_info_ops = (struct debug_info_proc_operations *)ts->debug_info_ops;
+	debug_info_ops =
+	    (struct debug_info_proc_operations *)ts->debug_info_ops;
 
 	if (!debug_info_ops)
 		return 0;
@@ -487,8 +510,8 @@ static int RT76_open(struct inode *inode, struct file *file)
 
 static const struct file_operations tp_RT76_proc_fops = {
 	.owner = THIS_MODULE,
-	.open  = RT76_open,
-	.read  = seq_read,
+	.open = RT76_open,
+	.read = seq_read,
 	.release = single_release,
 };
 
@@ -499,7 +522,8 @@ static int tp_DRT_read_func(struct seq_file *s, void *v)
 
 	if (!ts)
 		return 0;
-	debug_info_ops = (struct debug_info_proc_operations *)ts->debug_info_ops;
+	debug_info_ops =
+	    (struct debug_info_proc_operations *)ts->debug_info_ops;
 
 	if (!debug_info_ops)
 		return 0;
@@ -534,42 +558,53 @@ static int DRT_open(struct inode *inode, struct file *file)
 
 static const struct file_operations tp_DRT_proc_fops = {
 	.owner = THIS_MODULE,
-	.open  = DRT_open,
-	.read  = seq_read,
+	.open = DRT_open,
+	.read = seq_read,
 	.release = single_release,
 };
 
-int synaptics_create_proc(struct touchpanel_data *ts, struct synaptics_proc_operations *syna_ops)
+int synaptics_create_proc(struct touchpanel_data *ts,
+			  struct synaptics_proc_operations *syna_ops)
 {
 	int ret = 0;
 
 	// touchpanel_auto_test interface
 	struct proc_dir_entry *prEntry_tmp = NULL;
 	ts->private_data = syna_ops;
-	prEntry_tmp = proc_create_data("baseline_test", 0666, ts->prEntry_tp, &tp_auto_test_proc_fops, ts);
+	prEntry_tmp =
+	    proc_create_data("baseline_test", 0666, ts->prEntry_tp,
+			     &tp_auto_test_proc_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
 	}
-
 	// show RT251 interface
-	prEntry_tmp = proc_create_data("RT251", 0666, ts->prEntry_debug_tp, &tp_RT251_proc_fops, ts);
+	prEntry_tmp =
+	    proc_create_data("RT251", 0666, ts->prEntry_debug_tp,
+			     &tp_RT251_proc_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
 	}
-
 	// show RT76 interface
-	prEntry_tmp = proc_create_data("RT76", 0666, ts->prEntry_debug_tp, &tp_RT76_proc_fops, ts);
+	prEntry_tmp =
+	    proc_create_data("RT76", 0666, ts->prEntry_debug_tp,
+			     &tp_RT76_proc_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
 	}
 
-	prEntry_tmp = proc_create_data("DRT", 0666, ts->prEntry_debug_tp, &tp_DRT_proc_fops, ts);
+	prEntry_tmp =
+	    proc_create_data("DRT", 0666, ts->prEntry_debug_tp,
+			     &tp_DRT_proc_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
 	}
 	return ret;
 }
