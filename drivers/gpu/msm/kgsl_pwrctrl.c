@@ -28,6 +28,7 @@
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 #include "kgsl_gmu_core.h"
+#include "kgsl_trace_power.h"
 
 // tedlin@ASTI 2019/06/12 add for CONFIG_HOUSTON
 #include <oneplus/houston/houston_helper.h>
@@ -494,6 +495,8 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 			pwr->active_pwrlevel, pwrlevel->gpu_freq,
 			pwr->previous_pwrlevel,
 			pwr->pwrlevels[old_level].gpu_freq);
+
+	trace_gpu_frequency(pwrlevel->gpu_freq/1000, 0);
 
 	/*
 	 * Some targets do not support the bandwidth requirement of
