@@ -1318,17 +1318,10 @@ static int sec_get_touch_points(void *chip_data, struct point_info *points,
 	int left_event = 0;
 	struct sec_event_coordinate *p_event_coord = NULL;
 	uint32_t obj_attention = 0;
-	u8 *event_buff;
+	u8 event_buff[MAX_EVENT_COUNT * SEC_EVENT_BUFF_SIZE];
 	struct chip_data_s6sy761 *chip_info =
 	    (struct chip_data_s6sy761 *)chip_data;
 
-	event_buff =
-	    kzalloc(MAX_EVENT_COUNT * SEC_EVENT_BUFF_SIZE * (sizeof(uint8_t)),
-		    GFP_KERNEL);
-	if (!event_buff) {
-		TPD_INFO("event_buff kzalloc failed\n");
-		return -ENOMEM;
-	}
 	p_event_coord = (struct sec_event_coordinate *)chip_info->first_event;
 	t_id = (p_event_coord->tid - 1);
 	if ((t_id < max_num)
@@ -1351,20 +1344,19 @@ static int sec_get_touch_points(void *chip_data, struct point_info *points,
 
 	left_event = chip_info->first_event[7] & 0x3F;
 	if (left_event == 0) {
-		kfree(event_buff);
 		return obj_attention;
 	} else if (left_event > max_num - 1) {
 		TPD_INFO("%s: read left event beyond max touch points\n",
 			 __func__);
 		left_event = max_num - 1;
 	}
+	memset(event_buff, 0, sizeof(event_buff));
 	ret =
 	    touch_i2c_read_block(chip_info->client, SEC_READ_ALL_EVENT,
 				 sizeof(u8) * (SEC_EVENT_BUFF_SIZE) *
 				 (left_event), &event_buff[0]);
 	if (ret < 0) {
 		TPD_INFO("%s: i2c read all event failed\n", __func__);
-		kfree(event_buff);
 		return obj_attention;
 	}
 
@@ -1394,7 +1386,6 @@ static int sec_get_touch_points(void *chip_data, struct point_info *points,
 			obj_attention = obj_attention | (1 << t_id);	//set touch bit
 		}
 	}
-	kfree(event_buff);
 
 	return obj_attention;
 }
