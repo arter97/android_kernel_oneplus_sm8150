@@ -60,20 +60,20 @@ static int pointy[2] = { 0, 0 };
 
 #define ABS(a,b) ((a - b > 0) ? a - b : b - a)
 
-static uint8_t DouTap_enable = 0;	// double tap
-static uint8_t UpVee_enable = 0;	// V
-static uint8_t DownVee_enable = 0;		// ^
-static uint8_t LeftVee_enable = 0;	// >
-static uint8_t RightVee_enable = 0;	// <
-static uint8_t Circle_enable = 0;	// O
-static uint8_t DouSwip_enable = 0;	// ||
+static uint8_t DouTap_enable = 1;	// double tap
+static uint8_t UpVee_enable = 1;	// V
+static uint8_t DownVee_enable = 1;		// ^
+static uint8_t LeftVee_enable = 1;	// >
+static uint8_t RightVee_enable = 1;	// <
+static uint8_t Circle_enable = 1;	// O
+static uint8_t DouSwip_enable = 1;	// ||
 static uint8_t Left2RightSwip_enable = 0;	// -->
 static uint8_t Right2LeftSwip_enable = 0;	// <--
 static uint8_t Up2DownSwip_enable = 0;	// |v
 static uint8_t Down2UpSwip_enable = 0;	// |^
-static uint8_t Mgestrue_enable = 0;	// M
-static uint8_t Wgestrue_enable = 0;	// W
-static uint8_t Sgestrue_enable = 0;	// S
+static uint8_t Mgestrue_enable = 1;	// M
+static uint8_t Wgestrue_enable = 1;	// W
+static uint8_t Sgestrue_enable = 1;	// S
 static uint8_t SingleTap_enable = 0;	// single tap
 
 /*******Part2:declear Area********************************/
