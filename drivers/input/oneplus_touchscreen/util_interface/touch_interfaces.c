@@ -27,29 +27,31 @@ static bool register_is_16bit = 0;
  * Actully, This function call i2c_transfer for IIC transfer,
  * Returning transfer length(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_continue_read(struct i2c_client* client, unsigned short length, unsigned char *data)
+int touch_i2c_continue_read(struct i2c_client *client, unsigned short length,
+			    unsigned char *data)
 {
-    int retval;
-    unsigned char retry;
-    struct i2c_msg msg;
+	int retval;
+	unsigned char retry;
+	struct i2c_msg msg;
 
-    msg.addr = client->addr;
-    msg.flags = I2C_M_RD;
-    msg.len = length;
-    msg.buf = data;
+	msg.addr = client->addr;
+	msg.flags = I2C_M_RD;
+	msg.len = length;
+	msg.buf = data;
 
-    for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-        if (i2c_transfer(client->adapter, &msg, 1) == 1) {
-            retval = length;
-            break;
-        }
-        msleep(20);
-    }
-    if (retry == MAX_I2C_RETRY_TIME) {
-        dev_err(&client->dev, "%s: I2C read over retry limit\n", __func__);
-        retval = -EIO;
-    }
-    return retval;
+	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+		if (i2c_transfer(client->adapter, &msg, 1) == 1) {
+			retval = length;
+			break;
+		}
+		msleep(20);
+	}
+	if (retry == MAX_I2C_RETRY_TIME) {
+		dev_err(&client->dev, "%s: I2C read over retry limit\n",
+			__func__);
+		retval = -EIO;
+	}
+	return retval;
 
 }
 
@@ -63,7 +65,8 @@ int touch_i2c_continue_read(struct i2c_client* client, unsigned short length, un
  * Actully, This function call i2c_transfer for IIC transfer,
  * Returning transfer length(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsigned short length, unsigned char *data)
+int touch_i2c_read_block(struct i2c_client *client, u16 addr,
+			 unsigned short length, unsigned char *data)
 {
 	int retval;
 	unsigned char retry;
@@ -79,31 +82,31 @@ int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsigned short len
 				kfree(read_buf);
 				TPD_INFO("read block_1,free onec\n");
 			}
-			read_buf =kzalloc(length, GFP_KERNEL);
-			if(!read_buf) {
+			read_buf = kzalloc(length, GFP_KERNEL);
+			if (!read_buf) {
 				read_buf_size = 0;
 				TPD_INFO("read block kzaloc faied\n");
 				return -ENOMEM;
 			}
 			read_buf_size = length;
 		} else {
-			memset(read_buf, 0 ,length);
+			memset(read_buf, 0, length);
 		}
 	} else {
 		if (read_buf_size > FIX_I2C_LENGTH) {
 			kfree(read_buf);
 			read_buf = kzalloc(FIX_I2C_LENGTH,
-				GFP_KERNEL | GFP_DMA);
-			if(!read_buf) {
+					   GFP_KERNEL | GFP_DMA);
+			if (!read_buf) {
 				read_buf_size = 0;
 				TPD_INFO("read block kzaloc faied\n");
 				return -ENOMEM;
 			}
 			read_buf_size = FIX_I2C_LENGTH;
 		} else {
-			if(!read_buf) {
+			if (!read_buf) {
 				read_buf = kzalloc(FIX_I2C_LENGTH,
-						GFP_KERNEL | GFP_DMA);
+						   GFP_KERNEL | GFP_DMA);
 				if (!read_buf) {
 					read_buf_size = 0;
 					TPD_INFO("read block kzaloc faied\n");
@@ -119,7 +122,7 @@ int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsigned short len
 	msg[0].flags = 0;
 	msg[0].buf = buffer;
 
-	if (!register_is_16bit) {  // if register is 8bit
+	if (!register_is_16bit) {	// if register is 8bit
 		msg[0].len = 1;
 		msg[0].buf[0] = addr & 0xff;
 	} else {
@@ -141,10 +144,11 @@ int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsigned short len
 		msleep(20);
 	}
 	if (retry == MAX_I2C_RETRY_TIME) {
-		dev_err(&client->dev, "%s: I2C read over retry limit\n", __func__);
+		dev_err(&client->dev, "%s: I2C read over retry limit\n",
+			__func__);
 		retval = -EIO;
 	}
-	memcpy(data, read_buf,length);
+	memcpy(data, read_buf, length);
 	kfree(buffer);
 	return retval;
 }
@@ -158,29 +162,31 @@ int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsigned short len
  * Actully, This function call i2c_transfer for IIC transfer,
  * Returning transfer length(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_continue_write(struct i2c_client* client, unsigned short length, unsigned char *data)
+int touch_i2c_continue_write(struct i2c_client *client, unsigned short length,
+			     unsigned char *data)
 {
-    int retval;
-    unsigned char retry;
-    struct i2c_msg msg;
+	int retval;
+	unsigned char retry;
+	struct i2c_msg msg;
 
-    msg.addr = client->addr;
-    msg.flags = 0;
-    msg.buf = data;
-    msg.len = length;
+	msg.addr = client->addr;
+	msg.flags = 0;
+	msg.buf = data;
+	msg.len = length;
 
-    for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-        if (i2c_transfer(client->adapter, &msg, 1) == 1) {
-            retval = length;
-            break;
-        }
-        msleep(20);
-    }
-    if (retry == MAX_I2C_RETRY_TIME) {
-        dev_err(&client->dev, "%s: I2C write over retry limit\n", __func__);
-        retval = -EIO;
-    }
-    return retval;
+	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+		if (i2c_transfer(client->adapter, &msg, 1) == 1) {
+			retval = length;
+			break;
+		}
+		msleep(20);
+	}
+	if (retry == MAX_I2C_RETRY_TIME) {
+		dev_err(&client->dev, "%s: I2C write over retry limit\n",
+			__func__);
+		retval = -EIO;
+	}
+	return retval;
 }
 
 /**
@@ -193,47 +199,47 @@ int touch_i2c_continue_write(struct i2c_client* client, unsigned short length, u
  * Actully, This function call i2c_transfer for IIC transfer,
  * Returning transfer length(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_write_block(struct i2c_client* client, u16 addr, unsigned short length, unsigned char const *data)
+int touch_i2c_write_block(struct i2c_client *client, u16 addr,
+			  unsigned short length, unsigned char const *data)
 {
-    int retval;
-    unsigned char retry;
-    //unsigned char buffer[length + 2];
-    unsigned char *buffer;
-    struct i2c_msg msg[1];
-    buffer = (unsigned char *)kzalloc(length + 2,GFP_KERNEL);
-    msg[0].addr = client->addr;
-    msg[0].flags = 0;
-    msg[0].buf = buffer;
+	int retval;
+	unsigned char retry;
+	//unsigned char buffer[length + 2];
+	unsigned char *buffer;
+	struct i2c_msg msg[1];
+	buffer = (unsigned char *)kzalloc(length + 2, GFP_KERNEL);
+	msg[0].addr = client->addr;
+	msg[0].flags = 0;
+	msg[0].buf = buffer;
 
-    if (!register_is_16bit)  // if register is 8bit
-    {
-        msg[0].len = length + 1;
-        msg[0].buf[0] = addr & 0xff;
+	if (!register_is_16bit)	// if register is 8bit
+	{
+		msg[0].len = length + 1;
+		msg[0].buf[0] = addr & 0xff;
 
-        memcpy(&buffer[1], &data[0], length);
-    }
-    else
-    {
-        msg[0].len = length + 2;
-        msg[0].buf[0] = (addr >> 8) & 0xff;
-        msg[0].buf[1] = addr & 0xff;
+		memcpy(&buffer[1], &data[0], length);
+	} else {
+		msg[0].len = length + 2;
+		msg[0].buf[0] = (addr >> 8) & 0xff;
+		msg[0].buf[1] = addr & 0xff;
 
-        memcpy(&buffer[2], &data[0], length);
-    }
+		memcpy(&buffer[2], &data[0], length);
+	}
 
-    for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-        if (i2c_transfer(client->adapter, msg, 1) == 1) {
-            retval = length;
-            break;
-        }
-        msleep(20);
-    }
-    if (retry == MAX_I2C_RETRY_TIME) {
-        dev_err(&client->dev, "%s: I2C write over retry limit\n", __func__);
-        retval = -EIO;
-    }
-    kfree(buffer);
-    return retval;
+	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+		if (i2c_transfer(client->adapter, msg, 1) == 1) {
+			retval = length;
+			break;
+		}
+		msleep(20);
+	}
+	if (retry == MAX_I2C_RETRY_TIME) {
+		dev_err(&client->dev, "%s: I2C write over retry limit\n",
+			__func__);
+		retval = -EIO;
+	}
+	kfree(buffer);
+	return retval;
 }
 
 /**
@@ -244,22 +250,21 @@ int touch_i2c_write_block(struct i2c_client* client, u16 addr, unsigned short le
  * Actully, This function call touch_i2c_read_block for IIC transfer,
  * Returning zero(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_read_byte(struct i2c_client* client, unsigned short addr)
+int touch_i2c_read_byte(struct i2c_client *client, unsigned short addr)
 {
-    int retval = 0;
-    unsigned char buf[2] = {0};
+	int retval = 0;
+	unsigned char buf[2] = { 0 };
 
-    if (!client)    {
-        dump_stack();
-        return -1;
-    }
-    retval = touch_i2c_read_block(client, addr, 1, buf);
-    if (retval >= 0)
-        retval = buf[0] & 0xff;
+	if (!client) {
+		dump_stack();
+		return -1;
+	}
+	retval = touch_i2c_read_block(client, addr, 1, buf);
+	if (retval >= 0)
+		retval = buf[0] & 0xff;
 
-    return retval;
+	return retval;
 }
-
 
 /**
  * touch_i2c_write_byte - Using for "read word" through IIC
@@ -270,21 +275,22 @@ int touch_i2c_read_byte(struct i2c_client* client, unsigned short addr)
  * Actully, This function call touch_i2c_write_block for IIC transfer,
  * Returning zero(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_write_byte(struct i2c_client* client, unsigned short addr, unsigned char data)
+int touch_i2c_write_byte(struct i2c_client *client, unsigned short addr,
+			 unsigned char data)
 {
-    int retval;
-    int length_trans = 1;
-    unsigned char data_send = data;
+	int retval;
+	int length_trans = 1;
+	unsigned char data_send = data;
 
-    if (!client)    {
-        dump_stack();
-        return -EINVAL;
-    }
-    retval = touch_i2c_write_block(client, addr, length_trans, &data_send);
-    if (retval == length_trans)
-        retval = 0;
+	if (!client) {
+		dump_stack();
+		return -EINVAL;
+	}
+	retval = touch_i2c_write_block(client, addr, length_trans, &data_send);
+	if (retval == length_trans)
+		retval = 0;
 
-    return retval;
+	return retval;
 }
 
 /**
@@ -296,20 +302,20 @@ int touch_i2c_write_byte(struct i2c_client* client, unsigned short addr, unsigne
  * Actully, This func call touch_i2c_Read_block for IIC transfer,
  * Returning negative errno else a 16-bit unsigned "word" received from the device.
  */
-int touch_i2c_read_word(struct i2c_client* client, unsigned short addr)
+int touch_i2c_read_word(struct i2c_client *client, unsigned short addr)
 {
-    int retval;
-    unsigned char buf[2] = {0};
+	int retval;
+	unsigned char buf[2] = { 0 };
 
-    if (!client)    {
-        dump_stack();
-        return -EINVAL;
-    }
-    retval = touch_i2c_read_block(client, addr, 2, buf);
-    if (retval >= 0)
-        retval = buf[1] << 8 | buf[0];
+	if (!client) {
+		dump_stack();
+		return -EINVAL;
+	}
+	retval = touch_i2c_read_block(client, addr, 2, buf);
+	if (retval >= 0)
+		retval = buf[1] << 8 | buf[0];
 
-    return retval;
+	return retval;
 }
 
 /**
@@ -321,22 +327,23 @@ int touch_i2c_read_word(struct i2c_client* client, unsigned short addr)
  * Actully, This function call touch_i2c_write_block for IIC transfer,
  * Returning zero(transfer success) or most likely negative errno(transfer error)
  */
-int touch_i2c_write_word(struct i2c_client* client, unsigned short addr, unsigned short data)
+int touch_i2c_write_word(struct i2c_client *client, unsigned short addr,
+			 unsigned short data)
 {
-    int retval;
-    int length_trans = 2;
-    unsigned char buf[2] = {data & 0xff, (data >> 8) & 0xff};
+	int retval;
+	int length_trans = 2;
+	unsigned char buf[2] = { data & 0xff, (data >> 8) & 0xff };
 
-    if (!client)    {
-        dump_stack();
-        return -EINVAL;
-    }
+	if (!client) {
+		dump_stack();
+		return -EINVAL;
+	}
 
-    retval = touch_i2c_write_block(client, addr, length_trans, buf);
-    if (retval == length_trans)
-        retval = 0;
+	retval = touch_i2c_write_block(client, addr, length_trans, buf);
+	if (retval == length_trans)
+		retval = 0;
 
-    return retval;
+	return retval;
 }
 
 /**
@@ -350,68 +357,68 @@ int touch_i2c_write_word(struct i2c_client* client, unsigned short addr, unsigne
  * Actully, This function call i2c_transfer for IIC transfer,
  * Returning transfer msg length(transfer success) or most likely negative errno(transfer EIO error)
  */
-int touch_i2c_read(struct i2c_client *client, char *writebuf, int writelen, char *readbuf, int readlen)
+int touch_i2c_read(struct i2c_client *client, char *writebuf, int writelen,
+		   char *readbuf, int readlen)
 {
-    int retval = 0;
-    int retry = 0;
+	int retval = 0;
+	int retry = 0;
 
-    if (client == NULL) {
-        TPD_INFO("%s: i2c_client == NULL!\n", __func__);
-        return -1;
-    }
+	if (client == NULL) {
+		TPD_INFO("%s: i2c_client == NULL!\n", __func__);
+		return -1;
+	}
 
-    if (readlen > 0) {
-        if (writelen > 0) {
-            struct i2c_msg msgs[] =
-            {
-                {
-                    .addr = client->addr,
-                    .flags = 0,
-                    .len = writelen,
-                    .buf = writebuf,
-                },
-                {
-                    .addr = client->addr,
-                    .flags = I2C_M_RD,
-                    .len = readlen,
-                    .buf = readbuf,
-                },
-            };
+	if (readlen > 0) {
+		if (writelen > 0) {
+			struct i2c_msg msgs[] = {
+				{
+				 .addr = client->addr,
+				 .flags = 0,
+				 .len = writelen,
+				 .buf = writebuf,
+				 },
+				{
+				 .addr = client->addr,
+				 .flags = I2C_M_RD,
+				 .len = readlen,
+				 .buf = readbuf,
+				 },
+			};
 
-            for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-                if (i2c_transfer(client->adapter, msgs, 2) == 2) {
-                    retval = 2;
-                    break;
-                }
-                msleep(20);
-            }
-        } else {
-            struct i2c_msg msgs[] =
-            {
-                {
-                    .addr = client->addr,
-                    .flags = I2C_M_RD,
-                    .len = readlen,
-                    .buf = readbuf,
-                },
-            };
+			for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+				if (i2c_transfer(client->adapter, msgs, 2) == 2) {
+					retval = 2;
+					break;
+				}
+				msleep(20);
+			}
+		} else {
+			struct i2c_msg msgs[] = {
+				{
+				 .addr = client->addr,
+				 .flags = I2C_M_RD,
+				 .len = readlen,
+				 .buf = readbuf,
+				 },
+			};
 
-            for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-                if (i2c_transfer(client->adapter, msgs, 1) == 1) {
-                    retval = 1;
-                    break;
-                }
-                msleep(20);
-            }
-        }
+			for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+				if (i2c_transfer(client->adapter, msgs, 1) == 1) {
+					retval = 1;
+					break;
+				}
+				msleep(20);
+			}
+		}
 
-        if (retry == MAX_I2C_RETRY_TIME) {
-            TPD_INFO("%s: i2c_transfer(read) over retry limit\n", __func__);
-            retval = -EIO;
-        }
-    }
+		if (retry == MAX_I2C_RETRY_TIME) {
+			TPD_INFO("%s: i2c_transfer(read) over retry limit\n",
+				 __func__);
+			retval = -EIO;
+		}
+	}
 
-    return retval;
+	return retval;
 }
 
 /**
@@ -425,41 +432,40 @@ int touch_i2c_read(struct i2c_client *client, char *writebuf, int writelen, char
  */
 int touch_i2c_write(struct i2c_client *client, char *writebuf, int writelen)
 {
-    int retval = 0;
-    int retry = 0;
+	int retval = 0;
+	int retry = 0;
 
-    if (client == NULL) {
-        TPD_INFO("%s: i2c_client == NULL!", __func__);
-        return -1;
-    }
+	if (client == NULL) {
+		TPD_INFO("%s: i2c_client == NULL!", __func__);
+		return -1;
+	}
 
-    if (writelen > 0) {
-        struct i2c_msg msgs[] =
-        {
-            {
-                .addr = client->addr,
-                .flags = 0,
-                .len = writelen,
-                .buf = writebuf,
-            },
-        };
+	if (writelen > 0) {
+		struct i2c_msg msgs[] = {
+			{
+			 .addr = client->addr,
+			 .flags = 0,
+			 .len = writelen,
+			 .buf = writebuf,
+			 },
+		};
 
-        for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-            if (i2c_transfer(client->adapter, msgs, 1) == 1) {
-                retval = 1;
-                break;
-            }
-            msleep(20);
-        }
-        if (retry == MAX_I2C_RETRY_TIME) {
-            TPD_INFO("%s: i2c_transfer(write) over retry limit\n", __func__);
-            retval = -EIO;
-        }
-    }
+		for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
+			if (i2c_transfer(client->adapter, msgs, 1) == 1) {
+				retval = 1;
+				break;
+			}
+			msleep(20);
+		}
+		if (retry == MAX_I2C_RETRY_TIME) {
+			TPD_INFO("%s: i2c_transfer(write) over retry limit\n",
+				 __func__);
+			retval = -EIO;
+		}
+	}
 
-    return retval;
+	return retval;
 }
-
 
 /**
  * init_touch_interfaces - Using for Register IIC interface
@@ -471,9 +477,9 @@ int touch_i2c_write(struct i2c_client *client, char *writebuf, int writelen)
  */
 int init_touch_interfaces(struct device *dev, bool flag_register_16bit)
 {
-    register_is_16bit = flag_register_16bit;
+	register_is_16bit = flag_register_16bit;
 
-    return 0;
+	return 0;
 }
 
 /*******************************************************
@@ -483,23 +489,24 @@ Description:
 return:
 	Executive outcomes. 0---succeed.
 *******************************************************/
-int32_t spi_read_write(struct spi_device *client, uint8_t *buf, size_t len , uint8_t *rbuf, SPI_RW rw)
+int32_t spi_read_write(struct spi_device * client, uint8_t * buf, size_t len,
+		       uint8_t * rbuf, SPI_RW rw)
 {
 	struct spi_message m;
 	struct spi_transfer t = {
-		.len    = len,
+		.len = len,
 	};
 
 	switch (rw) {
-		case SPIREAD:
-			t.tx_buf = &buf[0];
-			t.rx_buf = rbuf;
-			t.len    = (len + DUMMY_BYTES);
-			break;
+	case SPIREAD:
+		t.tx_buf = &buf[0];
+		t.rx_buf = rbuf;
+		t.len = (len + DUMMY_BYTES);
+		break;
 
-		case SPIWRITE:
-			t.tx_buf = buf;
-			break;
+	case SPIWRITE:
+		t.tx_buf = buf;
+		break;
 	}
 
 	spi_message_init(&m);
@@ -514,17 +521,18 @@ Description:
 return:
 	Executive outcomes. 2---succeed. -5---I/O error
 *******************************************************/
-int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
+int32_t CTP_SPI_READ(struct spi_device * client, uint8_t * buf, uint16_t len)
 {
 	int32_t ret = -1;
 	int32_t retries = 0;
-        uint8_t rbuf[SPI_TANSFER_LEN+1] = {0};
+	uint8_t rbuf[SPI_TANSFER_LEN + 1] = { 0 };
 
 	buf[0] = SPI_READ_MASK(buf[0]);
 
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, rbuf, SPIREAD);
-		if (ret == 0) break;
+		if (ret == 0)
+			break;
 		retries++;
 	}
 
@@ -532,7 +540,7 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 		TPD_INFO("read error, ret=%d\n", ret);
 		ret = -EIO;
 	} else {
-		memcpy((buf+1), (rbuf+2), (len-1));
+		memcpy((buf + 1), (rbuf + 2), (len - 1));
 	}
 
 	return ret;
@@ -545,7 +553,7 @@ Description:
 return:
 	Executive outcomes. 1---succeed. -5---I/O error
 *******************************************************/
-int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
+int32_t CTP_SPI_WRITE(struct spi_device * client, uint8_t * buf, uint16_t len)
 {
 	int32_t ret = -1;
 	int32_t retries = 0;
@@ -554,7 +562,8 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, NULL, SPIWRITE);
-		if (ret == 0)	break;
+		if (ret == 0)
+			break;
 		retries++;
 	}
 
@@ -565,4 +574,3 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	return ret;
 }
-
