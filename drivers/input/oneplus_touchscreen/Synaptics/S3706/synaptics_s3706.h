@@ -902,6 +902,27 @@ struct chip_data_s3706 {
 	int in_gesture_mode;
 };
 
+struct dma_buf_s3706 {
+	char tp_buf[8];
+	uint8_t f54_buf[4];
+	uint8_t chip_info_buf[4];
+	uint8_t fw_id_buf[4];
+	uint8_t fw_check_buf[4];
+	uint8_t touchold_buf[10];
+	unsigned char report_buf[3];
+	uint8_t game_buf[13];
+	uint8_t gesture_buffer[10];
+	uint8_t coordinate_buf[25];
+	unsigned char fwu_recovery_status;
+	struct synaptics_rmi4_fn_desc rmi_fd;
+	unsigned char fwu_read_status;
+	unsigned char fwu_read_command;
+	struct f34_v7_query_0 query_0;
+	struct f34_v7_query_1_7 query_1_7;
+	struct f01_device_control f01_ctrl;
+	struct f34_v7_data0 v7_status;
+};
+
 static inline int secure_memcpy(unsigned char *dest, unsigned int dest_size,
 				const unsigned char *src, unsigned int src_size,
 				unsigned int count)

@@ -22,6 +22,7 @@
 #endif
 #include "synaptics_s3706.h"
 
+static struct dma_buf_s3706 *dma_buffer;
 static struct chip_data_s3706 *g_chip_info = NULL;
 extern int tp_register_times;
 static int synaptics_get_chip_info(void *chip_data);
@@ -92,7 +93,7 @@ static int synaptics_get_touch_points(void *chip_data,
 	int ret, i, obj_attention;
 	unsigned char fingers_to_process = max_num;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
-	char *buf = kzalloc(8 * max_num, GFP_KERNEL);
+	char *buf = dma_buffer->tp_buf;
 
 	obj_attention =
 	    touch_i2c_read_word(chip_info->client,
@@ -111,7 +112,6 @@ static int synaptics_get_touch_points(void *chip_data,
 				 8 * fingers_to_process, buf);
 	if (ret < 0) {
 		TPD_INFO("touch i2c read block failed\n");
-		kfree(buf);
 		return -1;
 	}
 	for (i = 0; i < fingers_to_process; i++) {
@@ -124,7 +124,6 @@ static int synaptics_get_touch_points(void *chip_data,
 		    ((buf[i * 8 + 6] & 0x0f) + (buf[i * 8 + 7] & 0x0f)) / 2;
 		points[i].status = buf[i * 8];
 	}
-	kfree(buf);
 	pm_qos_remove_request(&pm_qos_req_tp);
 	return obj_attention;
 }
@@ -149,14 +148,11 @@ static int synaptics_get_vendor(void *chip_data, struct panel_info *panel_data)
 
 static int synaptics_read_F54_base_reg(struct chip_data_s3706 *chip_info)
 {
-	//uint8_t buf[4] = {0};
-	uint8_t *buf;
+	uint8_t *buf = dma_buffer->f54_buf;
 	int ret = 0;
-	buf = (uint8_t *) kzalloc(4, GFP_KERNEL);
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x01);	/* page 1 */
 	if (ret < 0) {
 		TPD_INFO("%s: failed for page select\n", __func__);
-		kfree(buf);
 		return -1;
 	}
 	ret = touch_i2c_read_block(chip_info->client, 0xE9, 4, &(buf[0x0]));
@@ -168,30 +164,25 @@ static int synaptics_read_F54_base_reg(struct chip_data_s3706 *chip_info)
 			F54_CMD_BASE        = %x \n\
 			F54_CTRL_BASE   = %x \n\
 			F54_DATA_BASE   = %x \n", chip_info->reg_info.F54_ANALOG_QUERY_BASE, chip_info->reg_info.F54_ANALOG_COMMAND_BASE, chip_info->reg_info.F54_ANALOG_CONTROL_BASE, chip_info->reg_info.F54_ANALOG_DATA_BASE);
-	kfree(buf);
+
 	return ret;
 }
 
 static int synaptics_get_chip_info(void *chip_data)
 {
-	//uint8_t buf[4] = {0};
-	uint8_t *buf;
+	uint8_t *buf = dma_buffer->chip_info_buf;
 	int ret;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 	struct synaptics_register *reg_info = &chip_info->reg_info;
 
-	buf = (uint8_t *) kzalloc(4, GFP_KERNEL);
-	// memset(buf, 0, sizeof(buf));
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x0);	/* page 0 */
 	if (ret < 0) {
 		TPD_INFO("%s: failed for page select\n", __func__);
-		kfree(buf);
 		return -1;
 	}
 	ret = touch_i2c_read_block(chip_info->client, 0xDD, 4, &(buf[0x0]));
 	if (ret < 0) {
 		TPD_INFO("failed for page select!\n");
-		kfree(buf);
 		return -1;
 	}
 
@@ -251,7 +242,6 @@ static int synaptics_get_chip_info(void *chip_data)
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x4);	/* page 4 */
 	if (ret < 0) {
 		TPD_INFO("%s: failed for page select\n", __func__);
-		kfree(buf);
 		return -1;
 	}
 	ret = touch_i2c_read_block(chip_info->client, 0xE9, 4, &(buf[0x0]));
@@ -274,7 +264,6 @@ static int synaptics_get_chip_info(void *chip_data)
 	reg_info->F55_SENSOR_CTRL02 = 0x02;
 	/* select page 0 */
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x00);
-	kfree(buf);
 	return ret;
 }
 
@@ -285,17 +274,16 @@ static int synaptics_get_chip_info(void *chip_data)
  */
 static uint32_t synaptics_get_fw_id(struct chip_data_s3706 *chip_info)
 {
-	//uint8_t buf[4];
-	uint8_t *buf;
+	uint8_t *buf = dma_buffer->fw_id_buf;
 	uint32_t current_firmware = 0;
-	buf = (uint8_t *) kzalloc(4, GFP_KERNEL);
+
 	touch_i2c_write_byte(chip_info->client, 0xff, 0x0);
 	touch_i2c_read_block(chip_info->client,
 			     chip_info->reg_info.F34_FLASH_CTRL_BASE, 4, buf);
 	current_firmware =
 	    (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 	TPD_INFO("CURRENT_FIRMWARE_ID = 0x%x\n", current_firmware);
-	kfree(buf);
+
 	return current_firmware;
 }
 
@@ -307,10 +295,9 @@ static fw_check_state synaptics_fw_check(void *chip_data,
 	uint32_t bootloader_mode;
 	int max_y_ic = 0;
 	int max_x_ic = 0;
-	// uint8_t buf[4];
-	uint8_t *buf;
+	uint8_t *buf = dma_buffer->fw_check_buf;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
-	buf = (uint8_t *) kzalloc(4, GFP_KERNEL);
+
 	touch_i2c_write_byte(chip_info->client, 0xff, 0x00);
 
 	touch_i2c_read_block(chip_info->client,
@@ -335,7 +322,6 @@ static fw_check_state synaptics_fw_check(void *chip_data,
 	if ((max_x_ic == 0) || (max_y_ic == 0) || (bootloader_mode == 0x40)) {
 		TPD_INFO
 		    ("Something terrible wrong, Trying Update the Firmware again\n");
-		kfree(buf);
 		return FW_ABNORMAL;
 	}
 
@@ -345,7 +331,7 @@ static fw_check_state synaptics_fw_check(void *chip_data,
 		sprintf(panel_data->manufacture_info.version, "0x%x",
 			panel_data->TP_FW);
 	}
-	kfree(buf);
+
 	return FW_NORMAL;
 }
 
@@ -400,17 +386,15 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable,
 	uint8_t device_status = 0;
 	uint8_t interrupt_status = 0;
 	u8 result_event = 0;
-	//uint8_t touchold_buffer[10];
-	uint8_t *touchold_buffer;
+	uint8_t *touchold_buffer = dma_buffer->touchold_buf;
 	int touchhold_flag = 0;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
-	touchold_buffer = (uint8_t *) kzalloc(10, GFP_KERNEL);
+
 	pm_qos_add_request(&pm_qos_req_tp, PM_QOS_CPU_DMA_LATENCY,
 			   PM_QOS_VALUE_TP);
 #ifdef CONFIG_SYNAPTIC_RED
 	if (chip_info->enable_remote) {
 		pm_qos_remove_request(&pm_qos_req_tp);
-		kfree(touchold_buffer);
 		return IRQ_IGNORE;
 	}
 #endif
@@ -420,7 +404,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable,
 	if (ret < 0) {
 		TPD_INFO("%s, i2c read error, ret = %d\n", __func__, ret);
 		pm_qos_remove_request(&pm_qos_req_tp);
-		kfree(touchold_buffer);
 		return IRQ_EXCEPTION;
 	}
 	device_status = ret & 0xff;
@@ -435,7 +418,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable,
 				TPD_INFO("%s,i2c error,ret = %d\n",
 					 __func__, ret);
 				pm_qos_remove_request(&pm_qos_req_tp);
-				kfree(touchold_buffer);
 				return IRQ_EXCEPTION;
 			}
 			touchhold_flag = touchold_buffer[0];
@@ -453,21 +435,17 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable,
 		TPD_INFO("%s, interrupt_status = 0x%x, device_status = 0x%x\n",
 			 __func__, interrupt_status, device_status);
 		pm_qos_remove_request(&pm_qos_req_tp);
-		kfree(touchold_buffer);
 		return IRQ_EXCEPTION;
 	}
 	if (interrupt_status & 0x04) {
 		if (gesture_enable && is_suspended) {
 			if (chip_info->in_gesture_mode == 1) {
-				kfree(touchold_buffer);
 				return IRQ_GESTURE;
 			} else {
 				pm_qos_remove_request(&pm_qos_req_tp);
-				kfree(touchold_buffer);
 				return IRQ_IGNORE;
 			}
 		}
-		kfree(touchold_buffer);
 		return IRQ_TOUCH;
 	}
 	if (interrupt_status & 0x10)
@@ -481,7 +459,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable,
 		SET_BIT(result_event, IRQ_FACE_STATE);
 	}
 	pm_qos_remove_request(&pm_qos_req_tp);
-	kfree(touchold_buffer);
 	return result_event;
 }
 
@@ -588,15 +565,12 @@ static int synaptics_enable_black_gesture(struct chip_data_s3706 *chip_info,
 					  bool enable)
 {
 	int ret;
-	//unsigned char report_gesture_ctrl_buf[3];
-	unsigned char *report_gesture_ctrl_buf;
+	unsigned char *report_gesture_ctrl_buf = dma_buffer->report_buf;
 
-	report_gesture_ctrl_buf = (unsigned char *)kzalloc(3, GFP_KERNEL);
 	TPD_INFO("%s, enable = %d\n", __func__, enable);
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x0);
 	if (ret < 0) {
 		TPD_INFO("%s: select page failed ret = %d\n", __func__, ret);
-		kfree(report_gesture_ctrl_buf);
 		return -EINVAL;
 	}
 	touch_i2c_read_block(chip_info->client,
@@ -622,7 +596,6 @@ static int synaptics_enable_black_gesture(struct chip_data_s3706 *chip_info,
 			      3, &(report_gesture_ctrl_buf[0x0]));
 
 	tp_single_tap_en(chip_info, true);
-	kfree(report_gesture_ctrl_buf);
 	return 0;
 }
 
@@ -852,7 +825,7 @@ static void synaptics_enable_game_mode(struct chip_data_s3706 *chip_info,
 				       bool enable)
 {
 	int ret = 0;
-	uint8_t game_buffer[13];
+	uint8_t *game_buffer = dma_buffer->game_buf;
 	struct touchpanel_data *ts = i2c_get_clientdata(chip_info->client);
 
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x00);	//set page 0
@@ -1102,20 +1075,14 @@ static int synaptics_get_gesture_info(void *chip_data,
 				      struct gesture_info *gesture)
 {
 	int ret = 0, i, gesture_sign, regswipe;
-	uint8_t *gesture_buffer = NULL;
-	uint8_t *coordinate_buf = NULL;
+	uint8_t *gesture_buffer = dma_buffer->gesture_buffer;
+	uint8_t *coordinate_buf = dma_buffer->coordinate_buf;
 	uint16_t trspoint = 0;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
-	gesture_buffer = kzalloc(10 * sizeof(uint8_t), GFP_KERNEL);
-	coordinate_buf = kzalloc(25 * sizeof(uint8_t), GFP_KERNEL);
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x00);
 	if (ret < 0) {
 		TPD_INFO("failed to transfer the data, ret = %d\n", ret);
-		kfree(gesture_buffer);
-		gesture_buffer = NULL;
-		kfree(coordinate_buf);
-		coordinate_buf = NULL;
 		pm_qos_remove_request(&pm_qos_req_tp);
 		return -EINVAL;
 	}
@@ -1171,19 +1138,11 @@ static int synaptics_get_gesture_info(void *chip_data,
 		gf_opticalfp_irq_handler(1);
 		TPD_INFO("touchhold down\n");
 		pm_qos_remove_request(&pm_qos_req_tp);
-		kfree(gesture_buffer);
-		gesture_buffer = NULL;
-		kfree(coordinate_buf);
-		coordinate_buf = NULL;
 		return 0;
 	case TOUCHHOLD_UP:
 		gf_opticalfp_irq_handler(0);
 		TPD_INFO("touchhold up\n");
 		pm_qos_remove_request(&pm_qos_req_tp);
-		kfree(gesture_buffer);
-		gesture_buffer = NULL;
-		kfree(coordinate_buf);
-		coordinate_buf = NULL;
 		return 0;
 
 	default:
@@ -1230,10 +1189,6 @@ static int synaptics_get_gesture_info(void *chip_data,
 		    (coordinate_buf[22] | (coordinate_buf[23] << 8));
 		gesture->clockwise = (coordinate_buf[24] & 0x10) ? 1 : (coordinate_buf[24] & 0x20) ? 0 : 2;	/* 1--clockwise, 0--anticlockwise, not circle, report 2 */
 	}
-	kfree(gesture_buffer);
-	gesture_buffer = NULL;
-	kfree(coordinate_buf);
-	coordinate_buf = NULL;
 	pm_qos_remove_request(&pm_qos_req_tp);
 	return 0;
 }
@@ -2462,19 +2417,22 @@ static void synaptics_baseline_read(struct seq_file *s, void *chip_data)
 	int x = 0, y = 0, z = 0;
 	uint8_t tmp_arg1 = 0;
 	uint16_t baseline_data = 0;
-	uint8_t *raw_data = NULL;
+	static uint8_t *raw_data = NULL;
 	int enable_cbc = 0;	/*enable cbc flag for baseline limit test */
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
 	if (!chip_info) {
 		return;
 	}
-	raw_data =
-	    kzalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
-		    (sizeof(uint8_t)), GFP_KERNEL);
-	if (!raw_data) {
-		TPD_INFO("raw_data kzalloc error\n");
-		return;
+
+	if (unlikely(raw_data == NULL)) {
+		raw_data =
+		    kmalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
+			    (sizeof(uint8_t)), GFP_KERNEL | GFP_DMA);
+		if (!raw_data) {
+			TPD_INFO("raw_data kzalloc error\n");
+			return;
+		}
 	}
 	synaptics_read_F54_base_reg(chip_info);
 	do {
@@ -2552,7 +2510,6 @@ static void synaptics_baseline_read(struct seq_file *s, void *chip_data)
 	} while (enable_cbc < 2);
 
  END:
-	kfree(raw_data);
 	return;
 }
 
@@ -2585,18 +2542,20 @@ static void synaptics_RT76_read(struct seq_file *s, void *chip_data)
 	int ret = 0, x = 0, y = 0, z = 0;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 	int16_t temp_delta = 0;
-	uint8_t *raw_data = NULL;
+	static uint8_t *raw_data = NULL;
 
 	if (!chip_info) {
 		return;
 	}
 
-	raw_data =
-	    kzalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
-		    (sizeof(uint8_t)), GFP_KERNEL);
-	if (!raw_data) {
-		TPD_INFO("raw_data kzalloc error\n");
-		return;
+	if (unlikely(raw_data == NULL)) {
+		raw_data =
+		    kmalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
+			    (sizeof(uint8_t)), GFP_KERNEL | GFP_DMA);
+		if (!raw_data) {
+			TPD_INFO("raw_data kzalloc error\n");
+			return;
+		}
 	}
 
 	/*disable irq when read data from IC */
@@ -2620,7 +2579,6 @@ static void synaptics_RT76_read(struct seq_file *s, void *chip_data)
 
 	touch_i2c_write_byte(chip_info->client, 0xff, 0x00);	/* page 0 */
 	msleep(60);
-	kfree(raw_data);
 }
 
 static void synaptics_RT251_read(struct seq_file *s, void *chip_data)
@@ -2713,19 +2671,21 @@ static void synaptics_delta_read(struct seq_file *s, void *chip_data)
 {
 	int ret = 0, x = 0, y = 0, z = 0;
 	int16_t temp_delta = 0;
-	uint8_t *raw_data = NULL;
+	static uint8_t *raw_data = NULL;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
 	if (!chip_info) {
 		return;
 	}
 
-	raw_data =
-	    kzalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
-		    (sizeof(uint8_t)), GFP_KERNEL);
-	if (!raw_data) {
-		TPD_INFO("raw_data kzalloc error\n");
-		return;
+	if (unlikely(raw_data == NULL)) {
+		raw_data =
+		    kmalloc(chip_info->hw_res->TX_NUM * chip_info->hw_res->RX_NUM * 2 *
+			    (sizeof(uint8_t)), GFP_KERNEL | GFP_DMA);
+		if (!raw_data) {
+			TPD_INFO("raw_data kzalloc error\n");
+			return;
+		}
 	}
 
 	/*disable irq when read data from IC */
@@ -2770,7 +2730,6 @@ static void synaptics_delta_read(struct seq_file *s, void *chip_data)
 
 	touch_i2c_write_byte(chip_info->client, 0xff, 0x00);	/* page 0 */
 	msleep(60);
-	kfree(raw_data);
 }
 
 static int s3706_reset_device(struct synaptics_rmi4_data *rmi4_data,
@@ -2789,22 +2748,22 @@ static int fwu_recovery_check_status(struct chip_data_s3706 *chip_info)
 {
 	int retval;
 	unsigned char data_base;
-	unsigned char status;
+	unsigned char *status = &dma_buffer->fwu_recovery_status;
 
 	data_base = chip_info->fwu->f35_fd.data_base_addr;
 
 	retval = touch_i2c_read_block(chip_info->client,
 				      data_base + F35_ERROR_CODE_OFFSET,
-				      1, &status);
+				      1, status);
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read status\n", __func__);
 		return retval;
 	}
 
-	status = status & MASK_5BIT;
+	*status = *status & MASK_5BIT;
 
-	if (status != 0x00) {
-		TPD_INFO("%s: Recovery mode status = %d\n", __func__, status);
+	if (*status != 0x00) {
+		TPD_INFO("%s: Recovery mode status = %d\n", __func__, *status);
 		return -EINVAL;
 	}
 
@@ -2822,46 +2781,46 @@ static int fwu_scan_pdt(struct chip_data_s3706 *chip_info)
 	bool f01found = false;
 	bool f34found = false;
 	bool f35found = false;
-	struct synaptics_rmi4_fn_desc rmi_fd;
+	struct synaptics_rmi4_fn_desc *rmi_fd = &dma_buffer->rmi_fd;
 	struct synaptics_rmi4_data *rmi4_data = chip_info->fwu->rmi4_data;
 	chip_info->fwu->in_ub_mode = false;	/*in_ub_mode declare */
 	for (addr = PDT_START; addr > PDT_END; addr -= PDT_ENTRY_SIZE) {
 		retval =
 		    touch_i2c_read_block(chip_info->client, addr,
-					 sizeof(rmi_fd),
-					 (unsigned char *)&rmi_fd);
+					 sizeof(struct synaptics_rmi4_fn_desc),
+					 (unsigned char *)rmi_fd);
 		if (retval < 0) {
 			return retval;
 		}
 
-		if (rmi_fd.fn_number) {
+		if (rmi_fd->fn_number) {
 			TPD_DEBUG("%s: Found F%02x\n", __func__,
-				  rmi_fd.fn_number);
-			switch (rmi_fd.fn_number) {
+				  rmi_fd->fn_number);
+			switch (rmi_fd->fn_number) {
 			case SYNAPTICS_RMI4_F01:	/*found */
 				f01found = true;
 
 				rmi4_data->f01_query_base_addr =
-				    rmi_fd.query_base_addr;
+				    rmi_fd->query_base_addr;
 				rmi4_data->f01_ctrl_base_addr =
-				    rmi_fd.ctrl_base_addr;
+				    rmi_fd->ctrl_base_addr;
 				rmi4_data->f01_data_base_addr =
-				    rmi_fd.data_base_addr;
+				    rmi_fd->data_base_addr;
 				rmi4_data->f01_cmd_base_addr =
-				    rmi_fd.cmd_base_addr;
+				    rmi_fd->cmd_base_addr;
 				break;
 			case SYNAPTICS_RMI4_F34:	/*found */
 				f34found = true;
 				chip_info->fwu->f34_fd.query_base_addr =
-				    rmi_fd.query_base_addr;
+				    rmi_fd->query_base_addr;
 				chip_info->fwu->f34_fd.ctrl_base_addr =
-				    rmi_fd.ctrl_base_addr;
+				    rmi_fd->ctrl_base_addr;
 				chip_info->fwu->f34_fd.data_base_addr =
-				    rmi_fd.data_base_addr;
+				    rmi_fd->data_base_addr;
 
 				TPD_DEBUG("fn_version is %d\n",
-					  rmi_fd.fn_version);
-				switch (rmi_fd.fn_version) {
+					  rmi_fd->fn_version);
+				switch (rmi_fd->fn_version) {
 				case F34_V0:
 					chip_info->fwu->bl_version = BL_V5;
 					break;
@@ -2879,7 +2838,7 @@ static int fwu_scan_pdt(struct chip_data_s3706 *chip_info)
 				}
 
 				chip_info->fwu->intr_mask = 0;
-				intr_src = rmi_fd.intr_src_count;
+				intr_src = rmi_fd->intr_src_count;
 				intr_off = intr_count % 8;
 				for (ii = intr_off; ii < (intr_src + intr_off);
 				     ii++) {
@@ -2891,7 +2850,7 @@ static int fwu_scan_pdt(struct chip_data_s3706 *chip_info)
 			break;
 		}
 
-		intr_count += rmi_fd.intr_src_count;
+		intr_count += rmi_fd->intr_src_count;
 	}
 	if (!f01found || !f34found) {
 		TPD_INFO("%s: Failed to find both F01 and F34\n", __func__);
@@ -3018,25 +2977,25 @@ static int fwu_write_f34_partition_id(struct chip_data_s3706 *chip_info,
 static int fwu_read_flash_status(struct chip_data_s3706 *chip_info)
 {
 	int retval;
-	unsigned char status;
-	unsigned char command;
+	unsigned char *status = &dma_buffer->fwu_read_status;
+	unsigned char *command = &dma_buffer->fwu_read_command;
 
-	retval = touch_i2c_read_block(chip_info->client, chip_info->fwu->f34_fd.data_base_addr + chip_info->fwu->off.flash_status, sizeof(status), &status);	//Roland get ic state , idle or other
+	retval = touch_i2c_read_block(chip_info->client, chip_info->fwu->f34_fd.data_base_addr + chip_info->fwu->off.flash_status, sizeof(unsigned char), status);	//Roland get ic state , idle or other
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read flash status\n", __func__);
 		return retval;
 	}
 
-	chip_info->fwu->in_bl_mode = status >> 7;
+	chip_info->fwu->in_bl_mode = *status >> 7;
 
 	/*fwu->bl_version is 8 */
 	if (chip_info->fwu->bl_version == BL_V5) {
-		chip_info->fwu->flash_status = (status >> 4) & MASK_3BIT;
+		chip_info->fwu->flash_status = (*status >> 4) & MASK_3BIT;
 	} else if (chip_info->fwu->bl_version == BL_V6) {
-		chip_info->fwu->flash_status = status & MASK_3BIT;
+		chip_info->fwu->flash_status = *status & MASK_3BIT;
 	} else if (chip_info->fwu->bl_version == BL_V7
 		   || chip_info->fwu->bl_version == BL_V8) {
-		chip_info->fwu->flash_status = status & MASK_5BIT;
+		chip_info->fwu->flash_status = *status & MASK_5BIT;
 	}
 
 	if (chip_info->fwu->write_bootloader) {
@@ -3056,19 +3015,19 @@ static int fwu_read_flash_status(struct chip_data_s3706 *chip_info)
 		}
 	}
 
-	retval = touch_i2c_read_block(chip_info->client, chip_info->fwu->f34_fd.data_base_addr + chip_info->fwu->off.flash_cmd, sizeof(command), &command);	//Roland read recent command
+	retval = touch_i2c_read_block(chip_info->client, chip_info->fwu->f34_fd.data_base_addr + chip_info->fwu->off.flash_cmd, sizeof(unsigned char), command);	//Roland read recent command
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read flash command\n", __func__);
 		return retval;
 	}
 
 	if (chip_info->fwu->bl_version == BL_V5) {
-		chip_info->fwu->command = command & MASK_4BIT;
+		chip_info->fwu->command = *command & MASK_4BIT;
 	} else if (chip_info->fwu->bl_version == BL_V6) {
-		chip_info->fwu->command = command & MASK_6BIT;
+		chip_info->fwu->command = *command & MASK_6BIT;
 	} else if (chip_info->fwu->bl_version == BL_V7
 		   || chip_info->fwu->bl_version == BL_V8) {
-		chip_info->fwu->command = command;
+		chip_info->fwu->command = *command;
 	}
 
 	if (chip_info->fwu->write_bootloader) {
@@ -3440,45 +3399,45 @@ static int fwu_read_f34_v7_queries(struct chip_data_s3706 *chip_info)
 	unsigned char index;
 	unsigned char offset;
 	unsigned char *ptable;
-	struct f34_v7_query_0 query_0;
-	struct f34_v7_query_1_7 query_1_7;
+	struct f34_v7_query_0 *query_0 = &dma_buffer->query_0;
+	struct f34_v7_query_1_7 *query_1_7 = &dma_buffer->query_1_7;
 
 	query_base = chip_info->fwu->f34_fd.query_base_addr;
 
 	retval = touch_i2c_read_block(chip_info->client,
 				      query_base,
-				      sizeof(query_0.data), query_0.data);
+				      sizeof(query_0->data), query_0->data);
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read query 0\n", __func__);
 		return retval;
 	}
 
-	offset = query_0.subpacket_1_size + 1;
+	offset = query_0->subpacket_1_size + 1;
 
 	retval = touch_i2c_read_block(chip_info->client,
 				      query_base + offset,
-				      sizeof(query_1_7.data), query_1_7.data);
+				      sizeof(query_1_7->data), query_1_7->data);
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read queries 1 to 7\n", __func__);
 		return retval;
 	}
 
-	chip_info->fwu->bootloader_id[0] = query_1_7.bl_minor_revision;
-	chip_info->fwu->bootloader_id[1] = query_1_7.bl_major_revision;
+	chip_info->fwu->bootloader_id[0] = query_1_7->bl_minor_revision;
+	chip_info->fwu->bootloader_id[1] = query_1_7->bl_major_revision;
 
 	if (chip_info->fwu->bootloader_id[1] == BL_V8) {
 		chip_info->fwu->bl_version = BL_V8;
 	}
 
-	chip_info->fwu->block_size = query_1_7.block_size_15_8 << 8 |
-	    query_1_7.block_size_7_0;
+	chip_info->fwu->block_size = query_1_7->block_size_15_8 << 8 |
+	    query_1_7->block_size_7_0;
 
 	chip_info->fwu->flash_config_length =
-	    query_1_7.flash_config_length_15_8 << 8 | query_1_7.
+	    query_1_7->flash_config_length_15_8 << 8 | query_1_7->
 	    flash_config_length_7_0;
 
-	chip_info->fwu->payload_length = query_1_7.payload_length_15_8 << 8 |
-	    query_1_7.payload_length_7_0;
+	chip_info->fwu->payload_length = query_1_7->payload_length_15_8 << 8 |
+	    query_1_7->payload_length_7_0;
 
 	chip_info->fwu->off.flash_status = V7_FLASH_STATUS_OFFSET;
 	chip_info->fwu->off.partition_id = V7_PARTITION_ID_OFFSET;
@@ -3487,24 +3446,24 @@ static int fwu_read_f34_v7_queries(struct chip_data_s3706 *chip_info)
 	chip_info->fwu->off.flash_cmd = V7_COMMAND_OFFSET;
 	chip_info->fwu->off.payload = V7_PAYLOAD_OFFSET;
 
-	index = sizeof(query_1_7.data) - V7_PARTITION_SUPPORT_BYTES;
+	index = sizeof(query_1_7->data) - V7_PARTITION_SUPPORT_BYTES;
 
 	chip_info->fwu->partitions = 0;
 	for (offset = 0; offset < V7_PARTITION_SUPPORT_BYTES; offset++) {	//Roland count partition nums
 		for (ii = 0; ii < 8; ii++) {
-			if (query_1_7.data[index + offset] & (1 << ii)) {
+			if (query_1_7->data[index + offset] & (1 << ii)) {
 				chip_info->fwu->partitions++;
 			}
 		}
 
 		TPD_DEBUG("%s: Supported partitions: 0x%02x\n",
-			  __func__, query_1_7.data[index + offset]);
+			  __func__, query_1_7->data[index + offset]);
 	}
 
 	chip_info->fwu->partition_table_bytes =
 	    chip_info->fwu->partitions * 8 + 2;
 
-	ptable = kzalloc(chip_info->fwu->partition_table_bytes, GFP_KERNEL);
+	ptable = kzalloc(chip_info->fwu->partition_table_bytes, GFP_KERNEL | GFP_DMA);
 	if (!ptable) {
 		TPD_INFO("%s: Failed to alloc mem for partition table\n",
 			 __func__);
@@ -3599,8 +3558,8 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 	//unsigned char build_id[3] = {0};
 	unsigned char *build_id;
 	unsigned char *data;
-	data = (unsigned char *)kzalloc(1, GFP_KERNEL);
-	build_id = (unsigned char *)kzalloc(3, GFP_KERNEL);
+	data = (unsigned char *)kzalloc(1, GFP_KERNEL | GFP_DMA);
+	build_id = (unsigned char *)kzalloc(3, GFP_KERNEL | GFP_DMA);
 
 	if (!chip_info) {
 		TPD_INFO("chip_info is NULL, return!\n");
@@ -3617,7 +3576,7 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 	}
 
 	chip_info->fwu =
-	    kzalloc(sizeof(struct synaptics_rmi4_fwu_handle), GFP_KERNEL);
+	    kzalloc(sizeof(struct synaptics_rmi4_fwu_handle), GFP_KERNEL | GFP_DMA);
 	if (!chip_info->fwu) {
 		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
 		retval = -ENOMEM;
@@ -3638,7 +3597,7 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 	}
 
 	chip_info->fwu->rmi4_data =
-	    kzalloc(sizeof(struct synaptics_rmi4_data), GFP_KERNEL);
+	    kzalloc(sizeof(struct synaptics_rmi4_data), GFP_KERNEL | GFP_DMA);
 	if (!chip_info->fwu->rmi4_data) {
 		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
 		retval = -ENOMEM;
@@ -4106,7 +4065,7 @@ static enum flash_area fwu_go_nogo(struct chip_data_s3706 *chip_info)
 static int fwu_enter_flash_prog(struct chip_data_s3706 *chip_info)
 {
 	int retval;
-	struct f01_device_control f01_device_control;
+	struct f01_device_control *f01_ctrl = &dma_buffer->f01_ctrl;
 
 	retval = fwu_read_flash_status(chip_info);
 	if (retval < 0) {
@@ -4147,17 +4106,17 @@ static int fwu_enter_flash_prog(struct chip_data_s3706 *chip_info)
 	retval = touch_i2c_read_block(chip_info->client,
 				      chip_info->fwu->rmi4_data->
 				      f01_ctrl_base_addr,
-				      sizeof(f01_device_control.data),
-				      f01_device_control.data);
+				      sizeof(f01_ctrl->data),
+				      f01_ctrl->data);
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read F01 device control\n", __func__);
 		return retval;
 	}
 
-	f01_device_control.nosleep = true;
-	f01_device_control.sleep_mode = SLEEP_MODE_NORMAL;
+	f01_ctrl->nosleep = true;
+	f01_ctrl->sleep_mode = SLEEP_MODE_NORMAL;
 
-	retval = touch_i2c_write_block(chip_info->client, chip_info->fwu->rmi4_data->f01_ctrl_base_addr, sizeof(f01_device_control.data), f01_device_control.data);	//Roland set no sleep mode
+	retval = touch_i2c_write_block(chip_info->client, chip_info->fwu->rmi4_data->f01_ctrl_base_addr, sizeof(f01_ctrl->data), f01_ctrl->data);	//Roland set no sleep mode
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to write F01 device control\n", __func__);
 		return retval;
@@ -4315,7 +4274,7 @@ static int fwu_write_lockdown(struct chip_data_s3706 *chip_info)
 static int fwu_do_lockdown_v7(struct chip_data_s3706 *chip_info)
 {
 	int retval;
-	struct f34_v7_data0 status;
+	struct f34_v7_data0 *status = &dma_buffer->v7_status;
 
 	retval = fwu_enter_flash_prog(chip_info);
 	if (retval < 0)
@@ -4324,13 +4283,13 @@ static int fwu_do_lockdown_v7(struct chip_data_s3706 *chip_info)
 	retval = touch_i2c_read_block(chip_info->client,
 				      chip_info->fwu->f34_fd.data_base_addr +
 				      chip_info->fwu->off.flash_status,
-				      sizeof(status.data), status.data);
+				      sizeof(status->data), status->data);
 	if (retval < 0) {
 		TPD_INFO("%s: Failed to read flash status\n", __func__);
 		return retval;
 	}
 
-	if (status.device_cfg_status == 2) {
+	if (status->device_cfg_status == 2) {
 		TPD_INFO("%s: Device already locked down\n", __func__);
 		return 0;
 	}
@@ -4608,7 +4567,7 @@ static int fwu_allocate_read_config_buf(struct chip_data_s3706 *chip_info,
 {
 	if (count > chip_info->fwu->read_config_buf_size) {
 		kfree(chip_info->fwu->read_config_buf);
-		chip_info->fwu->read_config_buf = kzalloc(count, GFP_KERNEL);
+		chip_info->fwu->read_config_buf = kzalloc(count, GFP_KERNEL | GFP_DMA);
 		if (!chip_info->fwu->read_config_buf) {
 			TPD_INFO
 			    ("%s: Failed to alloc mem for fwu->read_config_buf\n",
@@ -5304,7 +5263,7 @@ static fp_touch_state synaptics_spurious_fp_check(void *chip_data)
 	int x = 0, y = 0, z = 0, err_count = 0;
 	int ret = 0, TX_NUM = 0, RX_NUM = 0;
 	int16_t temp_data = 0, delta_data = 0;
-	uint8_t *raw_data = NULL;
+	static uint8_t *raw_data = NULL;
 	fp_touch_state fp_touch_state = FINGER_PROTECT_TOUCH_UP;
 
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
@@ -5324,12 +5283,14 @@ static fp_touch_state synaptics_spurious_fp_check(void *chip_data)
 	TX_NUM = chip_info->hw_res->TX_NUM;
 	RX_NUM = chip_info->hw_res->RX_NUM;
 
-	raw_data =
-	    kzalloc(TX_NUM * SPURIOUS_FP_RX_NUM * 2 * (sizeof(uint8_t)),
-		    GFP_KERNEL);
-	if (!raw_data) {
-		TPD_INFO("raw_data kzalloc error\n");
-		return fp_touch_state;
+	if (unlikely(raw_data == NULL)) {
+		raw_data =
+		    kmalloc(TX_NUM * SPURIOUS_FP_RX_NUM * 2 * (sizeof(uint8_t)),
+			    GFP_KERNEL | GFP_DMA);
+		if (!raw_data) {
+			TPD_INFO("raw_data kzalloc error\n");
+			return fp_touch_state;
+		}
 	}
 
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x0);
@@ -5396,7 +5357,6 @@ static fp_touch_state synaptics_spurious_fp_check(void *chip_data)
 	TPD_INFO("finger protect trigger fp_touch_state= %d\n", fp_touch_state);
 
  OUT:
-	kfree(raw_data);
 	return fp_touch_state;
 }
 
@@ -5422,7 +5382,7 @@ static u8 synaptics_get_keycode(void *chip_data)
 static void synaptics_finger_proctect_data_get(void *chip_data)
 {
 	int ret = 0, x = 0, y = 0, z = 0;
-	uint8_t *raw_data = NULL;
+	static uint8_t *raw_data = NULL;
 	static uint8_t retry_time = 3;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
@@ -5436,22 +5396,24 @@ static void synaptics_finger_proctect_data_get(void *chip_data)
 		return;
 	}
 
-	raw_data =
-	    kzalloc(TX_NUM * SPURIOUS_FP_RX_NUM * 2 * (sizeof(uint8_t)),
-		    GFP_KERNEL);
-	if (!raw_data) {
-		TPD_INFO("raw_data kzalloc error\n");
-		return;
+	if (unlikely(raw_data == NULL)) {
+		raw_data =
+		    kzalloc(TX_NUM * SPURIOUS_FP_RX_NUM * 2 * (sizeof(uint8_t)),
+			    GFP_KERNEL | GFP_DMA);
+		if (!raw_data) {
+			TPD_INFO("raw_data kzalloc error\n");
+			return;
+		}
 	}
 
-	chip_info->spuri_fp_data =
-	    kzalloc(TX_NUM * RX_NUM * (sizeof(int16_t)), GFP_KERNEL);
-	if (!chip_info->spuri_fp_data) {
-		TPD_INFO("chip_info->spuri_fp_data kzalloc error\n");
-		ret = -ENOMEM;
-		kfree(raw_data);
-		raw_data = NULL;
-		return;
+	if (unlikely(chip_info->spuri_fp_data == NULL)) {
+		chip_info->spuri_fp_data =
+		    kzalloc(TX_NUM * RX_NUM * (sizeof(int16_t)), GFP_KERNEL);
+		if (!chip_info->spuri_fp_data) {
+			TPD_INFO("chip_info->spuri_fp_data kzalloc error\n");
+			ret = -ENOMEM;
+			return;
+		}
 	}
 
  RE_TRY:
@@ -5459,8 +5421,6 @@ static void synaptics_finger_proctect_data_get(void *chip_data)
 	ret = touch_i2c_write_byte(chip_info->client, 0xff, 0x1);
 	if (ret < 0) {
 		TPD_INFO("%s, I2C transfer error\n", __func__);
-		kfree(raw_data);
-		raw_data = NULL;
 		return;
 	}
 	touch_i2c_write_byte(chip_info->client, chip_info->reg_info.F54_ANALOG_COMMAND_BASE, 0X02);	/*forcecal */
@@ -5517,15 +5477,13 @@ static void synaptics_finger_proctect_data_get(void *chip_data)
 	if (ret < 0) {
 		TPD_INFO("%s, I2C transfer error\n", __func__);
 	}
-
-	kfree(raw_data);
 }
 
 static void synaptics_data_logger_get(void *chip_data)
 {
 	int ret = 0, i = 0;
 	int data_length = 0;
-	uint8_t *log_data = kzalloc(255 * (sizeof(uint8_t)), GFP_KERNEL);
+	uint8_t *log_data = kzalloc(255 * (sizeof(uint8_t)), GFP_KERNEL | GFP_DMA);
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
 	if (true == chip_info->d_log.data_logger_control) {
@@ -5690,8 +5648,14 @@ static int synaptics_tp_probe(struct i2c_client *client,
 		ret = -ENOMEM;
 		return ret;
 	}
-	memset(chip_info, 0, sizeof(*chip_info));
 	g_chip_info = chip_info;
+
+	dma_buffer = kmalloc(sizeof(struct dma_buf_s3706), GFP_KERNEL | GFP_DMA);
+	if (dma_buffer == NULL) {
+		TPD_INFO("dma buffer kzalloc error\n");
+		ret = -ENOMEM;
+		return ret;
+	}
 
 	/*step2:Alloc common ts */
 	ts = common_touch_data_alloc();
@@ -5699,7 +5663,6 @@ static int synaptics_tp_probe(struct i2c_client *client,
 		TPD_INFO("ts kzalloc error\n");
 		goto ts_malloc_failed;
 	}
-	memset(ts, 0, sizeof(*ts));
 
 	/*step3:binding client && dev for easy operate */
 	chip_info->client = client;
