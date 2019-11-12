@@ -1339,6 +1339,7 @@ unsigned char GetLogicalPin(unsigned char p_pin, uint8_t RX_NUM,
 	return 0xff;
 }
 
+#if 0
 static int synaptics_capacity_test(struct seq_file *s,
 				   struct chip_data_s3706 *chip_info,
 				   struct syna_testdata *syna_testdata,
@@ -1609,7 +1610,6 @@ static int synaptics_capacity_test(struct seq_file *s,
 	return error_count;
 }
 
-#if 0
 static int synaptics_auto_test_rt25(struct seq_file *s,
 				    struct chip_data_s3706 *chip_info,
 				    struct syna_testdata *syna_testdata)
