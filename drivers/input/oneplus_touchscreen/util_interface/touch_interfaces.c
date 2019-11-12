@@ -19,42 +19,6 @@
 static struct touch_dma_buf *dma_buffer;
 
 /**
- * touch_i2c_continue_read - Using for "read sequence bytes" through IIC
- * @client: Handle to slave device
- * @length: data size we want to read
- * @data: data read from IIC
- *
- * Actully, This function call i2c_transfer for IIC transfer,
- * Returning transfer length(transfer success) or most likely negative errno(transfer error)
- */
-int touch_i2c_continue_read(struct i2c_client *client, unsigned short length,
-			    unsigned char *data)
-{
-	int retval;
-	unsigned char retry;
-	struct i2c_msg msg;
-
-	msg.addr = client->addr;
-	msg.flags = I2C_M_RD;
-	msg.len = length;
-	msg.buf = data;
-
-	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-		if (likely(i2c_transfer(client->adapter, &msg, 1) == 1))
-			return length;
-
-		msleep(20);
-	}
-	if (retry == MAX_I2C_RETRY_TIME) {
-		dev_err(&client->dev, "%s: I2C read over retry limit\n",
-			__func__);
-		retval = -EIO;
-	}
-	return retval;
-
-}
-
-/**
  * touch_i2c_read_block - Using for "read word" through IIC
  * @client: Handle to slave device
  * @addr: addr to write
@@ -90,41 +54,6 @@ int touch_i2c_read_block(struct i2c_client *client, u16 addr,
 	}
 	if (retry == MAX_I2C_RETRY_TIME) {
 		dev_err(&client->dev, "%s: I2C read over retry limit\n",
-			__func__);
-		retval = -EIO;
-	}
-	return retval;
-}
-
-/**
- * touch_i2c_continue_write - Using for "write sequence bytes" through IIC
- * @client: Handle to slave device
- * @length: data size we want to write
- * @data: data write to IIC
- *
- * Actully, This function call i2c_transfer for IIC transfer,
- * Returning transfer length(transfer success) or most likely negative errno(transfer error)
- */
-int touch_i2c_continue_write(struct i2c_client *client, unsigned short length,
-			     unsigned char *data)
-{
-	int retval;
-	unsigned char retry;
-	struct i2c_msg msg;
-
-	msg.addr = client->addr;
-	msg.flags = 0;
-	msg.buf = data;
-	msg.len = length;
-
-	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
-		if (likely(i2c_transfer(client->adapter, &msg, 1) == 1))
-			return length;
-
-		msleep(20);
-	}
-	if (retry == MAX_I2C_RETRY_TIME) {
-		dev_err(&client->dev, "%s: I2C write over retry limit\n",
 			__func__);
 		retval = -EIO;
 	}
@@ -395,99 +324,6 @@ int touch_i2c_write(struct i2c_client *client, char *writebuf, int writelen)
 	}
 
 	return retval;
-}
-
-/*******************************************************
-Description:
-	Novatek touchscreen spi read/write core function.
-
-return:
-	Executive outcomes. 0---succeed.
-*******************************************************/
-int32_t spi_read_write(struct spi_device * client, uint8_t * buf, size_t len,
-		       uint8_t * rbuf, SPI_RW rw)
-{
-	struct spi_message m;
-	struct spi_transfer t = {
-		.len = len,
-	};
-
-	switch (rw) {
-	case SPIREAD:
-		t.tx_buf = &buf[0];
-		t.rx_buf = rbuf;
-		t.len = (len + DUMMY_BYTES);
-		break;
-
-	case SPIWRITE:
-		t.tx_buf = buf;
-		break;
-	}
-
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-	return spi_sync(client, &m);
-}
-
-/*******************************************************
-Description:
-	Novatek touchscreen spi read function.
-
-return:
-	Executive outcomes. 2---succeed. -5---I/O error
-*******************************************************/
-int32_t CTP_SPI_READ(struct spi_device * client, uint8_t * buf, uint16_t len)
-{
-	int32_t ret = -1;
-	int32_t retries = 0;
-	uint8_t rbuf[SPI_TANSFER_LEN + 1] = { 0 };
-
-	buf[0] = SPI_READ_MASK(buf[0]);
-
-	while (retries < 5) {
-		ret = spi_read_write(client, buf, len, rbuf, SPIREAD);
-		if (ret == 0)
-			break;
-		retries++;
-	}
-
-	if (unlikely(retries == 5)) {
-		TPD_INFO("read error, ret=%d\n", ret);
-		ret = -EIO;
-	} else {
-		memcpy((buf + 1), (rbuf + 2), (len - 1));
-	}
-
-	return ret;
-}
-
-/*******************************************************
-Description:
-	Novatek touchscreen spi write function.
-
-return:
-	Executive outcomes. 1---succeed. -5---I/O error
-*******************************************************/
-int32_t CTP_SPI_WRITE(struct spi_device * client, uint8_t * buf, uint16_t len)
-{
-	int32_t ret = -1;
-	int32_t retries = 0;
-
-	buf[0] = SPI_WRITE_MASK(buf[0]);
-
-	while (retries < 5) {
-		ret = spi_read_write(client, buf, len, NULL, SPIWRITE);
-		if (ret == 0)
-			break;
-		retries++;
-	}
-
-	if (unlikely(retries == 5)) {
-		TPD_INFO("error, ret=%d\n", ret);
-		ret = -EIO;
-	}
-
-	return ret;
 }
 
 void touch_alloc_dma_buf(void)
