@@ -40,7 +40,7 @@ int __initdata rd_doload;	/* 1 = load RAM disk, 0 = don't load */
 
 int root_mountflags = MS_RDONLY | MS_SILENT;
 static char * __initdata root_device_name;
-static char __initdata saved_root_name[64] = "PARTLABEL=system";
+static char __initdata saved_root_name[64];
 static int root_wait;
 #ifdef CONFIG_EARLY_SERVICES
 static char saved_modem_name[64] __initdata;
@@ -385,11 +385,11 @@ EXPORT_SYMBOL_GPL(name_to_dev_t);
 
 static int __init root_dev_setup(char *line)
 {
-	strncat(saved_root_name, line, 3);
+	strlcpy(saved_root_name, line, sizeof(saved_root_name));
 	return 1;
 }
 
-__setup("androidboot.slot_suffix=", root_dev_setup);
+__setup("root=", root_dev_setup);
 
 #ifdef CONFIG_EARLY_SERVICES
 static int __init modem_dev_setup(char *line)

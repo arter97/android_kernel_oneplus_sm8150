@@ -459,7 +459,7 @@ dm_create_fail:
 	dm_setup_cleanup(devices);
 }
 
-// __setup("dm=", dm_setup); // root is mounted directly
+__setup("dm=", dm_setup);
 
 void __init dm_run_setup(void)
 {
