@@ -287,6 +287,7 @@ static const struct category_info cinfo[MAX_SUPPORTED_CATEGORY] = {
 	[QDF_MODULE_ID_OCB] = {QDF_TRACE_LEVEL_ALL},
 	[QDF_MODULE_ID_IPA] = {QDF_TRACE_LEVEL_ALL},
 	[QDF_MODULE_ID_ACTION_OUI] = {QDF_TRACE_LEVEL_ALL},
+	[QDF_MODULE_ID_WIFIPOS]  = {QDF_TRACE_LEVEL_ALL},
 	[QDF_MODULE_ID_TARGET] = {QDF_TRACE_LEVEL_ALL},
 };
 
@@ -5488,6 +5489,7 @@ struct hdd_adapter *hdd_open_adapter(struct hdd_context *hdd_ctx, uint8_t sessio
 	INIT_WORK(&adapter->scan_block_work, wlan_hdd_cfg80211_scan_block_cb);
 	qdf_list_create(&adapter->blocked_scan_request_q, WLAN_MAX_SCAN_COUNT);
 	qdf_mutex_create(&adapter->blocked_scan_request_q_lock);
+	qdf_event_create(&adapter->acs_complete_event);
 
 	if (QDF_STATUS_SUCCESS == status) {
 		/* Add it to the hdd's session list. */
@@ -5552,6 +5554,7 @@ QDF_STATUS hdd_close_adapter(struct hdd_context *hdd_ctx, struct hdd_adapter *ad
 
 	qdf_list_destroy(&adapter->blocked_scan_request_q);
 	qdf_mutex_destroy(&adapter->blocked_scan_request_q_lock);
+	qdf_event_destroy(&adapter->acs_complete_event);
 
 	/* cleanup adapter */
 	policy_mgr_clear_concurrency_mode(hdd_ctx->psoc,
@@ -5842,7 +5845,13 @@ QDF_STATUS hdd_stop_adapter_ext(struct hdd_context *hdd_ctx,
 		cds_flush_work(&adapter->sap_stop_bss_work);
 
 		/* Any softap specific cleanup here... */
-		qdf_atomic_set(&adapter->session.ap.acs_in_progress, 0);
+		if (qdf_atomic_read(&adapter->session.ap.acs_in_progress)) {
+			hdd_info("ACS in progress, wait for complete");
+			qdf_wait_for_event_completion(
+				&adapter->acs_complete_event,
+				ACS_COMPLETE_TIMEOUT);
+		}
+
 		wlan_hdd_undo_acs(adapter);
 		if (adapter->device_mode == QDF_P2P_GO_MODE)
 			wlan_hdd_cleanup_remain_on_channel_ctx(adapter);
@@ -8279,8 +8288,9 @@ static void __hdd_bus_bw_work_handler(struct work_struct *work)
 					      adapter->prev_rx_packets);
 
 		if (adapter->device_mode == QDF_SAP_MODE ||
-				adapter->device_mode == QDF_P2P_GO_MODE ||
-				adapter->device_mode == QDF_IBSS_MODE) {
+		    adapter->device_mode == QDF_P2P_GO_MODE ||
+		    adapter->device_mode == QDF_IBSS_MODE ||
+		    adapter->device_mode == QDF_NDI_MODE) {
 
 			ret = cdp_get_intra_bss_fwd_pkts_count(
 				cds_get_context(QDF_MODULE_ID_SOC),
@@ -8302,12 +8312,12 @@ static void __hdd_bus_bw_work_handler(struct work_struct *work)
 		total_rx += adapter->stats.rx_packets;
 		total_tx += adapter->stats.tx_packets;
 
-		spin_lock_bh(&hdd_ctx->bus_bw_lock);
+		qdf_spin_lock_bh(&hdd_ctx->bus_bw_lock);
 		adapter->prev_tx_packets = adapter->stats.tx_packets;
 		adapter->prev_rx_packets = adapter->stats.rx_packets;
 		adapter->prev_fwd_tx_packets = fwd_tx_packets;
 		adapter->prev_fwd_rx_packets = fwd_rx_packets;
-		spin_unlock_bh(&hdd_ctx->bus_bw_lock);
+		qdf_spin_unlock_bh(&hdd_ctx->bus_bw_lock);
 		connected = true;
 	}
 
@@ -8388,7 +8398,7 @@ int hdd_bus_bandwidth_init(struct hdd_context *hdd_ctx)
 {
 	hdd_enter();
 
-	spin_lock_init(&hdd_ctx->bus_bw_lock);
+	qdf_spinlock_create(&hdd_ctx->bus_bw_lock);
 	INIT_WORK(&hdd_ctx->bus_bw_work, hdd_bus_bw_work_handler);
 	hdd_ctx->bus_bw_timer_running = false;
 	qdf_spinlock_create(&hdd_ctx->bus_bw_timer_lock);
@@ -8408,8 +8418,35 @@ void hdd_bus_bandwidth_deinit(struct hdd_context *hdd_ctx)
 
 	qdf_timer_free(&hdd_ctx->bus_bw_timer);
 	qdf_spinlock_destroy(&hdd_ctx->bus_bw_timer_lock);
+	qdf_spinlock_destroy(&hdd_ctx->bus_bw_lock);
 
 	hdd_exit();
+}
+
+void hdd_bus_bw_compute_prev_txrx_stats(struct hdd_adapter *adapter)
+{
+	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+
+	qdf_spin_lock_bh(&hdd_ctx->bus_bw_lock);
+	adapter->prev_tx_packets = adapter->stats.tx_packets;
+	adapter->prev_rx_packets = adapter->stats.rx_packets;
+	cdp_get_intra_bss_fwd_pkts_count(cds_get_context(QDF_MODULE_ID_SOC),
+					 adapter->session_id,
+					 &adapter->prev_fwd_tx_packets,
+					 &adapter->prev_fwd_rx_packets);
+	qdf_spin_unlock_bh(&hdd_ctx->bus_bw_lock);
+}
+
+void hdd_bus_bw_compute_reset_prev_txrx_stats(struct hdd_adapter *adapter)
+{
+	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+
+	qdf_spin_lock_bh(&hdd_ctx->bus_bw_lock);
+	adapter->prev_tx_packets = 0;
+	adapter->prev_rx_packets = 0;
+	adapter->prev_fwd_tx_packets = 0;
+	adapter->prev_fwd_rx_packets = 0;
+	qdf_spin_unlock_bh(&hdd_ctx->bus_bw_lock);
 }
 
 #endif /* MSM_PLATFORM */
@@ -14853,6 +14890,9 @@ void hdd_check_and_restart_sap_with_non_dfs_acs(void)
 	    test_bit(SOFTAP_BSS_STARTED, &ap_adapter->event_flags) &&
 	    wlan_reg_is_dfs_ch(hdd_ctx->pdev,
 			       ap_adapter->session.ap.operating_channel)) {
+		if (policy_mgr_get_dfs_master_dynamic_enabled(
+				hdd_ctx->psoc, ap_adapter->session_id))
+			return;
 
 		hdd_warn("STA-AP Mode DFS not supported, Switch SAP channel to Non DFS");
 
