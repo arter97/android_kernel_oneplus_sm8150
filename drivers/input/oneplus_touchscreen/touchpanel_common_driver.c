@@ -5771,7 +5771,7 @@ void tp_i2c_resume(struct touchpanel_data *ts)
 }
 #endif
 
-extern void touch_alloc_dma_buf(void);
+struct touch_dma_buf *i2c_dma_buffer;
 struct touchpanel_data *common_touch_data_alloc(void)
 {
 	if (g_tp) {
@@ -5780,7 +5780,9 @@ struct touchpanel_data *common_touch_data_alloc(void)
 		return NULL;
 	}
 
-	touch_alloc_dma_buf();
+	// DMA shouldn't be made with stack memory
+	i2c_dma_buffer = kmalloc(sizeof(struct touch_dma_buf), GFP_KERNEL | GFP_DMA);
+
 	return kzalloc(sizeof(struct touchpanel_data), GFP_KERNEL);
 }
 
