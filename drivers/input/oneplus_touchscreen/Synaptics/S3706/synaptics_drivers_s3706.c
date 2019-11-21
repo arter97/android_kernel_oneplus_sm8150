@@ -2906,6 +2906,9 @@ static int fwu_write_f34_v7_partition_id(struct chip_data_s3706 *chip_info,
 			partition = FLASH_CONFIG_PARTITION;
 		} else if (chip_info->fwu->config_area == UPP_AREA) {
 			partition = UTILITY_PARAMETER_PARTITION;
+		} else {
+			TPD_INFO("%s: Invalid command 0x%02x\n", __func__, cmd);
+			return -EINVAL;
 		}
 		break;
 	case CMD_WRITE_LOCKDOWN:
