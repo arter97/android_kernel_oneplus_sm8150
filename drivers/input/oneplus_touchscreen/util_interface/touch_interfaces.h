@@ -42,6 +42,7 @@ struct touch_dma_buf {
 	unsigned char read_buf[1];
 	unsigned char read_byte_buf[2];
 	unsigned char read_word_buf[2];
+	unsigned char write_buf[32];
 };
 
 #define TPD_I2C_INFO(a, arg...)  pr_err("[TP]touch_interface: " a, ##arg)
@@ -106,15 +107,15 @@ static inline int touch_i2c_write_block(struct i2c_client *client, u16 addr,
 {
 	int retval;
 	unsigned char retry;
-	unsigned char buffer[32];
 	struct i2c_msg msg[1];
 
 	msg[0].addr = client->addr;
 	msg[0].flags = 0;
-	msg[0].buf = buffer;
+	msg[0].buf = i2c_dma_buffer->write_buf;
 	msg[0].len = length + 1;
 	msg[0].buf[0] = addr & 0xff;
-	memcpy(&buffer[1], &data[0], length);
+
+	memcpy(i2c_dma_buffer->write_buf + 1, data, length);
 
 	for (retry = 0; retry < MAX_I2C_RETRY_TIME; retry++) {
 		if (likely(i2c_transfer(client->adapter, msg, 1) == 1))
