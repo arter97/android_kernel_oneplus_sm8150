@@ -4540,25 +4540,6 @@ static int fwu_write_bootloader(struct chip_data_s3706 *chip_info)
 	return retval;
 }
 
-static int fwu_allocate_read_config_buf(struct chip_data_s3706 *chip_info,
-					unsigned int count)
-{
-	if (count > chip_info->fwu->read_config_buf_size) {
-		kfree(chip_info->fwu->read_config_buf);
-		chip_info->fwu->read_config_buf = kzalloc(count, GFP_KERNEL | GFP_DMA);
-		if (!chip_info->fwu->read_config_buf) {
-			TPD_INFO
-			    ("%s: Failed to alloc mem for fwu->read_config_buf\n",
-			     __func__);
-			chip_info->fwu->read_config_buf_size = 0;
-			return -ENOMEM;
-		}
-		chip_info->fwu->read_config_buf_size = count;
-	}
-
-	return 0;
-}
-
 static void calculate_checksum(unsigned short *data, unsigned long len,
 			       unsigned long *result)
 {
@@ -4604,10 +4585,12 @@ static int fwu_write_utility_parameter(struct chip_data_s3706 *chip_info)
 
 	utility_param_size =
 	    chip_info->fwu->blkcount.utility_param * chip_info->fwu->block_size;
-	retval = fwu_allocate_read_config_buf(chip_info, utility_param_size);
-	if (retval < 0)
-		return retval;
-	memset(chip_info->fwu->read_config_buf, 0x00, utility_param_size);
+
+	chip_info->fwu->read_config_buf = kzalloc(utility_param_size, GFP_KERNEL | GFP_DMA);
+	if (!chip_info->fwu->read_config_buf) {
+		TPD_INFO("%s: Failed to alloc mem for fwu->read_config_buf\n", __func__);
+		return -ENOMEM;
+	}
 
 	pbuf = chip_info->fwu->read_config_buf;
 	remaining_size = utility_param_size - 4;
@@ -4656,7 +4639,7 @@ static int fwu_write_utility_parameter(struct chip_data_s3706 *chip_info)
 		if (retval < 0) {
 			TPD_INFO("%s: Failed to copy utility parameter data\n",
 				 __func__);
-			return retval;
+			goto out;
 		}
 		pbuf += chip_info->fwu->img.utility_param[ii].size;
 		remaining_size -= chip_info->fwu->img.utility_param[ii].size;
@@ -4682,6 +4665,10 @@ static int fwu_write_utility_parameter(struct chip_data_s3706 *chip_info)
 				 read_config_buf,
 				 chip_info->fwu->blkcount.utility_param,
 				 CMD_WRITE_UTILITY_PARAM);
+
+out:
+	kfree(chip_info->fwu->read_config_buf);
+
 	if (retval < 0)
 		return retval;
 
@@ -4889,23 +4876,23 @@ static int fwu_write_partition_table_v7(struct chip_data_s3706 *chip_info)
 	chip_info->fwu->config_area = BL_CONFIG_AREA;
 	chip_info->fwu->config_size = chip_info->fwu->block_size * block_count;
 
-	retval =
-	    fwu_allocate_read_config_buf(chip_info,
-					 chip_info->fwu->config_size);
-	if (retval < 0)
-		return retval;
+	chip_info->fwu->read_config_buf = kzalloc(chip_info->fwu->config_size, GFP_KERNEL | GFP_DMA);
+	if (!chip_info->fwu->read_config_buf) {
+		TPD_INFO("%s: Failed to alloc mem for fwu->read_config_buf\n", __func__);
+		return -ENOMEM;
+	}
 
 	retval = fwu_read_f34_blocks(chip_info, block_count, CMD_READ_CONFIG);
 	if (retval < 0)
-		return retval;
+		goto out;
 
 	retval = fwu_erase_configuration(chip_info);
 	if (retval < 0)
-		return retval;
+		goto out;
 
 	retval = fwu_write_flash_configuration(chip_info);
 	if (retval < 0)
-		return retval;
+		goto out;
 
 	chip_info->fwu->config_area = BL_CONFIG_AREA;
 	chip_info->fwu->config_data = chip_info->fwu->read_config_buf;
@@ -4914,6 +4901,10 @@ static int fwu_write_partition_table_v7(struct chip_data_s3706 *chip_info)
 	    chip_info->fwu->config_size / chip_info->fwu->block_size;
 
 	retval = fwu_write_configuration(chip_info);
+
+out:
+	kfree(chip_info->fwu->read_config_buf);
+
 	if (retval < 0)
 		return retval;
 
