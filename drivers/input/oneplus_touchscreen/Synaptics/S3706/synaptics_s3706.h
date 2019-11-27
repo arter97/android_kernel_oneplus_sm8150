@@ -796,7 +796,6 @@ struct synaptics_rmi4_fwu_handle {
 	unsigned short flash_config_length;
 	unsigned short payload_length;
 	unsigned short partition_table_bytes;
-	unsigned short read_config_buf_size;
 	const unsigned char *config_data;
 	const unsigned char *image;
 	unsigned char *image_name;
