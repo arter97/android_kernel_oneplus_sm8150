@@ -33,29 +33,13 @@
 /*******Part0:LOG TAG Declear************************/
 #define TPD_PRINT_POINT_NUM 150
 #define TPD_DEVICE "touchpanel"
-#define TPD_INFO(a, arg...)  pr_err("[TP]"TPD_DEVICE ": " a, ##arg)
-#define TPD_DEBUG(a, arg...)\
-    do{\
-        if (LEVEL_DEBUG == tp_debug)\
-            pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
-    }while(0)
-
-#define TPD_DETAIL(a, arg...)\
-    do{\
-        if (LEVEL_BASIC != tp_debug)\
-            pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
-    }while(0)
-
-#define TPD_SPECIFIC_PRINT(count, a, arg...)\
-    do{\
-        if (count++ == TPD_PRINT_POINT_NUM || LEVEL_DEBUG == tp_debug) {\
-            TPD_INFO(TPD_DEVICE ": " a, ##arg);\
-            count = 0;\
-        }\
-    }while(0)
+// Even TPD_INFO is too spammy
+#define TPD_INFO(a, arg...)		pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
+#define TPD_DEBUG(a, arg...)		pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
+#define TPD_DEBUG_NTAG(a, arg...)	pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
+#define TPD_DETAIL(a, arg...)		pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
 
 /*******Part1:Global variables Area********************/
-unsigned int tp_debug = 0;
 unsigned int tp_register_times = 0;
 //unsigned int probe_time = 0;
 struct touchpanel_data *g_tp = NULL;
@@ -69,28 +53,27 @@ static int gesture_switch_value = 0;
 struct shake_point record_point[10];
 /* add haptic audio tp mask end */
 
-int sigle_num = 0;
-struct timeval tpstart, tpend;
-int pointx[2] = { 0, 0 };
-int pointy[2] = { 0, 0 };
+static int sigle_num = 0;
+static struct timeval tpstart, tpend;
+static int pointx[2] = { 0, 0 };
+static int pointy[2] = { 0, 0 };
 
 #define ABS(a,b) ((a - b > 0) ? a - b : b - a)
 
-uint8_t DouTap_enable = 0;	// double tap
-uint8_t UpVee_enable = 0;	// V
-uint8_t LeftVee_enable = 0;	// >
-uint8_t RightVee_enable = 0;	// <
-uint8_t Circle_enable = 0;	// O
-uint8_t DouSwip_enable = 0;	// ||
-uint8_t Mgestrue_enable = 0;	// M
-uint8_t Wgestrue_enable = 0;	// W
-uint8_t Sgestrue_enable = 0;	// S
-uint8_t SingleTap_enable = 0;	// single tap
-uint8_t Enable_gesture = 0;
+static uint8_t DouTap_enable = 0;	// double tap
+static uint8_t UpVee_enable = 0;	// V
+static uint8_t LeftVee_enable = 0;	// >
+static uint8_t RightVee_enable = 0;	// <
+static uint8_t Circle_enable = 0;	// O
+static uint8_t DouSwip_enable = 0;	// ||
+static uint8_t Mgestrue_enable = 0;	// M
+static uint8_t Wgestrue_enable = 0;	// W
+static uint8_t Sgestrue_enable = 0;	// S
+static uint8_t SingleTap_enable = 0;	// single tap
+static uint8_t Enable_gesture = 0;
 
 /*******Part2:declear Area********************************/
 static void speedup_resume(struct work_struct *work);
-void esd_handle_switch(struct esd_information *esd_info, bool flag);
 
 #ifdef TPD_USE_EINT
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
@@ -104,8 +87,9 @@ static int fb_notifier_callback(struct notifier_block *self,
 static void tp_touch_release(struct touchpanel_data *ts);
 static void tp_btnkey_release(struct touchpanel_data *ts);
 static void tp_fw_update_work(struct work_struct *work);
-static int init_debug_info_proc(struct touchpanel_data *ts);
 static void tp_work_func(struct touchpanel_data *ts);
+static void input_report_key_reduce(struct input_dev *dev,
+				unsigned int code, int value);
 __attribute__ ((weak))
 int request_firmware_select(const struct firmware **firmware_p,
 			    const char *name, struct device *device)
@@ -150,7 +134,7 @@ __setup("panel_type=", get_cmdlinelcd_id);
 
 int check_touchirq_triggerd(void)
 {
-	int value = -1;
+	int value;
 
 	if (!g_tp) {
 		return 0;
@@ -174,7 +158,7 @@ int check_touchirq_triggerd(void)
  * switch work mode based on current params(gesture_enable, limit_enable, glove_enable)
  * Do not care the result: Return void type
  */
-void operate_mode_switch(struct touchpanel_data *ts)
+static void operate_mode_switch(struct touchpanel_data *ts)
 {
 	if (!ts->ts_ops->mode_switch) {
 		TPD_INFO("not support ts_ops->mode_switch callback\n");
@@ -206,30 +190,11 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_SLEEP,
 						true);
 	} else {
-		if (ts->ear_sense_support) {
-			ts->ts_ops->mode_switch(ts->chip_data, MODE_EARSENSE,
-						ts->es_enable == 1);
-			ts->ts_ops->mode_switch(ts->chip_data,
-						MODE_PALM_REJECTION,
-						ts->palm_enable);
-		}
-
-		if (ts->face_detect_support) {
-			//ts->ts_ops->mode_switch(ts->chip_data, MODE_FACE_DETECT, ts->fd_enable == 1);
-		}
-
 		if (ts->mode_switch_type == SEQUENCE) {
 			if (ts->black_gesture_support)
 				ts->ts_ops->mode_switch(ts->chip_data,
 							MODE_GESTURE, false);
 		}
-		if (ts->edge_limit_support)
-			ts->ts_ops->mode_switch(ts->chip_data, MODE_EDGE,
-						ts->limit_edge);
-
-		if (ts->glove_mode_support)
-			ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE,
-						ts->glove_enable);
 
 		if (ts->charge_detect_support)
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_CHARGE,
@@ -247,7 +212,6 @@ static void tp_touch_down(struct touchpanel_data *ts, struct point_info points,
 			  int touch_report_num, int id)
 {
 	static int last_width_major;
-	static int point_num = 0;
 
 	if (ts->input_dev == NULL)
 		return;
@@ -278,18 +242,7 @@ static void tp_touch_down(struct touchpanel_data *ts, struct point_info points,
 			input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR,
 					 last_width_major);
 		}
-		if (ts->smart_gesture_support && (points.touch_major > 0x12) &&
-		    (points.x > ts->touch_major_limit.width_range)
-		    && (points.x <
-			ts->resolution_info.max_x -
-			ts->touch_major_limit.width_range)
-		    && (points.y > ts->touch_major_limit.height_range)
-		    && (points.y <
-			ts->resolution_info.max_y -
-			ts->touch_major_limit.height_range)) {
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR,
-					 points.touch_major);
-		}
+
 		if (!CHK_BIT(ts->irq_slot, (1 << id))) {
 			TPD_DETAIL("first touch point id %d [%4d %4d %4d]\n",
 				   id, points.x, points.y, points.z);
@@ -299,7 +252,7 @@ static void tp_touch_down(struct touchpanel_data *ts, struct point_info points,
 	input_report_abs(ts->input_dev, ABS_MT_POSITION_X, points.x);
 	input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, points.y);
 
-	TPD_SPECIFIC_PRINT(point_num, "Touchpanel id %d :Down[%4d %4d %4d]\n",
+	TPD_INFO("Touchpanel id %d :Down[%4d %4d %4d]\n",
 			   id, points.x, points.y, points.z);
 
 #ifndef TYPE_B_PROTOCOL
@@ -394,7 +347,7 @@ static void tp_geture_info_transform(struct gesture_info *gesture,
 	    (resolution_info->max_y);
 }
 
-int sec_double_tap(struct gesture_info *gesture)
+static int sec_double_tap(struct gesture_info *gesture)
 {
 	uint32_t timeuse = 0;
 
@@ -526,125 +479,6 @@ static void tp_touch_release(struct touchpanel_data *ts)
 	ts->corner_delay_up = -1;
 }
 
-static bool edge_point_process(struct touchpanel_data *ts,
-			       struct point_info points)
-{
-	if (ts->limit_edge) {
-		if (points.x > ts->edge_limit.left_x2
-		    && points.x < ts->edge_limit.right_x2) {
-			if (ts->edge_limit.in_which_area == AREA_EDGE)
-				tp_touch_release(ts);
-			ts->edge_limit.in_which_area = AREA_NORMAL;
-		} else if ((points.x > ts->edge_limit.left_x1 && points.x < ts->edge_limit.left_x2) || (points.x > ts->edge_limit.right_x2 && points.x < ts->edge_limit.right_x1)) {	//area2
-			if (ts->edge_limit.in_which_area == AREA_EDGE) {
-				ts->edge_limit.in_which_area = AREA_CRITICAL;
-			}
-		} else if (points.x < ts->edge_limit.left_x1 || points.x > ts->edge_limit.right_x1) {	//area 1
-			if (ts->edge_limit.in_which_area == AREA_CRITICAL) {
-				ts->edge_limit.in_which_area = AREA_EDGE;
-				return true;
-			}
-			if (ts->edge_limit.in_which_area == AREA_NORMAL)
-				return true;
-
-			ts->edge_limit.in_which_area = AREA_EDGE;
-		}
-	}
-
-	return false;
-}
-
-static bool corner_point_process(struct touchpanel_data *ts,
-				 struct corner_info *corner,
-				 struct point_info *points, int i)
-{
-	int j;
-	if (ts->limit_corner) {
-		if ((ts->limit_corner & (1 << CORNER_TOPLEFT))
-		    && (points[i].x < ts->edge_limit.left_x3
-			&& points[i].y < ts->edge_limit.left_y1)) {
-			points[i].type = AREA_CORNER;
-			if (ts->edge_limit.in_which_area == AREA_NORMAL)
-				return true;
-
-			corner[CORNER_TOPLEFT].id = i;
-			corner[CORNER_TOPLEFT].point = points[i];
-			corner[CORNER_TOPLEFT].flag = true;
-
-			ts->edge_limit.in_which_area = points[i].type;
-		}
-		if ((ts->limit_corner & (1 << CORNER_TOPRIGHT))
-		    && (points[i].x < ts->edge_limit.left_x3
-			&& points[i].y > ts->edge_limit.right_y1)) {
-			points[i].type = AREA_CORNER;
-			if (ts->edge_limit.in_which_area == AREA_NORMAL)
-				return true;
-
-			corner[CORNER_TOPRIGHT].id = i;
-			corner[CORNER_TOPRIGHT].point = points[i];
-			corner[CORNER_TOPRIGHT].flag = true;
-
-			ts->edge_limit.in_which_area = points[i].type;
-		}
-		if ((ts->limit_corner & (1 << CORNER_BOTTOMLEFT))
-		    && (points[i].x > ts->edge_limit.right_x3
-			&& points[i].y < ts->edge_limit.left_y1)) {
-			points[i].type = AREA_CORNER;
-			if (ts->edge_limit.in_which_area == AREA_NORMAL)
-				return true;
-
-			corner[CORNER_BOTTOMLEFT].id = i;
-			corner[CORNER_BOTTOMLEFT].point = points[i];
-			corner[CORNER_BOTTOMLEFT].flag = true;
-
-			ts->edge_limit.in_which_area = points[i].type;
-		}
-		if ((ts->limit_corner & (1 << CORNER_BOTTOMRIGHT))
-		    && (points[i].x > ts->edge_limit.right_x3
-			&& points[i].y > ts->edge_limit.right_y1)) {
-			points[i].type = AREA_CORNER;
-			if (ts->edge_limit.in_which_area == AREA_NORMAL)
-				return true;
-
-			corner[CORNER_BOTTOMRIGHT].id = i;
-			corner[CORNER_BOTTOMRIGHT].point = points[i];
-			corner[CORNER_BOTTOMRIGHT].flag = true;
-
-			ts->edge_limit.in_which_area = points[i].type;
-		}
-
-		if (points[i].type != AREA_CORNER) {
-			if (ts->edge_limit.in_which_area == AREA_CORNER) {
-				if (ts->corner_delay_up == 0) {
-					for (j = 0; j < 4; j++) {
-						if (corner[j].flag) {
-#ifdef TYPE_B_PROTOCOL
-							input_mt_slot(ts->
-								      input_dev,
-								      corner[j].
-								      id);
-							input_mt_report_slot_state
-							    (ts->input_dev,
-							     MT_TOOL_FINGER, 0);
-#endif
-						}
-					}
-					ts->corner_delay_up = -1;
-				} else {
-					ts->corner_delay_up = 1;
-				}
-			}
-			if (ts->corner_delay_up == -1) {
-				points[i].type = AREA_NORMAL;
-				ts->edge_limit.in_which_area = points[i].type;
-			}
-		}
-
-	}
-
-	return false;
-}
-
 static void tp_touch_handle(struct touchpanel_data *ts)
 {
 	int i = 0;
@@ -657,7 +491,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 	struct msm_drm_notifier notifier_data;
 	/* add haptic audio tp mask */
 	int bank;
-	int record_flag[10] = { 0 };
 	/* add haptic audio tp mask end */
 
 	if (!ts->ts_ops->get_touch_points) {
@@ -693,15 +526,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 				continue;
 			if (((obj_attention & TOUCH_BIT_CHECK) >> i) & 0x01
 			    && (points[i].status != 0)) {
-				//Edge process before report abs
-				if (ts->edge_limit_support) {
-					if (ts->corner_delay_up < 1
-					    && corner_point_process(ts, corner,
-								    points, i))
-						continue;
-					if (edge_point_process(ts, points[i]))
-						continue;
-				}
 #ifdef TYPE_B_PROTOCOL
 				input_mt_slot(ts->input_dev, i);
 				input_mt_report_slot_state(ts->input_dev,
@@ -717,7 +541,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 				record_point[i].status = 1;
 				record_point[i].x = points[i].x;
 				record_point[i].y = points[i].y;
-				record_flag[i] = 1;
 				msm_drm_notifier_call_chain(11, &notifier_data);	//down;
 				/* add haptic audio tp mask end */
 				SET_BIT(ts->irq_slot, (1 << i));
@@ -743,7 +566,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 				notifier_data.data = &bank;
 				record_point[i].status = 0;
 				msm_drm_notifier_call_chain(10, &notifier_data);	//up;
-				record_flag[i] = 0;
 				/* add haptic audio tp mak */
 			}
 #endif
@@ -758,11 +580,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 		    0 ? ts->corner_delay_up - 1 : ts->corner_delay_up;
 		if (touch_near_edge == finger_num) {	//means all the touchpoint is near the edge
 			ts->view_area_touched = 0;
-		}
-		if (ts->ear_sense_support && ts->es_enable
-		    && (finger_num > ts->touch_count)) {
-			ts->delta_state = TYPE_DELTA_BUSY;
-			queue_work(ts->delta_read_wq, &ts->read_delta_work);
 		}
 	} else {
 		finger_num = 0;
@@ -788,8 +605,6 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 			   ts->view_area_touched, finger_num);
 		TPD_DETAIL("last point x:%d y:%d\n", last_point.x,
 			   last_point.y);
-		if (ts->edge_limit_support)
-			ts->edge_limit.in_which_area = AREA_NOTOUCH;
 	}
 	input_sync(ts->input_dev);
 	ts->touch_count = finger_num;
@@ -837,23 +652,12 @@ static void tp_btnkey_handle(struct touchpanel_data *ts)
 
 static void tp_config_handle(struct touchpanel_data *ts)
 {
-	int ret = 0;
 	if (!ts->ts_ops->fw_handle) {
 		TPD_INFO("not support ts->ts_ops->fw_handle callback\n");
 		return;
 	}
 
-	ret = ts->ts_ops->fw_handle(ts->chip_data);
-}
-
-static void tp_datalogger_handle(struct touchpanel_data *ts)
-{
-	if (!ts->ts_ops->data_logger_get) {
-		TPD_INFO("not support ts->ts_ops->data_logger_get callback\n");
-		return;
-	}
-
-	ts->ts_ops->data_logger_get(ts->chip_data);
+	ts->ts_ops->fw_handle(ts->chip_data);
 }
 
 static void tp_face_detect_handle(struct touchpanel_data *ts)
@@ -944,16 +748,12 @@ static void tp_work_func(struct touchpanel_data *ts)
 	    ts->ts_ops->trigger_reason(ts->chip_data, ts->gesture_enable,
 				       ts->is_suspended);
 	if (CHK_BIT(cur_event, IRQ_TOUCH) || CHK_BIT(cur_event, IRQ_BTN_KEY)
-	    || CHK_BIT(cur_event, IRQ_DATA_LOGGER)
 	    || CHK_BIT(cur_event, IRQ_FACE_STATE)) {
 		if (CHK_BIT(cur_event, IRQ_BTN_KEY)) {
 			tp_btnkey_handle(ts);
 		}
 		if (CHK_BIT(cur_event, IRQ_TOUCH)) {
 			tp_touch_handle(ts);
-		}
-		if (CHK_BIT(cur_event, IRQ_DATA_LOGGER)) {
-			tp_datalogger_handle(ts);
 		}
 		if (CHK_BIT(cur_event, IRQ_FACE_STATE) && ts->fd_enable) {
 			tp_face_detect_handle(ts);
@@ -989,7 +789,7 @@ void __attribute__ ((weak)) display_esd_check_enable_bytouchpanel(bool enable)
 static void tp_fw_update_work(struct work_struct *work)
 {
 	const struct firmware *fw = NULL;
-	int ret, fw_update_result = 0;
+	int ret;
 	int count_tmp = 0, retry = 5;
 	char *p_node = NULL;
 	char *fw_name_fae = NULL;
@@ -1012,10 +812,6 @@ static void tp_fw_update_work(struct work_struct *work)
 		disable_irq_nosync(ts->irq);
 	}
 	ts->loading_fw = true;
-
-	if (ts->esd_handle_support) {
-		esd_handle_switch(&ts->esd_info, false);
-	}
 
 	display_esd_check_enable_bytouchpanel(0);
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
@@ -1079,7 +875,6 @@ static void tp_fw_update_work(struct work_struct *work)
 				ret =
 				    ts->ts_ops->fw_update(ts->chip_data, fw,
 							  ts->force_update);
-				fw_update_result = ret;
 				if (ret == FW_NO_NEED_UPDATE) {
 					break;
 				}
@@ -1110,15 +905,6 @@ static void tp_fw_update_work(struct work_struct *work)
 	tp_touch_release(ts);
 	tp_btnkey_release(ts);
 	operate_mode_switch(ts);
-	if (fw_update_result != FW_NO_NEED_UPDATE) {
-		if (ts->spurious_fp_support
-		    && ts->ts_ops->finger_proctect_data_get) {
-			ts->ts_ops->finger_proctect_data_get(ts->chip_data);
-		}
-		if (ts->ts_ops->data_logger_open) {
-			ts->ts_ops->data_logger_open(ts->chip_data);
-		}
-	}
 
  EXIT:
 	ts->loading_fw = false;
@@ -1127,10 +913,6 @@ static void tp_fw_update_work(struct work_struct *work)
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
 	primary_display_esd_check_enable(1);	//avoid rst pulled to low while updating
 #endif
-
-	if (ts->esd_handle_support) {
-		esd_handle_switch(&ts->esd_info, true);
-	}
 
 	kfree(fw_name_fae);
 	fw_name_fae = NULL;
@@ -1175,74 +957,6 @@ static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 #endif
-
-/**
- * tp_gesture_enable_flag -   expose gesture control status for other module.
- * Return gesture_enable status.
- */
-int tp_gesture_enable_flag(void)
-{
-	if (!g_tp || !g_tp->is_incell_panel)
-		return LCD_POWER_OFF;
-
-	return (g_tp->gesture_enable > 0) ? LCD_POWER_ON : LCD_POWER_OFF;
-}
-
-/*
-*Interface for lcd to control reset pin
-*/
-int tp_control_reset_gpio(bool enable)
-{
-	if (!g_tp) {
-		return 0;
-	}
-
-	if (gpio_is_valid(g_tp->hw_res.reset_gpio)) {
-		if (g_tp->ts_ops->reset_gpio_control) {
-			g_tp->ts_ops->reset_gpio_control(g_tp->chip_data,
-							 enable);
-		}
-	}
-
-	return 0;
-}
-
-/*
- * check_usb_state----expose to be called by charger int to get usb state
- * @usb_state : 1 if usb checked, otherwise is 0
-*/
-void switch_usb_state(int usb_state)
-{
-	if (!g_tp) {
-		return;
-	}
-#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
-	if ((g_tp->boot_mode == META_BOOT || g_tp->boot_mode == FACTORY_BOOT))
-#else
-	if ((g_tp->boot_mode == MSM_BOOT_MODE__FACTORY
-	     || g_tp->boot_mode == MSM_BOOT_MODE__RF
-	     || g_tp->boot_mode == MSM_BOOT_MODE__WLAN))
-#endif
-	{
-		TPD_INFO("Ftm mode, do not switch usb state\n");
-		return;
-	}
-
-	if (g_tp->charger_pump_support && (g_tp->is_usb_checked != usb_state)) {
-		g_tp->is_usb_checked = ! !usb_state;
-		TPD_INFO("%s: check usb state : %d, is_suspended: %d\n",
-			 __func__, usb_state, g_tp->is_suspended);
-		if (!g_tp->is_suspended
-		    && (g_tp->suspend_state == TP_SPEEDUP_RESUME_COMPLETE)) {
-			mutex_lock(&g_tp->mutex);
-			g_tp->ts_ops->mode_switch(g_tp->chip_data, MODE_CHARGE,
-						  g_tp->is_usb_checked);
-			mutex_unlock(&g_tp->mutex);
-		}
-	}
-}
-
-EXPORT_SYMBOL(switch_usb_state);
 
 /*
  *    gesture_enable = 0 : disable gesture
@@ -1681,96 +1395,6 @@ static const struct file_operations proc_limit_switch_fops = {
 	.owner = THIS_MODULE,
 };
 
-//proc/touchpanel/black_screen_test
-static ssize_t proc_black_screen_test_read(struct file *file,
-					   char __user * user_buf, size_t count,
-					   loff_t * ppos)
-{
-	int ret = 0;
-	int retry = 20;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	TPD_INFO("%s %ld %lld\n", __func__, count, *ppos);
-
-	if (!ts || !ts->gesture_test.flag)
-		return 0;
-
-	ts->gesture_test.message = kzalloc(256, GFP_KERNEL);
-	if (!ts->gesture_test.message) {
-		TPD_INFO("failed to alloc memory\n");
-		return 0;
-	}
-
-	/* wait until tp is in sleep, then sleep 500ms to make sure tp is in gesture mode */
-	do {
-		if (ts->is_suspended) {
-			msleep(500);
-			break;
-		}
-		msleep(200);
-	} while (--retry);
-
-	TPD_INFO("%s retry times %d\n", __func__, retry);
-	if (retry == 0 && !ts->is_suspended) {
-		sprintf(ts->gesture_test.message, "1 errors: not in sleep ");
-		goto OUT;
-	}
-
-	mutex_lock(&ts->mutex);
-	if (ts->ts_ops->black_screen_test) {
-		ts->ts_ops->black_screen_test(ts->chip_data,
-					      ts->gesture_test.message);
-	} else {
-		TPD_INFO("black_screen_test not support\n");
-		sprintf(ts->gesture_test.message,
-			"1 errors:not support gesture test");
-	}
-	mutex_unlock(&ts->mutex);
-
- OUT:
-	ts->gesture_test.flag = false;
-	ts->gesture_enable = ts->gesture_test.gesture_backup;
-
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos,
-				    ts->gesture_test.message,
-				    strlen(ts->gesture_test.message));
-	kfree(ts->gesture_test.message);
-	return ret;
-}
-
-static ssize_t proc_black_screen_test_write(struct file *file,
-					    const char __user * buffer,
-					    size_t count, loff_t * ppos)
-{
-	int value = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2 || !ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	TPD_INFO("%s %d\n", __func__, value);
-
-	ts->gesture_test.gesture_backup = ts->gesture_enable;
-	ts->gesture_enable = true;
-	ts->gesture_test.flag = ! !value;
-
-	return count;
-}
-
-static const struct file_operations proc_black_screen_test_fops = {
-	.owner = THIS_MODULE,
-	.open = simple_open,
-	.read = proc_black_screen_test_read,
-	.write = proc_black_screen_test_write,
-};
-
 //proc/touchpanel/irq_depth
 static ssize_t proc_get_irq_depth_read(struct file *file,
 				       char __user * user_buf, size_t count,
@@ -1828,104 +1452,6 @@ static const struct file_operations proc_get_irq_depth_fops = {
 	.write = proc_irq_status_write,
 };
 
-static ssize_t proc_vendor_id_read(struct file *file, char __user * user_buf,
-				   size_t count, loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts) {
-		return count;
-	}
-
-	sprintf(page, "%d\n", ts->panel_data.tp_type);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-	return ret;
-}
-
-static const struct file_operations vendor_id_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = simple_open,
-	.read = proc_vendor_id_read,
-};
-
-static ssize_t proc_glove_control_write(struct file *file,
-					const char __user * buffer,
-					size_t count, loff_t * ppos)
-{
-	int ret = 0;
-	char buf[3] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-	if (count > 2)
-		return count;
-	if (!ts->ts_ops->mode_switch) {
-		TPD_INFO("not support ts_ops->mode_switch callback\n");
-		return count;
-	}
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &ret);
-	TPD_INFO("%s:buf = %d, ret = %d\n", __func__, *buf, ret);
-	if ((ret == 0) || (ret == 1)) {
-		mutex_lock(&ts->mutex);
-		ts->glove_enable = ret;
-		ret =
-		    ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE,
-					    ts->glove_enable);
-		if (ret < 0) {
-			TPD_INFO("%s, Touchpanel operate mode switch failed\n",
-				 __func__);
-		}
-		mutex_unlock(&ts->mutex);
-	}
-	switch (ret) {
-	case 0:
-		TPD_DEBUG("tp_glove_func will be disable\n");
-		break;
-	case 1:
-		TPD_DEBUG("tp_glove_func will be enable\n");
-		break;
-	default:
-		TPD_DEBUG
-		    ("Please enter 0 or 1 to open or close the glove function\n");
-	}
-
-	return count;
-}
-
-static ssize_t proc_glove_control_read(struct file *file,
-				       char __user * user_buf, size_t count,
-				       loff_t * ppos)
-{
-	int ret = 0;
-	char page[PAGESIZE] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_INFO("glove mode enable is: %d\n", ts->glove_enable);
-	ret = sprintf(page, "%d\n", ts->glove_enable);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static const struct file_operations proc_glove_control_fops = {
-	.write = proc_glove_control_write,
-	.read = proc_glove_control_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
 static ssize_t cap_vk_show(struct kobject *kobj, struct kobj_attribute *attr,
 			   char *buf)
 {
@@ -1963,217 +1489,6 @@ static struct attribute *properties_attrs[] = {
 
 static struct attribute_group properties_attr_group = {
 	.attrs = properties_attrs,
-};
-
-static ssize_t proc_debug_control_read(struct file *file, char __user * buf,
-				       size_t count, loff_t * ppos)
-{
-	uint8_t ret = 0;
-	char page[PAGESIZE];
-
-	TPD_INFO("%s: tp_debug = %d.\n", __func__, tp_debug);
-	sprintf(page, "%d", tp_debug);
-	ret = simple_read_from_buffer(buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static ssize_t proc_debug_control_write(struct file *file,
-					const char __user * buf, size_t count,
-					loff_t * lo)
-{
-	int tmp = 0;
-	char buffer[4] = { 0 };
-
-	if (count > 2) {
-		return count;
-	}
-
-	if (copy_from_user(buffer, buf, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-
-	if (1 == sscanf(buffer, "%d", &tmp)) {
-		tp_debug = tmp;
-	} else {
-		TPD_DEBUG("invalid content: '%s', length = %zd\n", buf, count);
-	}
-
-	return count;
-}
-
-static const struct file_operations proc_debug_control_ops = {
-	.write = proc_debug_control_write,
-	.read = proc_debug_control_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-static ssize_t proc_limit_area_read(struct file *file, char __user * user_buf,
-				    size_t count, loff_t * ppos)
-{
-	ssize_t ret = 0;
-	char page[PAGESIZE];
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-	TPD_DEBUG("limit_area is: %d\n", ts->edge_limit.limit_area);
-	ret =
-	    sprintf(page,
-		    "limit_area = %d left_x1 = %d right_x1 = %d left_x2 = %d right_x2 = %d left_x3 = %d right_x3 = %d left_y1 = %d right_y1 = %d left_y2 = %d right_y2 = %d left_y3 = %d right_y3 = %d\n",
-		    ts->edge_limit.limit_area, ts->edge_limit.left_x1,
-		    ts->edge_limit.right_x1, ts->edge_limit.left_x2,
-		    ts->edge_limit.right_x2, ts->edge_limit.left_x3,
-		    ts->edge_limit.right_x3, ts->edge_limit.left_y1,
-		    ts->edge_limit.right_y1, ts->edge_limit.left_y2,
-		    ts->edge_limit.right_y2, ts->edge_limit.left_y3,
-		    ts->edge_limit.right_y3);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static ssize_t proc_limit_area_write(struct file *file,
-				     const char __user * buffer, size_t count,
-				     loff_t * ppos)
-{
-	char buf[8];
-	int temp;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_DEBUG("%s: read proc input error.\n", __func__);
-		return count;
-	}
-
-	sscanf(buf, "%d", &temp);
-	if (temp < 0 || temp > 10)
-		return count;
-
-	ts->edge_limit.limit_area = temp;
-	ts->edge_limit.left_x1 = (ts->edge_limit.limit_area * 1000) / 100;
-	ts->edge_limit.right_x1 =
-	    ts->resolution_info.LCD_WIDTH - ts->edge_limit.left_x1;
-	ts->edge_limit.left_x2 = 2 * ts->edge_limit.left_x1;
-	ts->edge_limit.right_x2 =
-	    ts->resolution_info.LCD_WIDTH - (2 * ts->edge_limit.left_x1);
-	ts->edge_limit.left_x3 = 5 * ts->edge_limit.left_x1;
-	ts->edge_limit.right_x3 =
-	    ts->resolution_info.LCD_WIDTH - (5 * ts->edge_limit.left_x1);
-
-	TPD_INFO
-	    ("limit_area = %d; left_x1 = %d; right_x1 = %d; left_x2 = %d; right_x2 = %d; left_x3 = %d; right_x3 = %d\n",
-	     ts->edge_limit.limit_area, ts->edge_limit.left_x1,
-	     ts->edge_limit.right_x1, ts->edge_limit.left_x2,
-	     ts->edge_limit.right_x2, ts->edge_limit.left_x3,
-	     ts->edge_limit.right_x3);
-
-	ts->edge_limit.left_y1 = (ts->edge_limit.limit_area * 1000) / 100;
-	ts->edge_limit.right_y1 =
-	    ts->resolution_info.LCD_HEIGHT - ts->edge_limit.left_y1;
-	ts->edge_limit.left_y2 = 2 * ts->edge_limit.left_y1;
-	ts->edge_limit.right_y2 =
-	    ts->resolution_info.LCD_HEIGHT - (2 * ts->edge_limit.left_y1);
-	ts->edge_limit.left_y3 = 5 * ts->edge_limit.left_y1;
-	ts->edge_limit.right_y3 =
-	    ts->resolution_info.LCD_HEIGHT - (5 * ts->edge_limit.left_y1);
-
-	TPD_INFO
-	    ("limit_area = %d; left_y1 = %d; right_y1 = %d; left_y2 = %d; right_y2 = %d; left_y3 = %d; right_y3 = %d\n",
-	     ts->edge_limit.limit_area, ts->edge_limit.left_y1,
-	     ts->edge_limit.right_y1, ts->edge_limit.left_y2,
-	     ts->edge_limit.right_y2, ts->edge_limit.left_y3,
-	     ts->edge_limit.right_y3);
-
-	return count;
-}
-
-static const struct file_operations proc_limit_area_ops = {
-	.read = proc_limit_area_read,
-	.write = proc_limit_area_write,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-static ssize_t proc_limit_control_read(struct file *file,
-				       char __user * user_buf, size_t count,
-				       loff_t * ppos)
-{
-	ssize_t ret = 0;
-	char page[PAGESIZE];
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_INFO
-	    ("limit_enable is: 0x%x, ts->limit_edge = 0x%x, ts->limit_corner = 0x%x\n",
-	     ts->limit_enable, ts->limit_edge, ts->limit_corner);
-	ret = sprintf(page, "%d\n", ts->limit_enable);
-
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static ssize_t proc_limit_control_write(struct file *file,
-					const char __user * buffer,
-					size_t count, loff_t * ppos)
-{
-	char buf[8] = { 0 };
-	int ret, temp;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	if (count > 3)
-		count = 3;
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_DEBUG("%s: read proc input error.\n", __func__);
-		return count;
-	}
-
-	sscanf(buf, "%x", &temp);
-	if (temp > 0x1F) {
-		TPD_INFO("%s: temp = 0x%x > 0x1F \n", __func__, temp);
-		return count;
-	}
-
-	mutex_lock(&ts->mutex);
-	ts->limit_enable = temp;
-	ts->limit_edge = ts->limit_enable & 1;
-	ts->limit_corner = ts->limit_enable >> 1;
-	TPD_INFO
-	    ("%s: limit_enable = 0x%x, ts->limit_edge = 0x%x, ts->limit_corner=0x%x\n",
-	     __func__, ts->limit_enable, ts->limit_edge, ts->limit_corner);
-
-	if (ts->is_suspended == 0) {
-		ret =
-		    ts->ts_ops->mode_switch(ts->chip_data, MODE_EDGE,
-					    ts->limit_edge);
-		if (ret < 0) {
-			TPD_INFO("%s, Touchpanel operate mode switch failed\n",
-				 __func__);
-		}
-	}
-	mutex_unlock(&ts->mutex);
-
-	return count;
-}
-
-static const struct file_operations proc_limit_control_ops = {
-	.read = proc_limit_control_read,
-	.write = proc_limit_control_write,
-	.open = simple_open,
-	.owner = THIS_MODULE,
 };
 
 static ssize_t proc_fw_update_write(struct file *file, const char __user * page,
@@ -2227,139 +1542,6 @@ static const struct file_operations proc_fw_update_ops = {
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
-
-static ssize_t proc_finger_protect_result_read(struct file *file,
-					       char __user * user_buf,
-					       size_t count, loff_t * ppos)
-{
-	uint8_t ret = 0;
-	char page[16] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-	if (!ts)
-		return 0;
-
-	if (ts->spuri_fp_touch.fp_touch_st == FINGER_PROTECT_TOUCH_UP
-	    || ts->spuri_fp_touch.fp_touch_st == FINGER_PROTECT_TOUCH_DOWN)
-		TPD_INFO("%s report_finger_protect = %d\n", __func__,
-			 ts->spuri_fp_touch.fp_touch_st);
-	ret = sprintf(page, "%d\n", ts->spuri_fp_touch.fp_touch_st);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-	return ret;
-}
-
-static const struct file_operations proc_finger_protect_result = {
-	.read = proc_finger_protect_result_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-static ssize_t proc_finger_protect_trigger_write(struct file *file,
-						 const char __user * buffer,
-						 size_t count, loff_t * ppos)
-{
-	int op = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2) {
-		return count;
-	}
-	if (!ts) {
-		return count;
-	}
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-
-	if (1 == sscanf(buf, "%d", &op)) {
-		if (op == 1) {
-			ts->spuri_fp_touch.fp_trigger = true;
-			ts->spuri_fp_touch.fp_touch_st =
-			    FINGER_PROTECT_NOTREADY;
-			TPD_INFO("%s : %d\n", __func__, __LINE__);
-			wake_up_interruptible(&waiter);
-		}
-	} else {
-		TPD_INFO("invalid content: '%s', length = %zd\n", buffer,
-			 count);
-		return -EINVAL;
-	}
-
-	return count;
-}
-
-static const struct file_operations proc_finger_protect_trigger = {
-	.write = proc_finger_protect_trigger_write,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-void lcd_wakeup_finger_protect(bool wakeup)
-{
-	TPD_INFO("%s wakeup=%d\n", __func__, wakeup);
-	if (g_tp != NULL) {
-		if (g_tp->spuri_fp_touch.lcd_trigger_fp_check) {
-			if (wakeup) {
-				g_tp->spuri_fp_touch.lcd_resume_ok = true;
-				wake_up_interruptible(&waiter);
-			} else {
-				mutex_lock(&g_tp->mutex);
-				g_tp->spuri_fp_touch.lcd_resume_ok = false;
-				mutex_unlock(&g_tp->mutex);
-			}
-		}
-	}
-}
-
-static int finger_protect_handler(void *data)
-{
-	struct touchpanel_data *ts = (struct touchpanel_data *)data;
-	if (!ts) {
-		TPD_INFO("ts is null should nerver get here!\n");
-		return 0;
-	};
-	if (!ts->ts_ops->spurious_fp_check) {
-		TPD_INFO("not support spurious_fp_check call back\n");
-		return 0;
-	}
-
-	do {
-		if (ts->spuri_fp_touch.lcd_trigger_fp_check)
-			wait_event_interruptible(waiter,
-						 ts->spuri_fp_touch.fp_trigger
-						 && ts->i2c_ready
-						 && ts->spuri_fp_touch.
-						 lcd_resume_ok);
-		else
-			wait_event_interruptible(waiter,
-						 ts->spuri_fp_touch.fp_trigger
-						 && ts->i2c_ready);
-		ts->spuri_fp_touch.fp_trigger = false;
-		ts->spuri_fp_touch.fp_touch_st = FINGER_PROTECT_NOTREADY;
-
-		mutex_lock(&ts->mutex);
-		if (g_tp->spuri_fp_touch.lcd_trigger_fp_check
-		    && !g_tp->spuri_fp_touch.lcd_resume_ok) {
-			TPD_INFO
-			    ("LCD is suspend, can not detect finger touch in incell panel\n");
-			mutex_unlock(&ts->mutex);
-			continue;
-		}
-
-		ts->spuri_fp_touch.fp_touch_st =
-		    ts->ts_ops->spurious_fp_check(ts->chip_data);
-		if (ts->view_area_touched) {
-			TPD_INFO("%s tp touch down,clear flag\n", __func__);
-			ts->view_area_touched = 0;
-		}
-		operate_mode_switch(ts);
-		mutex_unlock(&ts->mutex);
-	} while (!kthread_should_stop());
-	return 0;
-}
 
 //proc/touchpanel/register_info node use info:
 //first choose register_add and lenght, example: echo 000e,1 > register_info
@@ -2470,982 +1652,6 @@ static const struct file_operations proc_incell_panel_fops = {
 	.read = proc_incell_panel_info_read,
 };
 
-/**
- * init_touchpanel_proc - Using for create proc interface
- * @ts: touchpanel_data struct using for common driver
- *
- * we need to set touchpanel_data struct as private_data to those file_inode
- * Returning zero(success) or negative errno(failed)
- */
-static ssize_t sec_update_fw_store(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buffer, size_t size)
-{
-	struct touchpanel_data *ts = dev_get_drvdata(dev);
-	int val;
-	int ret = 0;
-
-	if (!ts)
-		return size;
-	if (size > 2)
-		return size;
-
-#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
-	if (ts->boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT)
-#else
-	if (ts->boot_mode == MSM_BOOT_MODE__CHARGE)
-#endif
-	{
-		TPD_INFO
-		    ("boot mode is MSM_BOOT_MODE__CHARGE,not need update tp firmware\n");
-		return size;
-	}
-
-	ret = kstrtoint(buffer, 10, &val);
-	if (ret != 0) {
-		TPD_INFO("invalid content: '%s', length = %zd\n", buffer, size);
-		return ret;
-	}
-	ts->firmware_update_type = val;
-	if (!ts->force_update && ts->firmware_update_type != 2)
-		ts->force_update = ! !val;
-
-	schedule_work(&ts->fw_update_work);
-
-	ret =
-	    wait_for_completion_killable_timeout(&ts->fw_complete,
-						 FW_UPDATE_COMPLETE_TIMEOUT);
-	if (ret < 0) {
-		TPD_INFO("kill signal interrupt\n");
-	}
-
-	TPD_INFO("fw update finished\n");
-	return size;
-
-}
-
-static ssize_t sec_update_fw_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-{
-	struct touchpanel_data *ts = dev_get_drvdata(dev);
-	return snprintf(buf, 2, "%d\n", ts->loading_fw);
-}
-
-static DEVICE_ATTR(tp_fw_update, 0644, sec_update_fw_show, sec_update_fw_store);
-
-static int init_touchpanel_proc(struct touchpanel_data *ts)
-{
-	int ret = 0;
-	struct proc_dir_entry *prEntry_tp = NULL;
-	struct proc_dir_entry *prEntry_tmp = NULL;
-
-	TPD_INFO("%s entry\n", __func__);
-
-	//proc files-step1:/proc/devinfo/tp  (touchpanel device info)
-	if (ts->fw_update_app_support) {
-		register_devinfo("tp", &ts->panel_data.manufacture_info);
-	}
-
-	if (device_create_file(&ts->client->dev, &dev_attr_tp_fw_update)) {
-		TPD_INFO("driver_create_file failt\n");
-		ret = -ENOMEM;
-	}
-	//proc files-step2:/proc/touchpanel
-	prEntry_tp = proc_mkdir("touchpanel", NULL);
-	if (prEntry_tp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create TP proc entry\n", __func__);
-	}
-	//proc files-step2-1:/proc/touchpanel/tp_debug_log_level (log control interface)
-	prEntry_tmp =
-	    proc_create("tp_debug_log", 0644, prEntry_tp,
-			&proc_debug_control_ops);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	//proc files-step2-2:/proc/touchpanel/tp_fw_update (FW update interface)
-	prEntry_tmp =
-	    proc_create_data("tp_fw_update", 0644, prEntry_tp,
-			     &proc_fw_update_ops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	//proc files-step2-3:/proc/touchpanel/tp_fw_update (edge limit control interface)
-	if (ts->edge_limit_support) {
-		prEntry_tmp =
-		    proc_create_data("tp_limit_area", 0664, prEntry_tp,
-				     &proc_limit_area_ops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		prEntry_tmp =
-		    proc_create_data("tp_limit_enable", 0664, prEntry_tp,
-				     &proc_limit_control_ops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-	//proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
-	if (ts->black_gesture_support) {
-		prEntry_tmp =
-		    proc_create_data("gesture_enable", 0666, prEntry_tp,
-				     &proc_gesture_control_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		prEntry_tmp =
-		    proc_create_data("coordinate", 0444, prEntry_tp,
-				     &proc_coordinate_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-	//proc files-step2-5:/proc/touchpanel/glove_mode_enable (Glove mode related interface)
-	if (ts->glove_mode_support) {
-		prEntry_tmp =
-		    proc_create_data("glove_mode_enable", 0666, prEntry_tp,
-				     &proc_glove_control_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-	//proc files-step2-6:/proc/touchpanel/finger_protect_result
-	if (ts->spurious_fp_support) {
-		prEntry_tmp =
-		    proc_create_data("finger_protect_result", 0666, prEntry_tp,
-				     &proc_finger_protect_result, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		prEntry_tmp =
-		    proc_create_data("finger_protect_trigger", 0666, prEntry_tp,
-				     &proc_finger_protect_trigger, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-	//proc files-step2-7:/proc/touchpanel/register_info
-	prEntry_tmp =
-	    proc_create_data("register_info", 0664, prEntry_tp,
-			     &proc_register_info_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-
-	prEntry_tmp =
-	    proc_create_data("ps_status", 0666, prEntry_tp,
-			     &proc_write_ps_status_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-
-	//proc files-step2-8:/proc/touchpanel/incell_panel
-	if (ts->is_incell_panel) {
-		prEntry_tmp =
-		    proc_create_data("incell_panel", 0664, prEntry_tp,
-				     &proc_incell_panel_fops, ts);
-	}
-
-	if (ts->gesture_test_support) {
-		prEntry_tmp =
-		    proc_create_data("black_screen_test", 0666, prEntry_tp,
-				     &proc_black_screen_test_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-	//proc file-step2-9:/proc/touchpanel/irq_depth
-	prEntry_tmp =
-	    proc_create_data("irq_depth", 0666, prEntry_tp,
-			     &proc_get_irq_depth_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	//proc file-step2-10:/proc/touchpanel/vendor_id
-	prEntry_tmp =
-	    proc_create_data("vendor_id", 0444, prEntry_tp,
-			     &vendor_id_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	//proc files-step2-3:/proc/touchpanel/game_switch_enable (edge limit control interface)
-	if (ts->game_switch_support) {
-		prEntry_tmp =
-		    proc_create_data("game_switch_enable", 0666, prEntry_tp,
-				     &proc_game_switch_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-
-	prEntry_tmp =
-	    proc_create_data("gesture_switch", 0666, prEntry_tp,
-			     &proc_gesture_switch_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-
-	prEntry_tmp =
-	    proc_create_data("reject_point", 0666, prEntry_tp,
-			     &proc_reject_point_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-
-	prEntry_tmp =
-	    proc_create_data("tpedge_limit_enable", 0666, prEntry_tp,
-			     &proc_limit_switch_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-
-	ts->prEntry_tp = prEntry_tp;
-
-	//create debug_info node
-	init_debug_info_proc(ts);
-
-	return ret;
-}
-
-//proc/touchpanel/debug_info/baseline
-static int tp_baseline_debug_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)(ts->debug_info_ops);
-	if (!debug_info_ops) {
-		TPD_INFO("debug_info_ops==NULL");
-		return 0;
-	}
-	if (!debug_info_ops->baseline_read
-	    && !debug_info_ops->baseline_blackscreen_read) {
-		seq_printf(s, "Not support baseline proc node\n");
-		return 0;
-	}
-	if ((ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE)
-	    && (1 != ts->gesture_enable)) {
-		seq_printf(s, "Not in resume over or gesture state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	if (ts->is_suspended && ts->gesture_enable) {
-		if (debug_info_ops->baseline_blackscreen_read) {
-			debug_info_ops->baseline_blackscreen_read(s,
-								  ts->
-								  chip_data);
-		}
-	} else {
-		if (debug_info_ops->baseline_read) {
-			debug_info_ops->baseline_read(s, ts->chip_data);
-		}
-	}
-
-	//step6: return to normal mode
-	ts->ts_ops->reset(ts->chip_data);
-	operate_mode_switch(ts);
-
-	mutex_unlock(&ts->mutex);
-
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-
-}
-
-static int data_baseline_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_baseline_debug_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_baseline_data_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = data_baseline_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/delta
-static int tp_delta_debug_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->delta_read) {
-		seq_printf(s, "Not support delta proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	debug_info_ops->delta_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int data_delta_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_delta_debug_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_delta_data_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = data_delta_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/self_delta
-static int tp_self_delta_debug_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->self_delta_read) {
-		seq_printf(s, "Not support self_delta proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	debug_info_ops->self_delta_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int data_self_delta_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_self_delta_debug_read_func,
-			   PDE_DATA(inode));
-}
-
-static const struct file_operations tp_self_delta_data_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = data_self_delta_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/self_raw
-static int tp_self_raw_debug_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->self_raw_read) {
-		seq_printf(s, "Not support self_raw proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	debug_info_ops->self_raw_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int data_self_raw_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_self_raw_debug_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_self_raw_data_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = data_self_raw_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/main_register
-static int tp_main_register_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->main_register_read) {
-		seq_printf(s, "Not support main_register proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	seq_printf(s, "es_enable:%d\n", ts->es_enable);
-	seq_printf(s, "touch_count:%d\n", ts->touch_count);
-	debug_info_ops->main_register_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int main_register_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_main_register_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_main_register_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = main_register_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/reserve
-static int tp_reserve_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->reserve_read) {
-		seq_printf(s, "Not support main_register proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	debug_info_ops->reserve_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int reserve_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_reserve_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_reserve_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = reserve_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/data_limit
-static int tp_limit_data_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->limit_read) {
-		seq_printf(s, "Not support limit_data proc node\n");
-		return 0;
-	}
-	debug_info_ops->limit_read(s, ts);
-
-	return 0;
-}
-
-static int limit_data_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_limit_data_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_limit_data_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = limit_data_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//proc/touchpanel/debug_info/abs_doze
-static int tp_abs_doze_read_func(struct seq_file *s, void *v)
-{
-	struct touchpanel_data *ts = s->private;
-	struct debug_info_proc_operations *debug_info_ops;
-
-	if (!ts)
-		return 0;
-	debug_info_ops =
-	    (struct debug_info_proc_operations *)ts->debug_info_ops;
-
-	if (!debug_info_ops)
-		return 0;
-	if (!debug_info_ops->abs_doze_read) {
-		seq_printf(s, "Not support main_register proc node\n");
-		return 0;
-	}
-	if (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE) {
-		seq_printf(s, "Not in resume over state\n");
-		return 0;
-	}
-
-	if (ts->int_mode == BANNABLE) {
-		disable_irq_nosync(ts->irq);
-	}
-	mutex_lock(&ts->mutex);
-	debug_info_ops->abs_doze_read(s, ts->chip_data);
-	mutex_unlock(&ts->mutex);
-
-	if (ts->int_mode == BANNABLE) {
-		enable_irq(ts->irq);
-	}
-	return 0;
-}
-
-static int abs_doze_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tp_abs_doze_read_func, PDE_DATA(inode));
-}
-
-static const struct file_operations tp_abs_doze_proc_fops = {
-	.owner = THIS_MODULE,
-	.open = abs_doze_open,
-	.read = seq_read,
-	.release = single_release,
-};
-
-//write function of /proc/touchpanel/earsense/palm_control
-static ssize_t proc_earsense_palm_control_write(struct file *file,
-						const char __user * buffer,
-						size_t count, loff_t * ppos)
-{
-	int value = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	if (value > 2)
-		return count;
-
-	TPD_DEBUG("%s value: %d, palm_enable :%d\n", __func__, value,
-		  ts->palm_enable);
-	if (value == ts->palm_enable)
-		return count;
-
-	mutex_lock(&ts->mutex);
-	ts->palm_enable = value;
-	if (ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE) {
-		ts->ts_ops->mode_switch(ts->chip_data, MODE_PALM_REJECTION,
-					value);
-	}
-	mutex_unlock(&ts->mutex);
-
-	return count;
-}
-
-//read function of /proc/touchpanel/earsense/palm_control
-static ssize_t proc_earsense_palm_control_read(struct file *file,
-					       char __user * user_buf,
-					       size_t count, loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->palm_enable);
-	ret = sprintf(page, "%d\n", ts->palm_enable);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/earsense/palm_control
-static const struct file_operations tp_earsense_palm_control_fops = {
-	.write = proc_earsense_palm_control_write,
-	.read = proc_earsense_palm_control_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// write function of /proc/touchpanel/earsense/es_enable
-static ssize_t proc_earsense_es_enable_write(struct file *file,
-					     const char __user * buffer,
-					     size_t count, loff_t * ppos)
-{
-	int value = 0;
-	bool state_changed = true;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	if (value > 2)
-		return count;
-
-	TPD_DEBUG("%s value: %d, es_enable :%d\n", __func__, value,
-		  ts->es_enable);
-	if (value == ts->es_enable)
-		return count;
-
-	mutex_lock(&ts->mutex);
-	if ((ts->es_enable != 1) && (value != 1))
-		state_changed = false;
-	ts->es_enable = value;
-	if (!ts->es_enable) {
-		memset(ts->earsense_delta, 0,
-		       2 * ts->hw_res.EARSENSE_TX_NUM *
-		       ts->hw_res.EARSENSE_RX_NUM);
-	}
-	if (!ts->is_suspended
-	    && (ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE)
-	    && state_changed) {
-		ts->ts_ops->mode_switch(ts->chip_data, MODE_EARSENSE,
-					ts->es_enable == 1);
-	}
-	mutex_unlock(&ts->mutex);
-
-	return count;
-}
-
-// read function of /proc/touchpanel/earsense/es_enable
-static ssize_t proc_earsense_es_enable_read(struct file *file,
-					    char __user * user_buf,
-					    size_t count, loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->es_enable);
-	ret = sprintf(page, "%d\n", ts->es_enable);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/earsense/es_enable
-static const struct file_operations tp_earsense_es_enable_fops = {
-	.write = proc_earsense_es_enable_write,
-	.read = proc_earsense_es_enable_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// read function of /proc/touchpanel/earsense/es_touch_count
-static ssize_t proc_earsense_touchcnt_read(struct file *file,
-					   char __user * user_buf, size_t count,
-					   loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->touch_count);
-	mutex_lock(&ts->mutex);
-	ret = sprintf(page, "%d\n", ts->touch_count);
-	mutex_unlock(&ts->mutex);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/earsense/es_touch_count
-static const struct file_operations tp_earsense_es_touchcnt_fops = {
-	.read = proc_earsense_touchcnt_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// read function of /proc/touchpanel/earsense/rawdata
-static ssize_t proc_earsense_rawdata_read(struct file *file,
-					  char __user * user_buf, size_t count,
-					  loff_t * ppos)
-{
-	int ret = 0;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-	int read_len =
-	    2 * ts->hw_res.EARSENSE_TX_NUM * ts->hw_res.EARSENSE_RX_NUM;
-
-	char *tmp_data = NULL;
-	if (!ts)
-		*ppos += 11;
-	if (*ppos > 10)
-		return 0;
-	if (count != read_len) {
-		TPD_INFO("%s, length:%d not match data_len:%d\n", __func__,
-			 (int)count, read_len);
-		return 0;
-	}
-
-	TPD_DEBUG("%s is called\n", __func__);
-	mutex_lock(&ts->mutex);
-	if ((!ts->es_enable)
-	    || (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE)) {
-		*ppos += 11;
-		mutex_unlock(&ts->mutex);
-		return 0;
-	}
-	if (ts->delta_state == TYPE_DELTA_IDLE) {
-		tmp_data = kzalloc(read_len, GFP_KERNEL | GFP_DMA);
-		ts->earsense_ops->rawdata_read(ts->chip_data, tmp_data,
-					       read_len);
-		mutex_unlock(&ts->mutex);
-		ret = copy_to_user(user_buf, tmp_data, read_len);
-		if (ret)
-			TPD_INFO("touch rawdata read fail\n");
-		kfree(tmp_data);
-		*ppos += 11;
-	} else {
-		mutex_unlock(&ts->mutex);
-		msleep(3);
-		*ppos += 1;
-	}
-
-	return read_len;
-}
-
-// operation of /proc/touchpanel/earsense/rawdata
-static const struct file_operations tp_earsense_rawdata_fops = {
-	.read = proc_earsense_rawdata_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// read function of /proc/touchpanel/earsense/delta
-static ssize_t proc_earsense_delta_read(struct file *file,
-					char __user * user_buf, size_t count,
-					loff_t * ppos)
-{
-	int ret = 0;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-	int read_len =
-	    2 * ts->hw_res.EARSENSE_TX_NUM * ts->hw_res.EARSENSE_RX_NUM;
-
-	if (!ts)
-		return count;
-	if (*ppos > 0)
-		return 0;
-	if (count != read_len) {
-		TPD_INFO("%s, length:%d not match data_len:%d\n", __func__,
-			 (int)count, read_len);
-		return 0;
-	}
-
-	TPD_DEBUG("%s is called\n", __func__);
-	if ((!ts->es_enable)
-	    || (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE)) {
-		return 0;
-	}
-
-	mutex_lock(&ts->mutex_earsense);
-	ret = copy_to_user(user_buf, ts->earsense_delta, read_len);
-	mutex_unlock(&ts->mutex_earsense);
-	if (ret)
-		TPD_INFO("tp rawdata read fail\n");
-	*ppos += read_len;
-	return read_len;
-}
-
-// operation of /proc/touchpanel/earsense/delta
-static const struct file_operations tp_earsense_delta_fops = {
-	.read = proc_earsense_delta_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// read function of /proc/touchpanel/earsense/hover_selfdata
-static ssize_t proc_earsense_selfdata_read(struct file *file,
-					   char __user * user_buf, size_t count,
-					   loff_t * ppos)
-{
-	int ret = 0;
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-	uint16_t data_len = 2 * (ts->hw_res.TX_NUM + ts->hw_res.RX_NUM);
-
-	char *tmp_data = NULL;
-	if (!ts)
-		*ppos += 11;
-	if (*ppos > 10)
-		return 0;
-	if (count != data_len) {
-		TPD_INFO("%s, length:%d not match data_len:%d\n", __func__,
-			 (int)count, data_len);
-		return 0;
-	}
-
-	TPD_DEBUG("%s is called\n", __func__);
-	mutex_lock(&ts->mutex);
-	if ((!ts->es_enable)
-	    || (ts->suspend_state != TP_SPEEDUP_RESUME_COMPLETE)) {
-		*ppos += 11;
-		mutex_unlock(&ts->mutex);
-		return 0;
-	}
-	if (ts->delta_state == TYPE_DELTA_IDLE) {
-		tmp_data = kzalloc(data_len, GFP_KERNEL | GFP_DMA);
-		ts->earsense_ops->self_data_read(ts->chip_data, tmp_data,
-						 data_len);
-		mutex_unlock(&ts->mutex);
-		ret = copy_to_user(user_buf, tmp_data, data_len);
-		if (ret)
-			TPD_INFO("tp self delta read fail\n");
-		kfree(tmp_data);
-		*ppos += 11;
-	} else {
-		mutex_unlock(&ts->mutex);
-		msleep(3);
-		*ppos += 1;
-	}
-
-	return data_len;
-}
-
-// operation of /proc/touchpanel/earsense/hover_selfdata
-static const struct file_operations tp_earsense_selfdata_fops = {
-	.read = proc_earsense_selfdata_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-// write function of /proc/touchpanel/earsense/es_enable
 static ssize_t proc_fd_enable_write(struct file *file,
 				    const char __user * buffer, size_t count,
 				    loff_t * ppos)
@@ -3609,71 +1815,6 @@ static const struct file_operations tp_fd_calibrate_fops = {
 	.owner = THIS_MODULE,
 };
 
-static ssize_t proc_refresh_switch_write(struct file *file,
-					 const char __user * buffer,
-					 size_t count, loff_t * ppos)
-{
-	int value = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	if (value > 2)
-		return count;
-
-	TPD_DEBUG("%s value: %d, lcd_refresh_rate_switch :%d\n", __func__,
-		  value, ts->lcd_refresh_rate);
-	if (value == ts->lcd_refresh_rate)
-		return count;
-
-	mutex_lock(&ts->mutex);
-	ts->lcd_refresh_rate = value;
-	if (!ts->is_suspended
-	    && (ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE)) {
-		ts->ts_ops->mode_switch(ts->chip_data, MODE_REFRESH_SWITCH,
-					ts->lcd_refresh_rate == 1);
-	}
-	mutex_unlock(&ts->mutex);
-
-	return count;
-}
-
-static ssize_t proc_refresh_switch_read(struct file *file,
-					char __user * user_buf, size_t count,
-					loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->lcd_refresh_rate);
-	ret = sprintf(page, "%d\n", ts->lcd_refresh_rate);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/lcd_refresh_rate_switch
-static const struct file_operations tp_lcd_refresh_switch_fops = {
-	.write = proc_refresh_switch_write,
-	.read = proc_refresh_switch_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
 static ssize_t proc_touch_hold_switch_write(struct file *file,
 					    const char __user * buffer,
 					    size_t count, loff_t * ppos)
@@ -3741,132 +1882,6 @@ static const struct file_operations tp_touch_hold_switch_fops = {
 	.owner = THIS_MODULE,
 };
 
-static ssize_t proc_touch_area_switch_write(struct file *file,
-					    const char __user * buffer,
-					    size_t count, loff_t * ppos)
-{
-	int value = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	if (value > 1)
-		return count;
-
-	TPD_DEBUG("%s value: %d, touch_hold_enable :%d\n", __func__, value,
-		  ts->touch_area_switch);
-	if (value == ts->touch_area_switch)
-		return count;
-
-	if ((ts->is_suspended) && (!ts->gesture_enable)) {	//suspend and close gesture cannot response touchhold
-		return count;
-	}
-
-	mutex_lock(&ts->mutex);
-	ts->touch_area_switch = value;
-	ts->ts_ops->mode_switch(ts->chip_data, MODE_TOUCH_AREA_SWITCH,
-				ts->touch_area_switch == 1);
-	mutex_unlock(&ts->mutex);
-	return count;
-}
-
-static ssize_t proc_touch_area_switch_read(struct file *file,
-					   char __user * user_buf, size_t count,
-					   loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->touch_area_switch);
-	ret = sprintf(page, "%d\n", ts->touch_area_switch);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/touch_hold
-static const struct file_operations tp_touch_area_switch_fops = {
-	.write = proc_touch_area_switch_write,
-	.read = proc_touch_area_switch_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
-static ssize_t proc_fingerprint_int_test_write(struct file *file,
-					       const char __user * buffer,
-					       size_t count, loff_t * ppos)
-{
-	int value = 0;
-	char buf[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-	if (value > 1)
-		return count;
-
-	TPD_DEBUG("%s value: %d, fingerprint_int_test :%d\n", __func__, value,
-		  ts->fingerprint_int_test);
-	if (value == ts->fingerprint_int_test)
-		return count;
-
-	mutex_lock(&ts->mutex);
-	ts->fingerprint_int_test = value;
-	ts->ts_ops->mode_switch(ts->chip_data, MODE_FINGERPRINT_TEST,
-				ts->fingerprint_int_test == 1);
-	mutex_unlock(&ts->mutex);
-
-	return count;
-}
-
-static ssize_t proc_fingerprint_int_test_read(struct file *file,
-					      char __user * user_buf,
-					      size_t count, loff_t * ppos)
-{
-	int ret = 0;
-	char page[4] = { 0 };
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->fingerprint_int_test);
-	ret = sprintf(page, "%d\n", ts->fingerprint_int_test);
-	ret =
-	    simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static const struct file_operations tp_fingerprint_int_test_fops = {
-	.write = proc_fingerprint_int_test_write,
-	.read = proc_fingerprint_int_test_read,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
 static ssize_t proc_charge_detect_write(struct file *file,
 					const char __user * buffer,
 					size_t count, loff_t * ppos)
@@ -3926,161 +1941,195 @@ static const struct file_operations tp_charge_detect_fops = {
 	.owner = THIS_MODULE,
 };
 
-//proc/touchpanel/debug_info/
-static int init_debug_info_proc(struct touchpanel_data *ts)
+/**
+ * init_touchpanel_proc - Using for create proc interface
+ * @ts: touchpanel_data struct using for common driver
+ *
+ * we need to set touchpanel_data struct as private_data to those file_inode
+ * Returning zero(success) or negative errno(failed)
+ */
+static ssize_t sec_update_fw_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buffer, size_t size)
+{
+	struct touchpanel_data *ts = dev_get_drvdata(dev);
+	int val;
+	int ret = 0;
+
+	if (!ts)
+		return size;
+	if (size > 2)
+		return size;
+
+#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
+	if (ts->boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT)
+#else
+	if (ts->boot_mode == MSM_BOOT_MODE__CHARGE)
+#endif
+	{
+		TPD_INFO
+		    ("boot mode is MSM_BOOT_MODE__CHARGE,not need update tp firmware\n");
+		return size;
+	}
+
+	ret = kstrtoint(buffer, 10, &val);
+	if (ret != 0) {
+		TPD_INFO("invalid content: '%s', length = %zd\n", buffer, size);
+		return ret;
+	}
+	ts->firmware_update_type = val;
+	if (!ts->force_update && ts->firmware_update_type != 2)
+		ts->force_update = ! !val;
+
+	schedule_work(&ts->fw_update_work);
+
+	ret =
+	    wait_for_completion_killable_timeout(&ts->fw_complete,
+						 FW_UPDATE_COMPLETE_TIMEOUT);
+	if (ret < 0) {
+		TPD_INFO("kill signal interrupt\n");
+	}
+
+	TPD_INFO("fw update finished\n");
+	return size;
+
+}
+
+static ssize_t sec_update_fw_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct touchpanel_data *ts = dev_get_drvdata(dev);
+	return snprintf(buf, 2, "%d\n", ts->loading_fw);
+}
+
+static DEVICE_ATTR(tp_fw_update, 0644, sec_update_fw_show, sec_update_fw_store);
+
+static int init_touchpanel_proc(struct touchpanel_data *ts)
 {
 	int ret = 0;
-	struct proc_dir_entry *prEntry_debug_info = NULL;
-	struct proc_dir_entry *prEntry_earsense = NULL;
+	struct proc_dir_entry *prEntry_tp = NULL;
 	struct proc_dir_entry *prEntry_tmp = NULL;
 
 	TPD_INFO("%s entry\n", __func__);
 
-	//proc files-step1:/proc/touchpanel/debug_info
-	prEntry_debug_info = proc_mkdir("debug_info", ts->prEntry_tp);
-	if (prEntry_debug_info == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create debug_info proc entry\n",
-			 __func__);
+	//proc files-step1:/proc/devinfo/tp  (touchpanel device info)
+	if (ts->fw_update_app_support) {
+		register_devinfo("tp", &ts->panel_data.manufacture_info);
 	}
-	// show limit data interface
+
+	if (device_create_file(&ts->client->dev, &dev_attr_tp_fw_update)) {
+		TPD_INFO("driver_create_file failt\n");
+		ret = -ENOMEM;
+	}
+	//proc files-step2:/proc/touchpanel
+	prEntry_tp = proc_mkdir("touchpanel", NULL);
+	if (prEntry_tp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create TP proc entry\n", __func__);
+	}
+	//proc files-step2-2:/proc/touchpanel/tp_fw_update (FW update interface)
 	prEntry_tmp =
-	    proc_create_data("data_limit", 0666, prEntry_debug_info,
-			     &tp_limit_data_proc_fops, ts);
+	    proc_create_data("tp_fw_update", 0644, prEntry_tp,
+			     &proc_fw_update_ops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
 		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
 			 __LINE__);
 	}
-	// show baseline data interface
-	prEntry_tmp =
-	    proc_create_data("baseline", 0666, prEntry_debug_info,
-			     &tp_baseline_data_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
+	//proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
+	if (ts->black_gesture_support) {
+		prEntry_tmp =
+		    proc_create_data("gesture_enable", 0666, prEntry_tp,
+				     &proc_gesture_control_fops, ts);
+		if (prEntry_tmp == NULL) {
+			ret = -ENOMEM;
+			TPD_INFO("%s: Couldn't create proc entry, %d\n",
+				 __func__, __LINE__);
+		}
+		prEntry_tmp =
+		    proc_create_data("coordinate", 0444, prEntry_tp,
+				     &proc_coordinate_fops, ts);
+		if (prEntry_tmp == NULL) {
+			ret = -ENOMEM;
+			TPD_INFO("%s: Couldn't create proc entry, %d\n",
+				 __func__, __LINE__);
+		}
 	}
-	// show delta interface
+	//proc files-step2-7:/proc/touchpanel/register_info
 	prEntry_tmp =
-	    proc_create_data("delta", 0666, prEntry_debug_info,
-			     &tp_delta_data_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	// show self delta interface
-	prEntry_tmp =
-	    proc_create_data("self_delta", 0666, prEntry_debug_info,
-			     &tp_self_delta_data_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	// show self_raw interface
-	prEntry_tmp =
-	    proc_create_data("self_raw", 0666, prEntry_debug_info,
-			     &tp_self_raw_data_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	// show main_register interface
-	prEntry_tmp =
-	    proc_create_data("main_register", 0666, prEntry_debug_info,
-			     &tp_main_register_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	// show reserve interface
-	prEntry_tmp =
-	    proc_create_data("reserve", 0666, prEntry_debug_info,
-			     &tp_reserve_proc_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
-	// show abs_doze interface
-	prEntry_tmp =
-	    proc_create_data("abs_doze", 0666, prEntry_debug_info,
-			     &tp_abs_doze_proc_fops, ts);
+	    proc_create_data("register_info", 0664, prEntry_tp,
+			     &proc_register_info_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
 		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
 			 __LINE__);
 	}
 
-	ts->prEntry_debug_tp = prEntry_debug_info;
+	prEntry_tmp =
+	    proc_create_data("ps_status", 0666, prEntry_tp,
+			     &proc_write_ps_status_fops, ts);
+	if (prEntry_tmp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
+	}
 
-	if (ts->ear_sense_support) {
-		//proc files-step1:/proc/touchpanel/earsense
-		prEntry_earsense = proc_mkdir("earsense", ts->prEntry_tp);
-		if (prEntry_earsense == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create debug_info proc entry\n",
-				 __func__);
-		}
-		// show baseline for earsense
+	//proc files-step2-8:/proc/touchpanel/incell_panel
+	if (ts->is_incell_panel) {
 		prEntry_tmp =
-		    proc_create_data("rawdata", 0666, prEntry_earsense,
-				     &tp_earsense_rawdata_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		// show delta for earsense
+		    proc_create_data("incell_panel", 0664, prEntry_tp,
+				     &proc_incell_panel_fops, ts);
+	}
+
+	//proc file-step2-9:/proc/touchpanel/irq_depth
+	prEntry_tmp =
+	    proc_create_data("irq_depth", 0666, prEntry_tp,
+			     &proc_get_irq_depth_fops, ts);
+	if (prEntry_tmp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
+	}
+	//proc files-step2-3:/proc/touchpanel/game_switch_enable (edge limit control interface)
+	if (ts->game_switch_support) {
 		prEntry_tmp =
-		    proc_create_data("delta", 0666, prEntry_earsense,
-				     &tp_earsense_delta_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		// show self delta for earsense
-		prEntry_tmp =
-		    proc_create_data("hover_selfdata", 0666, prEntry_earsense,
-				     &tp_earsense_selfdata_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		// palm control for earsense
-		prEntry_tmp =
-		    proc_create_data("palm_control", 0666, prEntry_earsense,
-				     &tp_earsense_palm_control_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		// es_enable for earsense
-		prEntry_tmp =
-		    proc_create_data("es_enable", 0666, prEntry_earsense,
-				     &tp_earsense_es_enable_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-		// touch count for earsense
-		prEntry_tmp =
-		    proc_create_data("es_touch_count", 0666, prEntry_earsense,
-				     &tp_earsense_es_touchcnt_fops, ts);
+		    proc_create_data("game_switch_enable", 0666, prEntry_tp,
+				     &proc_game_switch_fops, ts);
 		if (prEntry_tmp == NULL) {
 			ret = -ENOMEM;
 			TPD_INFO("%s: Couldn't create proc entry, %d\n",
 				 __func__, __LINE__);
 		}
 	}
+
+	prEntry_tmp =
+	    proc_create_data("gesture_switch", 0666, prEntry_tp,
+			     &proc_gesture_switch_fops, ts);
+	if (prEntry_tmp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
+	}
+
+	prEntry_tmp =
+	    proc_create_data("reject_point", 0666, prEntry_tp,
+			     &proc_reject_point_fops, ts);
+	if (prEntry_tmp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
+	}
+
+	prEntry_tmp =
+	    proc_create_data("tpedge_limit_enable", 0666, prEntry_tp,
+			     &proc_limit_switch_fops, ts);
+	if (prEntry_tmp == NULL) {
+		ret = -ENOMEM;
+		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
+			 __LINE__);
+	}
+
+	ts->prEntry_tp = prEntry_tp;
 
 	if (ts->face_detect_support) {
 		// proc for face detect
@@ -4112,19 +2161,6 @@ static int init_debug_info_proc(struct touchpanel_data *ts)
 		}
 	}
 
-	if (ts->lcd_refresh_rate_switch) {
-		// proc for lcd_refresh_rate_switch
-		prEntry_tmp =
-		    proc_create_data("lcd_refresh_rate_switch", 0666,
-				     ts->prEntry_tp,
-				     &tp_lcd_refresh_switch_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
-	}
-
 	if (ts->touch_hold_support) {
 		// proc for touchhold switch
 		prEntry_tmp =
@@ -4135,33 +2171,18 @@ static int init_debug_info_proc(struct touchpanel_data *ts)
 			TPD_INFO("%s: Couldn't create proc entry, %d\n",
 				 __func__, __LINE__);
 		}
-		prEntry_tmp =
-		    proc_create_data("touch_area_switch", 0666, ts->prEntry_tp,
-				     &tp_touch_area_switch_fops, ts);
-		if (prEntry_tmp == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("%s: Couldn't create proc entry, %d\n",
-				 __func__, __LINE__);
-		}
 	}
-	// proc for lcd_refresh_rate_switch
-	prEntry_tmp =
-	    proc_create_data("fingerprint_int_test", 0666, ts->prEntry_tp,
-			     &tp_fingerprint_int_test_fops, ts);
-	if (prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__,
-			 __LINE__);
-	}
+
 	// proc for charge detect
 	prEntry_tmp =
 	    proc_create_data("charge_detect", 0666, ts->prEntry_tp,
 			     &tp_charge_detect_fops, ts);
 	if (prEntry_tmp == NULL) {
 		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn鈥檛 create proc entey, %d\n", __func__,
+		TPD_INFO("%s: Couldn't create proc entey, %d\n", __func__,
 			 __LINE__);
 	}
+
 	return ret;
 }
 
@@ -4308,27 +2329,12 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 
 	np = dev->of_node;
 
-	ts->edge_limit_support =
-	    of_property_read_bool(np, "edge_limit_support");
-	ts->glove_mode_support =
-	    of_property_read_bool(np, "glove_mode_support");
-	ts->esd_handle_support =
-	    of_property_read_bool(np, "esd_handle_support");
-	ts->spurious_fp_support =
-	    of_property_read_bool(np, "spurious_fingerprint_support");
-	ts->charger_pump_support =
-	    of_property_read_bool(np, "charger_pump_support");
 	ts->black_gesture_support =
 	    of_property_read_bool(np, "black_gesture_support");
-	ts->gesture_test_support =
-	    of_property_read_bool(np, "black_gesture_test_support");
 	ts->fw_update_app_support =
 	    of_property_read_bool(np, "fw_update_app_support");
 	ts->game_switch_support =
 	    of_property_read_bool(np, "game_switch_support");
-	ts->ear_sense_support = of_property_read_bool(np, "ear_sense_support");
-	ts->smart_gesture_support =
-	    of_property_read_bool(np, "smart_gesture_support");
 	ts->is_noflash_ic = of_property_read_bool(np, "noflash_support");
 	ts->face_detect_support =
 	    of_property_read_bool(np, "face_detect_support");
@@ -4341,9 +2347,6 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->charge_detect_support =
 	    of_property_read_bool(np, "charge_detect_support");
 	ts->module_id_support = of_property_read_bool(np, "module_id_support");
-	ts->spuri_fp_touch.lcd_trigger_fp_check =
-	    of_property_read_bool(np, "lcd_trigger_fp_check");
-	ts->spuri_fp_touch.lcd_resume_ok = true;
 
 	rc = of_property_read_string(np, "project-name",
 				     &ts->panel_data.project_name);
@@ -4507,18 +2510,6 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	TPD_INFO("TX_NUM = %d, RX_NUM = %d \n", ts->hw_res.TX_NUM,
 		 ts->hw_res.RX_NUM);
 
-	rc = of_property_read_u32_array(np, "earsense,tx-rx-num", tx_rx_num, 2);
-	if (rc) {
-		TPD_INFO("tx-rx-num not set\n");
-		ts->hw_res.EARSENSE_TX_NUM = ts->hw_res.TX_NUM;
-		ts->hw_res.EARSENSE_RX_NUM = ts->hw_res.RX_NUM / 2;
-	} else {
-		ts->hw_res.EARSENSE_TX_NUM = tx_rx_num[0];
-		ts->hw_res.EARSENSE_RX_NUM = tx_rx_num[1];
-	}
-	TPD_INFO("EARSENSE_TX_NUM = %d, EARSENSE_RX_NUM = %d \n",
-		 ts->hw_res.EARSENSE_TX_NUM, ts->hw_res.EARSENSE_RX_NUM);
-
 	rc = of_property_read_u32_array(np, "touchpanel,display-coords",
 					temp_array, 2);
 	if (rc) {
@@ -4609,7 +2600,7 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	// We can Add callback fuction here if necessary seprate some dts config for chip_data
 }
 
-int init_power_control(struct touchpanel_data *ts)
+static int init_power_control(struct touchpanel_data *ts)
 {
 	int ret = 0;
 
@@ -4785,84 +2776,7 @@ int tp_powercontrol_2v8(struct hw_resource *hw_res, bool on)
 	return ret;
 }
 
-static void esd_handle_func(struct work_struct *work)
-{
-	int ret = 0;
-	struct touchpanel_data *ts = container_of(work, struct touchpanel_data,
-						  esd_info.esd_check_work.work);
-
-	if (ts->loading_fw) {
-		TPD_INFO("FW is updating, stop esd handle!\n");
-		return;
-	}
-
-	mutex_lock(&ts->esd_info.esd_lock);
-	if (!ts->esd_info.esd_running_flag) {
-		TPD_INFO("Esd protector has stopped!\n");
-		goto ESD_END;
-	}
-
-	if (ts->is_suspended == 1) {
-		TPD_INFO("Touch panel has suspended!\n");
-		goto ESD_END;
-	}
-
-	if (!ts->ts_ops->esd_handle) {
-		TPD_INFO("not support ts_ops->esd_handle callback\n");
-		goto ESD_END;
-	}
-
-	ret = ts->ts_ops->esd_handle(ts->chip_data);
-	if (ret == -1) {	//-1 means esd hanppened: handled in IC part, recovery the state here
-		operate_mode_switch(ts);
-	}
-
-	if (ts->esd_info.esd_running_flag)
-		queue_delayed_work(ts->esd_info.esd_workqueue,
-				   &ts->esd_info.esd_check_work,
-				   ts->esd_info.esd_work_time);
-	else
-		TPD_INFO("Esd protector suspended!");
-
- ESD_END:
-	mutex_unlock(&ts->esd_info.esd_lock);
-	return;
-}
-
-/**
- * esd_handle_switch - open or close esd thread
- * @esd_info: touchpanel_data, using for common driver resource
- * @on: bool variable using for  indicating open or close esd check function.
- *     true:open;
- *     false:close;
- */
-void esd_handle_switch(struct esd_information *esd_info, bool on)
-{
-	mutex_lock(&esd_info->esd_lock);
-
-	if (on) {
-		if (!esd_info->esd_running_flag) {
-			esd_info->esd_running_flag = 1;
-
-			TPD_INFO("Esd protector started, cycle: %d s\n",
-				 esd_info->esd_work_time / HZ);
-			queue_delayed_work(esd_info->esd_workqueue,
-					   &esd_info->esd_check_work,
-					   esd_info->esd_work_time);
-		}
-	} else {
-		if (esd_info->esd_running_flag) {
-			esd_info->esd_running_flag = 0;
-
-			TPD_INFO("Esd protector stoped!\n");
-			cancel_delayed_work(&esd_info->esd_check_work);
-		}
-	}
-
-	mutex_unlock(&esd_info->esd_lock);
-}
-
-int tp_register_irq_func(struct touchpanel_data *ts)
+static int tp_register_irq_func(struct touchpanel_data *ts)
 {
 	int ret = 0;
 
@@ -4890,23 +2804,7 @@ int tp_register_irq_func(struct touchpanel_data *ts)
 	return ret;
 }
 
-//work schdule for reading&update delta
-static void touch_read_delta(struct work_struct *work)
-{
-	struct touchpanel_data *ts =
-	    container_of(work, struct touchpanel_data, read_delta_work);
-
-	mutex_lock(&ts->mutex_earsense);
-	mutex_lock(&ts->mutex);
-	ts->earsense_ops->delta_read(ts->chip_data, ts->earsense_delta,
-				     2 * ts->hw_res.EARSENSE_TX_NUM *
-				     ts->hw_res.EARSENSE_RX_NUM);
-	mutex_unlock(&ts->mutex);
-	mutex_unlock(&ts->mutex_earsense);
-	ts->delta_state = TYPE_DELTA_IDLE;
-}
-
-void tp_util_get_vendor(struct touchpanel_data *ts,
+static void tp_util_get_vendor(struct touchpanel_data *ts,
 			struct panel_info *panel_data)
 {
 
@@ -4970,7 +2868,7 @@ void tp_util_get_vendor(struct touchpanel_data *ts,
 		 panel_data->test_limit_name);
 }
 
-void sec_ts_pinctrl_configure(struct hw_resource *hw_res, bool enable)
+static void sec_ts_pinctrl_configure(struct hw_resource *hw_res, bool enable)
 {
 	int ret;
 
@@ -5196,101 +3094,6 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	INIT_WORK(&ts->speed_up_work, speedup_resume);
 	INIT_WORK(&ts->fw_update_work, tp_fw_update_work);
 
-	//step 16 : short edge shield
-	if (ts->edge_limit_support) {
-		ts->limit_enable = 1;
-		ts->limit_edge = ts->limit_enable & 1;
-		ts->limit_corner = 0;
-		ts->edge_limit.limit_area = 1;
-		ts->edge_limit.in_which_area = AREA_NOTOUCH;
-
-		ts->edge_limit.left_x1 =
-		    (ts->edge_limit.limit_area * 1000) / 100;
-		ts->edge_limit.right_x1 =
-		    ts->resolution_info.LCD_WIDTH - ts->edge_limit.left_x1;
-		ts->edge_limit.left_x2 = 2 * ts->edge_limit.left_x1;
-		ts->edge_limit.right_x2 =
-		    ts->resolution_info.LCD_WIDTH -
-		    (2 * ts->edge_limit.left_x1);
-		ts->edge_limit.left_x3 = 5 * ts->edge_limit.left_x1;
-		ts->edge_limit.right_x3 =
-		    ts->resolution_info.LCD_WIDTH -
-		    (5 * ts->edge_limit.left_x1);
-
-		ts->edge_limit.left_y1 =
-		    (ts->edge_limit.limit_area * 1000) / 100;
-		ts->edge_limit.right_y1 =
-		    ts->resolution_info.LCD_HEIGHT - ts->edge_limit.left_y1;
-		ts->edge_limit.left_y2 = 2 * ts->edge_limit.left_y1;
-		ts->edge_limit.right_y2 =
-		    ts->resolution_info.LCD_HEIGHT -
-		    (2 * ts->edge_limit.left_y1);
-		ts->edge_limit.left_y3 = 5 * ts->edge_limit.left_y1;
-		ts->edge_limit.right_y3 =
-		    ts->resolution_info.LCD_HEIGHT -
-		    (5 * ts->edge_limit.left_y1);
-	}
-	//step 17:esd recover support
-	if (ts->esd_handle_support) {
-		ts->esd_info.esd_workqueue =
-		    create_singlethread_workqueue("esd_workthread");
-		INIT_DELAYED_WORK(&ts->esd_info.esd_check_work,
-				  esd_handle_func);
-
-		mutex_init(&ts->esd_info.esd_lock);
-
-		ts->esd_info.esd_running_flag = 0;
-		ts->esd_info.esd_work_time = 2 * HZ;	// HZ: clock ticks in 1 second generated by system
-		TPD_INFO("Clock ticks for an esd cycle: %d\n",
-			 ts->esd_info.esd_work_time);
-
-		esd_handle_switch(&ts->esd_info, true);
-	}
-	//step 18:spurious_fingerprint support
-	if (ts->spurious_fp_support) {
-		ts->spuri_fp_touch.thread =
-		    kthread_run(finger_protect_handler, ts, "touchpanel_fp");
-		if (IS_ERR(ts->spuri_fp_touch.thread)) {
-			TPD_INFO("spurious fingerprint thread create failed\n");
-		}
-	}
-	//step 19: charge pump support
-	if (ts->charger_pump_support) {
-		if (ts->ts_ops->get_usb_state) {
-			ts->is_usb_checked = ! !ts->ts_ops->get_usb_state();
-		} else {
-			ts->is_usb_checked = 0;
-		}
-		TPD_INFO("curent usb state is %d\n", ts->is_usb_checked);
-		ret =
-		    ts->ts_ops->mode_switch(ts->chip_data, MODE_CHARGE,
-					    ts->is_usb_checked);
-		if (ret < 0) {
-			TPD_INFO("switch charge mode failed\n");
-		}
-	}
-	// step 20: ear sense support
-	if (ts->ear_sense_support) {
-		mutex_init(&ts->mutex_earsense);	// init earsense operate mutex
-
-		//malloc space for storing earsense delta
-		ts->earsense_delta =
-		    kzalloc(2 * ts->hw_res.EARSENSE_TX_NUM *
-			    ts->hw_res.EARSENSE_RX_NUM, GFP_KERNEL | GFP_DMA);
-		if (ts->earsense_delta == NULL) {
-			ret = -ENOMEM;
-			TPD_INFO("earsense_delta kzalloc error\n");
-			goto threaded_irq_free;
-		}
-		//create work queue for read earsense delta
-		ts->delta_read_wq =
-		    create_singlethread_workqueue("touch_delta_wq");
-		if (!ts->delta_read_wq) {
-			ret = -ENOMEM;
-			goto earsense_alloc_free;
-		}
-		INIT_WORK(&ts->read_delta_work, touch_read_delta);
-	}
 	//step 21 : createproc proc files interface
 	init_touchpanel_proc(ts);
 
@@ -5300,9 +3103,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	ts->is_suspended = 0;
 	ts->suspend_state = TP_SPEEDUP_RESUME_COMPLETE;
 	ts->gesture_enable = 0;
-	ts->es_enable = 0;
 	ts->fd_enable = 0;
-	ts->palm_enable = 1;
 	ts->touch_count = 0;
 	ts->glove_enable = 0;
 	ts->view_area_touched = 0;
@@ -5327,9 +3128,6 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	complete(&ts->pm_complete);
 	TPD_INFO("Touch panel probe : normal end\n");
 	return 0;
-
- earsense_alloc_free:
-	kfree(ts->earsense_delta);
 
  threaded_irq_free:
 	free_irq(ts->irq, ts);
@@ -5407,11 +3205,6 @@ static int tp_suspend(struct device *dev)
 
 	TPD_INFO("%s: start.\n", __func__);
 
-	TPD_INFO
-	    ("tp_suspend ts->spuri_fp_touch.fp_trigger =%d  ts->i2c_ready =%d  ts->spuri_fp_touch.lcd_resume_ok=%d \n",
-	     ts->spuri_fp_touch.fp_trigger, ts->i2c_ready,
-	     ts->spuri_fp_touch.lcd_resume_ok);
-	ts->spuri_fp_touch.lcd_resume_ok = false;
 	//step1:detect whether we need to do suspend
 	if (ts->input_dev == NULL) {
 		TPD_INFO("input_dev  registration is not complete\n");
@@ -5443,14 +3236,7 @@ static int tp_suspend(struct device *dev)
 	tp_btnkey_release(ts);
 	tp_touch_release(ts);
 
-	//step4:cancel esd test
-	if (ts->esd_handle_support) {
-		esd_handle_switch(&ts->esd_info, false);
-	}
 	//step5:ear sense support
-	if (ts->ear_sense_support) {
-		ts->ts_ops->mode_switch(ts->chip_data, MODE_EARSENSE, false);
-	}
 	if (ts->face_detect_support) {
 		ts->ts_ops->mode_switch(ts->chip_data, MODE_FACE_DETECT, false);
 	}
@@ -5545,9 +3331,6 @@ static void speedup_resume(struct work_struct *work)
 	//step1: get mutex for locking i2c acess flow
 	mutex_lock(&ts->mutex);
 
-	//step2:before Resume clear All of touch/key event Reset some flag to default satus
-	if (ts->edge_limit_support)
-		ts->edge_limit.in_which_area = AREA_NOTOUCH;
 	tp_btnkey_release(ts);
 	tp_touch_release(ts);
 
@@ -5590,9 +3373,6 @@ static void speedup_resume(struct work_struct *work)
 
 	operate_mode_switch(ts);
 
-	if (ts->esd_handle_support) {
-		esd_handle_switch(&ts->esd_info, true);
-	}
 	//step6:Request irq again
 	if (ts->int_mode == BANNABLE) {
 		tp_register_irq_func(ts);
@@ -5639,12 +3419,6 @@ static int fb_notifier_callback(struct notifier_block *self,
 				}
 
 				ts->suspend_state = TP_SUSPEND_EARLY_EVENT;	//set suspend_resume_state
-				if (ts->esd_handle_support
-				    && ts->is_incell_panel
-				    && (ts->tp_suspend_order ==
-					LCD_TP_SUSPEND)) {
-					esd_handle_switch(&ts->esd_info, false);	//incell panel need cancel esd early
-				}
 
 				if (ts->tp_suspend_order == TP_LCD_SUSPEND) {
 					tp_suspend(ts->dev);
@@ -5737,9 +3511,6 @@ void tp_i2c_resume(struct touchpanel_data *ts)
 
  OUT:
 	ts->i2c_ready = true;
-	if (ts->spurious_fp_support && ts->spuri_fp_touch.fp_trigger) {
-		wake_up_interruptible(&waiter);
-	}
 }
 
 #else
@@ -5765,9 +3536,6 @@ void tp_i2c_resume(struct touchpanel_data *ts)
 	}
 	enable_irq(ts->irq);
 	ts->i2c_ready = true;
-	if (ts->spurious_fp_support && ts->spuri_fp_touch.fp_trigger) {
-		wake_up_interruptible(&waiter);
-	}
 }
 #endif
 
@@ -5803,8 +3571,8 @@ int common_touch_data_free(struct touchpanel_data *pdata)
  * before report virtual key, detect whether touch_area has been touched
  * Do not care the result: Return void type
  */
-void input_report_key_reduce(struct input_dev *dev, unsigned int code,
-			     int value)
+static void input_report_key_reduce(struct input_dev *dev,
+				unsigned int code, int value)
 {
 	if (value) {		//report Key[down]
 		if (g_tp) {
@@ -5816,12 +3584,5 @@ void input_report_key_reduce(struct input_dev *dev, unsigned int code,
 		}
 	} else {
 		input_report_key(dev, code, value);
-	}
-}
-
-void clear_view_touchdown_flag(void)
-{
-	if (g_tp) {
-		g_tp->view_area_touched = 0;
 	}
 }

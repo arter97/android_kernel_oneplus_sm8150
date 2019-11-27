@@ -69,11 +69,8 @@ struct sec_test_item_header {
 
 /*********PART3:Struct Area**********************/
 struct sec_proc_operations {
-	void (*auto_test) (struct seq_file * s, void *chip_data,
-			   struct sec_testdata * sec_testdata);
 	void (*calibrate) (struct seq_file * s, void *chip_data);
 	void (*verify_calibration) (struct seq_file * s, void *chip_data);
-	void (*calibration_data) (struct seq_file * s, void *chip_data);
 };
 
 /*********PART4:function declare*****************/
