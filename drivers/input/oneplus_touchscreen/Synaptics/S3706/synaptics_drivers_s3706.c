@@ -3566,25 +3566,16 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 
 	if (!chip_info) {
 		TPD_INFO("chip_info is NULL, return!\n");
-		kfree(data);
-		kfree(build_id);
-		return -1;
+		retval = -1;
+		goto out;
 	}
 
 	if (chip_info->fwu) {
 		TPD_INFO("%s: Handle already exists\n", __func__);
-		kfree(build_id);
-		kfree(data);
-		return -1;
+		retval = -1;
+		goto out;
 	}
 
-	chip_info->fwu =
-	    kzalloc(sizeof(struct synaptics_rmi4_fwu_handle), GFP_KERNEL | GFP_DMA);
-	if (!chip_info->fwu) {
-		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
-		retval = -ENOMEM;
-		goto exit;
-	}
 	retval =
 	    touch_i2c_read_block(chip_info->client, PDT_PROPS,
 				 sizeof(pdt_props.data), data);
@@ -3596,15 +3587,7 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 		TPD_INFO("%s: Reflash for LTS not currently supported\n",
 			 __func__);
 		retval = -ENODEV;
-		goto exit_free_mem;
-	}
-
-	chip_info->fwu->rmi4_data =
-	    kzalloc(sizeof(struct synaptics_rmi4_data), GFP_KERNEL | GFP_DMA);
-	if (!chip_info->fwu->rmi4_data) {
-		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
-		retval = -ENOMEM;
-		goto exit_free_rmi;
+		goto out;
 	}
 
 	chip_info->fwu->rmi4_data->reset_device = s3706_reset_device;	/*no need */
@@ -3616,7 +3599,7 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 				      f01_query_base_addr + 18,
 				      sizeof(build_id), build_id);
 	if (retval < 0) {
-		goto exit_free_rmi;
+		goto out;
 	}
 
 	chip_info->fwu->rmi4_data->firmware_id = (unsigned int)build_id[0] +
@@ -3624,38 +3607,30 @@ static int synaptics_rmi4_fwu_init(struct chip_data_s3706 *chip_info,
 	    (unsigned int)build_id[2] * 0x10000;
 
 	if (retval < 0) {
-		goto exit_free_mem;
+		goto out;
 	}
 
 	if (!chip_info->fwu->in_ub_mode) {
 		retval = fwu_read_f34_queries(chip_info);
 		if (retval < 0) {
-			goto exit_free_mem;
+			goto out;
 		}
 		retval = fwu_get_device_config_id(chip_info);
 		if (retval < 0) {
 			TPD_INFO("%s: Failed to read device config ID\n",
 				 __func__);
-			goto exit_free_mem;
+			goto out;
 		}
 	}
+	retval = 0;
 
 	chip_info->fwu->force_update = force;
 	chip_info->fwu->do_lockdown = DO_LOCKDOWN;
+
+out:
 	kfree(build_id);
 	kfree(data);
-	return 0;
 
- exit_free_rmi:
-	kfree(chip_info->fwu->rmi4_data);
-	chip_info->fwu->rmi4_data = NULL;
-
- exit_free_mem:
-	kfree(chip_info->fwu);
-	chip_info->fwu = NULL;
- exit:
-	kfree(data);
-	kfree(build_id);
 	return retval;
 }
 
@@ -5236,11 +5211,26 @@ static fw_update_state synaptics_fw_update(void *chip_data,
 	int retval = 0;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 
+	chip_info->fwu =
+	    kzalloc(sizeof(struct synaptics_rmi4_fwu_handle), GFP_KERNEL | GFP_DMA);
+	if (!chip_info->fwu) {
+		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	chip_info->fwu->rmi4_data =
+	    kzalloc(sizeof(struct synaptics_rmi4_data), GFP_KERNEL | GFP_DMA);
+	if (!chip_info->fwu->rmi4_data) {
+		TPD_INFO("%s: Failed to alloc mem for fwu\n", __func__);
+		retval = -ENOMEM;
+		goto out_fwu;
+	}
+
 	/*firmware update init */
 	retval = synaptics_rmi4_fwu_init(chip_info, force);
-	if (retval < 0) {	/*less zero means the space has been released in synaptics_rmi4_fwu_init */
-		goto no_need_release_mem;
-	}
+	if (retval < 0)
+		goto out;
 
 	/*start reflash */
 	chip_info->fwu->image = fw->data;
@@ -5251,14 +5241,14 @@ static fw_update_state synaptics_fw_update(void *chip_data,
 		TPD_INFO("firmwre update successed!\n");
 	}
 
+out:
 	kfree(chip_info->fwu->rmi4_data);
 	chip_info->fwu->rmi4_data = NULL;
+out_fwu:
 	kfree(chip_info->fwu);
 	chip_info->fwu = NULL;
-	return (retval < 0) ? FW_NO_NEED_UPDATE : FW_UPDATE_SUCCESS;
 
- no_need_release_mem:
-	return FW_NO_NEED_UPDATE;
+	return (retval < 0) ? FW_NO_NEED_UPDATE : FW_UPDATE_SUCCESS;
 }
 
 static fp_touch_state synaptics_spurious_fp_check(void *chip_data)
