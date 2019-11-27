@@ -89,11 +89,6 @@
 
 /*********PART3:Struct Area**********************/
 typedef enum {
-	TYPE_DELTA_IDLE,	/*means not in reading delta */
-	TYPE_DELTA_BUSY,	/*reading delta data */
-} delta_state;
-
-typedef enum {
 	TYPE_PROPERTIES = 1,	/*using board_properties */
 	TYPE_AREA_SEPRATE,	/*using same IC (button zone &&  touch zone are seprate) */
 	TYPE_DIFF_IC,		/*using diffrent IC (button zone &&  touch zone are seprate) */
@@ -109,21 +104,12 @@ typedef enum {
 } touch_area;
 
 typedef enum {
-	CORNER_TOPLEFT,		/*When Phone Face you in portrait top left corner */
-	CORNER_TOPRIGHT,	/*When Phone Face you in portrait top right corner */
-	CORNER_BOTTOMLEFT,	/*When Phone Face you in portrait bottom left corner */
-	CORNER_BOTTOMRIGHT,	/*When Phone Face you in portrait 7bottom right corner */
-} corner_type;
-
-typedef enum {
 	MODE_NORMAL,
 	MODE_SLEEP,
 	MODE_EDGE,
 	MODE_GESTURE,
-	MODE_GLOVE,
 	MODE_CHARGE,
 	MODE_GAME,
-	MODE_EARSENSE,
 	MODE_PALM_REJECTION,
 	MODE_FACE_DETECT,
 	MODE_FACE_CALIBRATE,
@@ -161,7 +147,6 @@ typedef enum IRQ_TRIGGER_REASON {
 	IRQ_BTN_KEY = 0x04,
 	IRQ_EXCEPTION = 0x08,
 	IRQ_FW_CONFIG = 0x10,
-	IRQ_DATA_LOGGER = 0x20,
 	IRQ_FW_AUTO_RESET = 0x40,
 	IRQ_FACE_STATE = 0x80,
 	IRQ_IGNORE = 0x00,
@@ -174,18 +159,6 @@ typedef enum vk_bitmap {
 	BIT_MENU = 0x01,
 } vk_bitmap;
 
-typedef enum finger_protect_status {
-	FINGER_PROTECT_TOUCH_UP,
-	FINGER_PROTECT_TOUCH_DOWN,
-	FINGER_PROTECT_NOTREADY,
-} fp_touch_state;
-
-typedef enum debug_level {
-	LEVEL_BASIC,		/*printk basic tp debug info */
-	LEVEL_DEBUG,		/*printk all tp debug info */
-	LEVEL_DETAIL,		/*printk tp detail log for stress test */
-} tp_debug_level;
-
 typedef enum resume_order {
 	TP_LCD_RESUME,
 	LCD_TP_RESUME,
@@ -195,11 +168,6 @@ typedef enum suspend_order {
 	TP_LCD_SUSPEND,
 	LCD_TP_SUSPEND,
 } tp_suspend_order;
-
-typedef enum lcd_power {
-	LCD_POWER_OFF,
-	LCD_POWER_ON,
-} lcd_power_status;
 
 struct Coordinate {
 	int x;
@@ -259,7 +227,6 @@ struct manufacture_info {
 struct panel_info {
 	char *fw_name;		/*FW name */
 	char *test_limit_name;	/*test limit name */
-	char *extra;		/*for some ic, may need other information */
 	const char *chip_name;	/*chip name the panel is controlled by */
 	const char *project_name;	/*project_name */
 	uint32_t TP_FW;		/*FW Version Read from IC */
@@ -284,8 +251,6 @@ struct hw_resource {
 	int RX_NUM;
 	int key_TX;		/*the tx num occupied by touchkey */
 	int key_RX;		/*the rx num occupied by touchkey */
-	int EARSENSE_TX_NUM;	/*for earsense function data reading */
-	int EARSENSE_RX_NUM;	/*for earsense function data reading */
 
 	//power
 	struct regulator *vdd_2v8;	/*power 2v8 */
@@ -296,23 +261,6 @@ struct hw_resource {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_set_high;
 	struct pinctrl_state *pin_set_low;
-};
-
-struct edge_limit {
-	int limit_area;
-	int left_x1;
-	int right_x1;
-	int left_x2;
-	int right_x2;
-	int left_x3;
-	int right_x3;
-	int left_y1;
-	int right_y1;
-	int left_y2;
-	int right_y2;
-	int left_y3;
-	int right_y3;
-	touch_area in_which_area;
 };
 
 struct touch_major_limit {
@@ -335,22 +283,6 @@ struct resolution_info {
 	uint32_t LCD_HEIGHT;	/*LCD HEIGHT       */
 };
 
-struct esd_information {
-	bool esd_running_flag;
-	int esd_work_time;
-	struct mutex esd_lock;
-	struct workqueue_struct *esd_workqueue;
-	struct delayed_work esd_check_work;
-};
-
-struct spurious_fp_touch {
-	bool fp_trigger;	/*thread only turn into runnning state by fingerprint kick proc/touchpanel/finger_protect_trigger */
-	bool lcd_resume_ok;
-	bool lcd_trigger_fp_check;
-	fp_touch_state fp_touch_st;	/*provide result to fingerprint of touch status data */
-	struct task_struct *thread;	/*tread use for fingerprint susprious touch check */
-};
-
 struct register_info {
 	uint8_t reg_length;
 	uint16_t reg_addr;
@@ -358,24 +290,13 @@ struct register_info {
 };
 
 struct black_gesture_test {
-	bool gesture_backup;	/*store the gesture enable flag */
 	bool flag;		/* indicate do black gesture test or not */
 	char *message;		/* failure information if gesture test failed */
 };
 
-struct debug_info_proc_operations;
-struct earsense_proc_operations;
 struct touchpanel_data {
-	bool glove_mode_support;	/*glove_mode support feature */
 	bool black_gesture_support;	/*black_gesture support feature */
-	bool charger_pump_support;	/*charger_pump support feature */
-	bool edge_limit_support;	/*edge_limit support feature */
-	bool esd_handle_support;	/*esd handle support feature */
-	bool spurious_fp_support;	/*avoid fingerprint spurious trrigger feature */
-	bool gesture_test_support;	/*indicate test black gesture or not */
 	bool game_switch_support;	/*indicate game switch support or not */
-	bool ear_sense_support;	/*touch porximity function */
-	bool smart_gesture_support;	/*feature used to controltouch_major report */
 	bool face_detect_support;	/*touch porximity function */
 	bool lcd_refresh_rate_switch;	/*switch lcd refresh rate 60-90hz */
 	bool touch_hold_support;	/*touchhold function for fingerprint */
@@ -386,7 +307,6 @@ struct touchpanel_data {
 	bool charge_detect_support;
 	bool module_id_support;	/*update firmware by lcd module id */
 	bool i2c_ready;		/*i2c resume status */
-	bool is_usb_checked;	/*state of charger or usb */
 	bool loading_fw;	/*touchpanel FW updating */
 	bool is_incell_panel;	/*touchpanel is incell */
 	bool is_noflash_ic;	/*noflash ic */
@@ -396,24 +316,18 @@ struct touchpanel_data {
 	bool in_test_process;	/*flag whether in test process */
 	u8 vk_bitmap;		/*every bit declear one state of key "reserve(keycode)|home(keycode)|menu(keycode)|back(keycode)" */
 	vk_type vk_type;	/*virtual_key type */
-	delta_state delta_state;
 
 	uint32_t irq_flags;	/*irq setting flag */
 	int irq;		/*irq num */
 
 	int gesture_enable;	/*control state of black gesture */
-	int palm_enable;
-	int es_enable;
 	int fd_enable;
 	int fd_calibrate;
 	int lcd_refresh_rate;
 	int touch_hold_enable;
-	int touch_area_switch;
 	int touch_count;
 	int glove_enable;	/*control state of glove gesture */
 	int limit_enable;	/*control state of limit ebale */
-	int limit_edge;		/*control state of limit edge */
-	int limit_corner;	/*control state of limit corner */
 	int is_suspended;	/*suspend/resume flow exec flag */
 	int corner_delay_up;	/*corner mode flag */
 	suspend_resume_state suspend_state;	/*detail suspend/resume state */
@@ -436,7 +350,6 @@ struct touchpanel_data {
 	int noise_level;	/*save ps status, ps near = 1, ps far = 0 */
 	bool gesture_switch;	/*gesture mode close or open gesture */
 	bool reject_point;	/*reject point for sensor */
-	bool fingerprint_int_test;	/*fingerprint int pin test */
 	u8 limit_switch;	/*0 is phone up 1 is crosswise */
 	u8 touchold_event;	/*0 is touchhold down 1 is up */
 
@@ -448,13 +361,11 @@ struct touchpanel_data {
 #endif
 
 	struct mutex mutex;	/*mutex for lock i2c related flow */
-	struct mutex mutex_earsense;
 	struct completion pm_complete;	/*completion for control suspend and resume flow */
 	struct completion fw_complete;	/*completion for control fw update */
 	struct completion resume_complete;	/*completion for control fw update */
 	struct panel_info panel_data;	/*GPIO control(id && pinctrl && tp_type) */
 	struct hw_resource hw_res;	/*hw resourc information */
-	struct edge_limit edge_limit;	/*edge limit */
 	struct button_map button_map;	/*virtual_key button area */
 	struct resolution_info resolution_info;	/*resolution of touchpanel && LCD */
 	struct gesture_info gesture;	/*gesture related info */
@@ -469,11 +380,7 @@ struct touchpanel_data {
 	struct work_struct async_work;
 	struct workqueue_struct *async_workqueue;
 	struct work_struct fw_update_work;	/*using for fw update */
-	struct delayed_work work_read_info;	/*using for print more rawdata when probe */
 	struct wakeup_source source;
-
-	struct esd_information esd_info;
-	struct spurious_fp_touch spuri_fp_touch;	/*spurious_finger_support */
 
 	struct device *dev;	/*used for i2c->dev */
 	struct i2c_client *client;
@@ -483,15 +390,10 @@ struct touchpanel_data {
 
 	struct touchpanel_operations *ts_ops;	/*call_back function */
 	struct proc_dir_entry *prEntry_tp;	/*struct proc_dir_entry of "/proc/touchpanel" */
-	struct proc_dir_entry *prEntry_debug_tp;	/*struct proc_dir_entry of "/proc/touchpanel/debug_info" */
-	struct debug_info_proc_operations *debug_info_ops;	/*debug info data */
-	struct earsense_proc_operations *earsense_ops;
 	struct register_info reg_info;	/*debug node for register length */
-	struct black_gesture_test gesture_test;	/*gesture test struct */
 
 	void *chip_data;	/*Chip Related data */
 	void *private_data;	/*Reserved Private data */
-	char *earsense_delta;
 };
 
 struct touchpanel_operations {
@@ -505,43 +407,19 @@ struct touchpanel_operations {
 	 fw_check_state(*fw_check) (void *chip_data, struct resolution_info * resolution_info, struct panel_info * panel_data);	/*return < 0 :failed; 0 sucess */
 	 fw_update_state(*fw_update) (void *chip_data, const struct firmware * fw, bool force);	/*return 0 normal; return -1:update failed; */
 	int (*power_control) (void *chip_data, bool enable);	/*return 0:success;other:abnormal, need to jump out */
-	int (*reset_gpio_control) (void *chip_data, bool enable);	/*used for reset gpio */
 	 u8(*trigger_reason) (void *chip_data, int gesture_enable, int is_suspended);	/*clear innterrupt reg && detect irq trigger reason */
 	 u8(*get_keycode) (void *chip_data);	/*get touch-key code */
-	int (*esd_handle) (void *chip_data);
 	int (*fw_handle) (void *chip_data);	/*return 0 normal; return -1:update failed; */
 	void (*resume_prepare) (void *chip_data);	/*using for operation before resume flow,
 							   eg:incell 3320 need to disable gesture to release inter pins for lcd resume */
-	 fp_touch_state(*spurious_fp_check) (void *chip_data);	/*spurious fingerprint check */
-	void (*finger_proctect_data_get) (void *chip_data);	/*finger protect data get */
-	void (*data_logger_open) (void *chip_data);	/*get data logger open status in probe or after fwupdate */
-	void (*data_logger_get) (void *chip_data);	/*data logger get */
 	void (*exit_esd_mode) (void *chip_data);	/*add for s4322 exit esd mode */
 	void (*register_info_read) (void *chip_data, uint16_t register_addr, uint8_t * result, uint8_t length);	/*add for read registers */
 	void (*write_ps_status) (void *chip_data, int ps_status);	/*when detect iron plate, if ps is near ,enter iron plate mode;if ps is far, can not enter; exit esd mode when ps is far */
 	void (*specific_resume_operate) (void *chip_data);	/*some ic need specific opearation in resuming */
 	int (*get_usb_state) (void);	/*get current usb state */
-	void (*black_screen_test) (void *chip_data, char *msg);	/*message of black gesture test */
 	int (*irq_handle_unlock) (void *chip_info);	/*irq handler without mutex */
 	int (*async_work) (void *chip_info);	/*async work */
 	int (*get_face_state) (void *chip_info);	/*get face detect state */
-};
-
-struct debug_info_proc_operations {
-	void (*limit_read) (struct seq_file * s, struct touchpanel_data * ts);
-	void (*delta_read) (struct seq_file * s, void *chip_data);
-	void (*self_delta_read) (struct seq_file * s, void *chip_data);
-	void (*self_raw_read) (struct seq_file * s, void *chip_data);
-	void (*baseline_read) (struct seq_file * s, void *chip_data);
-	void (*baseline_blackscreen_read) (struct seq_file * s,
-					   void *chip_data);
-	void (*main_register_read) (struct seq_file * s, void *chip_data);
-	void (*reserve_read) (struct seq_file * s, void *chip_data);
-	void (*abs_doze_read) (struct seq_file * s, void *chip_data);
-	void (*RT251) (struct seq_file * s, void *chip_data);
-	void (*RT76) (struct seq_file * s, void *chip_data);
-	void (*RT254) (struct seq_file * s, void *chip_data);
-	void (*DRT) (struct seq_file * s, void *chip_data);
 };
 
 struct invoke_method {
@@ -549,18 +427,7 @@ struct invoke_method {
 	void (*async_work) (void);
 };
 
-struct earsense_proc_operations {
-	void (*rawdata_read) (void *chip_data, char *earsense_baseline,
-			      int read_length);
-	void (*delta_read) (void *chip_data, char *earsense_delta,
-			    int read_length);
-	void (*self_data_read) (void *chip_data, char *earsense_self_data,
-				int read_length);
-};
-
 /*********PART3:function or variables for other files**********************/
-extern unsigned int tp_debug;	/*using for print debug log */
-
 struct touchpanel_data *common_touch_data_alloc(void);
 
 int common_touch_data_free(struct touchpanel_data *pdata);
@@ -572,14 +439,7 @@ void tp_i2c_resume(struct touchpanel_data *ts);
 int tp_powercontrol_1v8(struct hw_resource *hw_res, bool on);
 int tp_powercontrol_2v8(struct hw_resource *hw_res, bool on);
 
-void operate_mode_switch(struct touchpanel_data *ts);
-void input_report_key_reduce(struct input_dev *dev, unsigned int code,
-			     int value);
-void esd_handle_switch(struct esd_information *esd_info, bool on);
-void clear_view_touchdown_flag(void);
 void tp_touch_btnkey_release(void);
-void tp_util_get_vendor(struct touchpanel_data *ts,
-			struct panel_info *panel_data);
 extern bool tp_judge_ic_match(char *tp_ic_name);
 /* add haptic audio tp mask */
 extern int msm_drm_notifier_call_chain(unsigned long val, void *v);

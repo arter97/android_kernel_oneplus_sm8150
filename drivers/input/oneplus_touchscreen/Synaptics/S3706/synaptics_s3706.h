@@ -21,7 +21,10 @@
 #endif
 #include <linux/version.h>
 
-#include "../synaptics_common.h"
+#include "../../touchpanel_common.h"
+#include "../synaptics_firmware_v2.h"
+#define CONFIG_SYNAPTIC_RED
+
 #ifdef CONFIG_SYNAPTIC_RED
 #include "../synaptics_touch_panel_remote.h"
 #endif
@@ -876,24 +879,16 @@ struct synaptics_register {
 	uint8_t F55_SENSOR_CTRL02;
 };
 
-struct data_logger {
-	bool data_logger_control;
-	int loglength_addr;
-	int loginfo_addr;
-};
-
 struct chip_data_s3706 {
 	uint32_t *p_tp_fw;
 	tp_dev tp_type;
 	struct i2c_client *client;
-	struct synaptics_proc_operations *syna_ops;	/*synaptics func provide to synaptics common driver */
 #ifdef CONFIG_SYNAPTIC_RED
 	int enable_remote;	/*Redremote connect state */
 	struct remotepanel_data *premote_data;
 #endif				/*CONFIG_SYNAPTIC_RED */
 	struct synaptics_register reg_info;
 	struct hw_resource *hw_res;
-	struct data_logger d_log;
 	struct synaptics_rmi4_fwu_handle *fwu;	/*3706 firmware update use */
 	int16_t *spuri_fp_data;
 	bool is_power_down;

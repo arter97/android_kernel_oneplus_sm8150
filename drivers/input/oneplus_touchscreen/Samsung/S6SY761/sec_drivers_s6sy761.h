@@ -19,7 +19,9 @@
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #endif
-#include "../sec_common.h"
+#include "../../touchpanel_common.h"
+
+#define I2C_BURSTMAX (64)
 
 /*********PART2:Define Area**********************/
 #define GESTURE_DOUBLECLICK                     0x00
