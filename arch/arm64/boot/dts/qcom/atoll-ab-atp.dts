@@ -10,20 +10,14 @@
  * GNU General Public License for more details.
  */
 
-#include "atoll.dtsi"
+/dts-v1/;
+
+#include "atoll-ab.dtsi"
+#include "atoll-atp.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. ATOLLP";
-	qcom,msm-name = "ATOLLP";
-	qcom,msm-id = <424 0>;
-};
-
-&soc {
-	qcom,rmnet-ipa {
-		status="disabled";
-	};
-};
-
-&ipa_hw {
-	status="disabled";
+	model = "Qualcomm Technologies, Inc. ATOLL-AB PM6150 ATP";
+	compatible = "qcom,atoll-ab-idp", "qcom,atoll-ab",
+			"qcom,idp", "qcom,atp";
+	qcom,board-id = <33 0>;
 };
