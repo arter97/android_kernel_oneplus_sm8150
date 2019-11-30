@@ -5089,6 +5089,18 @@ release_ref:
 	return status;
 }
 
+void sme_cleanup_session(mac_handle_t mac_handle, uint8_t vdev_id)
+{
+	QDF_STATUS status;
+	struct sAniSirGlobal *mac = MAC_CONTEXT(mac_handle);
+
+	status = sme_acquire_global_lock(&mac->sme);
+	if (QDF_IS_STATUS_ERROR(status))
+		return;
+	csr_cleanup_session(mac, vdev_id);
+	sme_release_global_lock(&mac->sme);
+}
+
 /*
  * sme_change_mcc_beacon_interval() -
  * To update P2P-GO beaconInterval. This function should be called after
@@ -16849,4 +16861,33 @@ QDF_STATUS sme_set_roam_triggers(mac_handle_t mac_handle,
 	}
 
 	return status;
+}
+
+QDF_STATUS sme_set_disconnect_ies(mac_handle_t mac_handle, uint8_t vdev_id,
+				  uint8_t *ie_data, uint16_t ie_len)
+{
+	tpAniSirGlobal mac_ctx = PMAC_STRUCT(mac_handle);
+	struct wlan_objmgr_vdev *vdev;
+	struct wlan_ies ie;
+
+	if (!ie_data || !ie_len) {
+		sme_debug("Got NULL disconnect IEs");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(mac_ctx->psoc,
+						    vdev_id,
+						    WLAN_LEGACY_SME_ID);
+	if (!vdev) {
+		sme_err("Got NULL vdev obj, returning");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	ie.data = ie_data;
+	ie.len = ie_len;
+
+	mlme_set_self_disconnect_ies(vdev, &ie);
+
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_SME_ID);
+	return QDF_STATUS_SUCCESS;
 }

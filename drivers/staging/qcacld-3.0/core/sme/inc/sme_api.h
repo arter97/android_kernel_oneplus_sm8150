@@ -343,6 +343,16 @@ QDF_STATUS sme_open_session(tHalHandle hal, struct sme_session_params *params);
  * Other status means SME is failed to open the session.
  */
 QDF_STATUS sme_close_session(tHalHandle hal, uint8_t sessionId);
+
+/**
+ * sme_cleanup_session() -  clean up sme session info for vdev
+ * @mac_handle: mac handle
+ * @vdev_id: vdev id
+ *
+ * Return: none
+ */
+void sme_cleanup_session(mac_handle_t mac_handle, uint8_t vdev_id);
+
 void sme_set_curr_device_mode(tHalHandle hHal,
 		enum QDF_OPMODE currDeviceMode);
 QDF_STATUS sme_update_roam_params(tHalHandle hHal, uint8_t session_id,
@@ -2971,4 +2981,16 @@ QDF_STATUS sme_set_roam_triggers(mac_handle_t mac_handle,
  */
 QDF_STATUS sme_roam_control_restore_default_config(mac_handle_t mac_handle,
 						   uint8_t vdev_id);
+
+/**
+ * sme_set_disconnect_ies() - set disconnect IEs
+ * @mac_handle: handle returned by mac_open
+ * @vdev_id: vdev id
+ * @ie_data: Disconnect IE data
+ * @ie_len: Disconnect IE length
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sme_set_disconnect_ies(mac_handle_t mac_handle, uint8_t vdev_id,
+				  uint8_t *ie_data, uint16_t ie_len);
 #endif /* #if !defined( __SME_API_H ) */
