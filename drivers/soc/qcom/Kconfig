@@ -884,6 +884,12 @@ config QCOM_CDSP_RM
 	  CPU L3 clock for improving IO-Coherent throughput and opt for QoS mode
 	  to improve RPC latency.
 
+config PROJECT_INFO
+	bool "detect project info"
+	default n
+        help
+           detect projcet info  If unsure, say n.
+
 config QCOM_CX_IPEAK
 	bool "Common driver to handle Cx iPeak limitation"
 	help

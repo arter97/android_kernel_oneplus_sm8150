@@ -221,4 +221,10 @@ source "drivers/sensors/Kconfig"
 
 source "drivers/esoc/Kconfig"
 
+source "drivers/step_motor/Kconfig"
+
+source "drivers/tri_state_key/Kconfig"
+
+source "drivers/vibrator/Kconfig"
+
 endmenu

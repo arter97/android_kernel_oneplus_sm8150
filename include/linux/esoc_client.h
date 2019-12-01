@@ -16,6 +16,8 @@
 #include <linux/esoc_ctrl.h>
 #include <linux/notifier.h>
 
+extern int oem_get_download_mode(void);
+
 enum esoc_client_hook_prio {
 	ESOC_MHI_HOOK,
 	ESOC_CNSS_HOOK,
@@ -89,4 +91,7 @@ static inline int esoc_unregister_client_hook(struct esoc_desc *desc,
 	return -EIO;
 }
 #endif
+int get_ssr_reason_state(void);
+int oem_set_esoc_ssr(int enable);
+int is_oem_esoc_ssr(void);
 #endif

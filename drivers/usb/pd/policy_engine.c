@@ -29,6 +29,11 @@
 #include <linux/usb/usbpd.h>
 #include "usbpd.h"
 
+/* To start USB stack for USB3.1 compliance testing */
+static bool usb_compliance_mode;
+module_param(usb_compliance_mode, bool, 0644);
+MODULE_PARM_DESC(usb_compliance_mode, "USB3.1 compliance testing");
+
 enum usbpd_state {
 	PE_UNKNOWN,
 	PE_ERROR_RECOVERY,
@@ -412,6 +417,9 @@ struct usbpd {
 	bool			peer_usb_comm;
 	bool			peer_pr_swap;
 	bool			peer_dr_swap;
+/* @bsp, 2019/04/27 usb & PD porting */
+	bool		oem_bypass;
+	bool		periph_direct;
 
 	u32			sink_caps[7];
 	int			num_sink_caps;
@@ -425,6 +433,7 @@ struct usbpd {
 	int			bat_voltage_max;
 
 	enum power_supply_typec_mode typec_mode;
+	enum power_supply_type	psy_type;
 	enum power_supply_typec_power_role forced_pr;
 	bool			vbus_present;
 
@@ -1451,17 +1460,23 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 			}
 
 			usbpd_err(&pd->dev, "Invalid request: %08x\n", pd->rdo);
-
-			if (pd->in_explicit_contract)
-				usbpd_set_state(pd, PE_SRC_READY);
-			else
-				/*
-				 * bypass PE_SRC_Capability_Response and
-				 * PE_SRC_Wait_New_Capabilities in this
-				 * implementation for simplicity.
-				 */
-				usbpd_set_state(pd, PE_SRC_SEND_CAPABILITIES);
-			break;
+/* @bsp, 2019/04/27 usb & PD porting */
+/*handle pixel-sink connect failed issue*/
+			if (pd->oem_bypass) {
+				usbpd_info(&pd->dev, "oem bypass invalid request!\n");
+			} else {
+				if (pd->in_explicit_contract)
+					usbpd_set_state(pd, PE_SRC_READY);
+				else
+					/*
+					 * bypass PE_SRC_Capability_Response and
+					 * PE_SRC_Wait_New_Capabilities in this
+					 * implementation for simplicity.
+					 */
+					usbpd_set_state(pd,
+						PE_SRC_SEND_CAPABILITIES);
+				break;
+			}
 		}
 
 		/* PE_SRC_TRANSITION_SUPPLY pseudo-state */
@@ -1924,17 +1939,17 @@ static void handle_vdm_rx(struct usbpd *pd, struct rx_msg *rx_msg)
 	switch (cmd_type) {
 	case SVDM_CMD_TYPE_INITIATOR:
 		if (cmd != USBPD_SVDM_ATTENTION) {
-			if (pd->spec_rev == USBPD_REV_30) {
-				ret = pd_send_msg(pd, MSG_NOT_SUPPORTED, NULL,
-						0, SOP_MSG);
-				if (ret)
-					usbpd_set_state(pd, PE_SEND_SOFT_RESET);
-			} else {
+//			if (pd->spec_rev == USBPD_REV_30) {
+//				ret = pd_send_msg(pd, MSG_NOT_SUPPORTED, NULL,
+//						0, SOP_MSG);
+//				if (ret)
+//					usbpd_set_state(pd, PE_SEND_SOFT_RESET);
+//			} else {
 				usbpd_send_svdm(pd, svid, cmd,
 						SVDM_CMD_TYPE_RESP_NAK,
 						SVDM_HDR_OBJ_POS(vdm_hdr),
 						NULL, 0);
-			}
+//			}
 		}
 		break;
 
@@ -1961,19 +1976,6 @@ static void handle_vdm_rx(struct usbpd *pd, struct rx_msg *rx_msg)
 				break;
 			}
 
-			if (ID_HDR_PRODUCT_TYPE(vdos[0]) ==
-					ID_HDR_PRODUCT_VPD) {
-				usbpd_dbg(&pd->dev, "VPD detected turn off vbus\n");
-
-				if (pd->vbus_enabled) {
-					ret = regulator_disable(pd->vbus);
-					if (ret)
-						usbpd_err(&pd->dev, "Err disabling vbus (%d)\n",
-								ret);
-					else
-						pd->vbus_enabled = false;
-				}
-			}
 
 			if (!pd->in_explicit_contract)
 				break;
@@ -2452,8 +2454,8 @@ enable_reg:
 /* For PD 3.0, check SinkTxOk before allowing initiating AMS */
 static inline bool is_sink_tx_ok(struct usbpd *pd)
 {
-	if (pd->spec_rev == USBPD_REV_30)
-		return pd->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH;
+//	if (pd->spec_rev == USBPD_REV_30)
+//		return pd->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH;
 
 	return true;
 }
@@ -3430,8 +3432,12 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 		return ret;
 	}
 
+	/* add to start USB stack for USB3.1 compliance testing */
+	if (usb_compliance_mode)
+		pd->periph_direct = true;
+
 	/* Don't proceed if PE_START=0; start USB directly if needed */
-	if (!val.intval && !pd->pd_connected &&
+	if (pd->periph_direct && !val.intval && !pd->pd_connected &&
 			typec_mode >= POWER_SUPPLY_TYPEC_SOURCE_DEFAULT) {
 		ret = power_supply_get_property(pd->usb_psy,
 				POWER_SUPPLY_PROP_REAL_TYPE, &val);
@@ -3443,8 +3449,9 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 
 		if (val.intval == POWER_SUPPLY_TYPE_USB ||
 			val.intval == POWER_SUPPLY_TYPE_USB_CDP ||
-			val.intval == POWER_SUPPLY_TYPE_USB_FLOAT) {
-			usbpd_dbg(&pd->dev, "typec mode:%d type:%d\n",
+			val.intval == POWER_SUPPLY_TYPE_USB_FLOAT ||
+			usb_compliance_mode) {
+			usbpd_info(&pd->dev, "typec mode:%d type:%d\n",
 				typec_mode, val.intval);
 			pd->typec_mode = typec_mode;
 			queue_work(pd->wq, &pd->start_periph_work);
@@ -3487,8 +3494,8 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 
 	pd->typec_mode = typec_mode;
 
-	usbpd_dbg(&pd->dev, "typec mode:%d present:%d orientation:%d\n",
-			typec_mode, pd->vbus_present,
+	usbpd_err(&pd->dev, "typec mode:%d present:%d type:%d orientation:%d\n",
+			typec_mode, pd->vbus_present, pd->psy_type,
 			usbpd_get_plug_orientation(pd));
 
 	switch (typec_mode) {
@@ -3543,8 +3550,12 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 				typec_mode == POWER_SUPPLY_TYPEC_SINK ?
 					"" : " (powered)");
 
-		if (pd->current_pr == PR_SRC)
+		usbpd_info(&pd->dev, "primary current_pr = %d\n",
+				pd->current_pr);
+		if (pd->current_pr == PR_SRC) {
+			pr_err("pd->current_pr == PR_SRC PR no change return!\n");
 			return 0;
+		}
 
 		pd->current_pr = PR_SRC;
 		break;
@@ -4622,6 +4633,10 @@ struct usbpd *usbpd_create(struct device *parent)
 		pd->dual_role->drv_data = pd;
 	}
 
+/* @bsp, 2019/04/27 usb & PD porting */
+/*handle pixel-sink connect failed issue*/
+	pd->oem_bypass = true;
+	pd->periph_direct = false;
 	pd->current_pr = PR_NONE;
 	pd->current_dr = DR_NONE;
 	list_add_tail(&pd->instance, &_usbpd);

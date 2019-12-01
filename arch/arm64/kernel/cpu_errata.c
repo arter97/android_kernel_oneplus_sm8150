@@ -667,10 +667,6 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_REPEAT_TLBI,
 		ERRATA_MIDR_RANGE(MIDR_CORTEX_A76, 0, 0, 3, 0),
 	},
-	{
-		.capability = ARM64_WORKAROUND_REPEAT_TLBI,
-		ERRATA_MIDR_RANGE(MIDR_KRYO4G, 12, 14, 13, 14),
-	},
 #endif
 #ifdef CONFIG_ARM64_ERRATUM_858921
 	{

@@ -35,6 +35,7 @@
 #include <linux/pstore_ram.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <soc/qcom/minidump.h>
 
 #define RAMOOPS_KERNMSG_HDR "===="
 #define MIN_MEM_SIZE 4096UL
@@ -82,32 +83,6 @@ MODULE_PARM_DESC(ramoops_ecc,
 		"if non-zero, the option enables ECC support and specifies "
 		"ECC buffer size in bytes (1 is a special value, means 16 "
 		"bytes ECC)");
-
-struct ramoops_context {
-	struct persistent_ram_zone **dprzs;	/* Oops dump zones */
-	struct persistent_ram_zone *cprz;	/* Console zone */
-	struct persistent_ram_zone **fprzs;	/* Ftrace zones */
-	struct persistent_ram_zone *mprz;	/* PMSG zone */
-	phys_addr_t phys_addr;
-	unsigned long size;
-	unsigned int memtype;
-	size_t record_size;
-	size_t console_size;
-	size_t ftrace_size;
-	size_t pmsg_size;
-	int dump_oops;
-	u32 flags;
-	struct persistent_ram_ecc_info ecc_info;
-	unsigned int max_dump_cnt;
-	unsigned int dump_write_cnt;
-	/* _read_cnt need clear on ramoops_pstore_open */
-	unsigned int dump_read_cnt;
-	unsigned int console_read_cnt;
-	unsigned int max_ftrace_cnt;
-	unsigned int ftrace_read_cnt;
-	unsigned int pmsg_read_cnt;
-	struct pstore_info pstore;
-};
 
 static struct platform_device *dummy;
 static struct ramoops_platform_data *dummy_data;
@@ -719,6 +694,7 @@ static int ramoops_probe(struct platform_device *pdev)
 	struct ramoops_platform_data *pdata = dev->platform_data;
 	struct ramoops_platform_data pdata_local;
 	struct ramoops_context *cxt = &oops_cxt;
+	struct md_region md_entry;
 	size_t dump_mem_sz;
 	phys_addr_t paddr;
 	int err = -EINVAL;
@@ -855,6 +831,14 @@ static int ramoops_probe(struct platform_device *pdev)
 	ramoops_pmsg_size = pdata->pmsg_size;
 	ramoops_ftrace_size = pdata->ftrace_size;
 
+	/* Add pmsg info to minidump table */
+	strlcpy(md_entry.name, "PMSG", sizeof(md_entry.name));
+	md_entry.virt_addr = (u64)cxt->mprz->vaddr;
+	md_entry.phys_addr = (u64)cxt->mprz->paddr;
+	md_entry.size = cxt->mprz->size;
+	if (msm_minidump_add_region(&md_entry))
+		pr_info("Failed to add PMSG data in Minidump\n");
+
 	pr_info("attached 0x%lx@0x%llx, ecc: %d/%d\n",
 		cxt->size, (unsigned long long)cxt->phys_addr,
 		cxt->ecc_info.ecc_size, cxt->ecc_info.block_size);
@@ -886,6 +870,7 @@ static int ramoops_remove(struct platform_device *pdev)
 
 	persistent_ram_free(cxt->mprz);
 	persistent_ram_free(cxt->cprz);
+	persistent_ram_free(cxt->dprz);
 	ramoops_free_przs(cxt);
 
 	return 0;

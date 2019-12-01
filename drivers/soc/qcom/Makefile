@@ -79,7 +79,7 @@ obj-$(CONFIG_QSEE_IPC_IRQ_BRIDGE) += qsee_ipc_irq_bridge.o
 obj-$(CONFIG_QCOM_GLINK) += glink_probe.o
 obj-$(CONFIG_QCOM_GLINK_PKT) += glink_pkt.o
 obj-$(CONFIG_QCOM_QDSS_BRIDGE) += qdss_bridge.o
-obj-$(CONFIG_MSM_QBT1000) += qbt1000.o
+#obj-$(CONFIG_MSM_QBT1000) += qbt1000.o
 obj-$(CONFIG_MSM_EVENT_TIMER) += event_timer.o
 obj-$(CONFIG_MSM_IDLE_STATS)	+= lpm-stats.o
 obj-$(CONFIG_QTI_RPM_STATS_LOG) += rpm_stats.o
@@ -98,6 +98,7 @@ endif
 obj-$(CONFIG_QCOM_SMP2P_SLEEPSTATE) += smp2p_sleepstate.o
 obj-$(CONFIG_QCOM_MEM_OFFLINE) += mem-offline.o
 obj-$(CONFIG_QCOM_CDSP_RM) += cdsprm.o
+obj-$(CONFIG_PROJECT_INFO) += project_info.o
 obj-$(CONFIG_QCOM_CX_IPEAK) += cx_ipeak.o
 obj-$(CONFIG_QCOM_AOP_DDR_MESSAGING) += aop_ddr_msgs.o
 obj-$(CONFIG_MSM_HAB) += hab/
