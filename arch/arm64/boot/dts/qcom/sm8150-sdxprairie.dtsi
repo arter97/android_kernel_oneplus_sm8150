@@ -276,3 +276,12 @@
 &wil6210 {
 	status = "disabled";
 };
+
+&icnss {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm3>;
+};
+
+&icnss {
+	qcom,clk-monitor-enable;
+};
