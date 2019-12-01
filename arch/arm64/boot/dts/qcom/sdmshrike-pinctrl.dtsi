@@ -13,7 +13,7 @@
 &soc {
 	tlmm: pinctrl@3000000 {
 		compatible = "qcom,sdmshrike-pinctrl";
-		reg = <0x03000000 0xdd2000>, <0x17c000f0 0x60>;
+		reg = <0x03000000 0xddc000>, <0x17c000f0 0x60>;
 		reg-names = "pinctrl", "spi_cfg";
 		interrupts = <0 208 0>;
 		gpio-controller;
@@ -4239,6 +4239,34 @@
 
 				config {
 					pins = "gpio11", "gpio12";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		qupv3_se16_2uart_pins: qupv3_se16_2uart_pins {
+			qupv3_se16_2uart_active: qupv3_se16_2uart_active {
+				mux {
+					pins = "gpio83", "gpio84";
+					function = "qup16";
+				};
+
+				config {
+					pins = "gpio83", "gpio84";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			qupv3_se16_2uart_sleep: qupv3_se16_2uart_sleep {
+				mux {
+					pins = "gpio83", "gpio84";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio83", "gpio84";
 					drive-strength = <2>;
 					bias-disable;
 				};

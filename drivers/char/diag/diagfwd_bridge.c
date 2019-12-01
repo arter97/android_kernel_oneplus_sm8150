@@ -58,8 +58,6 @@ static int diagfwd_bridge_mux_connect(int id, int mode)
 {
 	if (id < 0 || id >= NUM_REMOTE_DEV)
 		return -EINVAL;
-	if (bridge_info[id].dev_ops && bridge_info[id].dev_ops->open)
-		bridge_info[id].dev_ops->open(bridge_info[id].ctxt);
 	return 0;
 }
 
@@ -273,7 +271,7 @@ uint16_t diag_get_remote_device_mask(void)
 
 void diag_register_with_bridge(void)
 {
-	if (IS_ENABLED(CONFIG_USB_QCOM_DIAG_BRIDGE))
+	if (IS_ENABLED(CONFIG_USB_QTI_DIAG_BRIDGE))
 		diag_register_with_hsic();
 	else if (IS_ENABLED(CONFIG_MHI_BUS))
 		diag_register_with_mhi();
@@ -281,7 +279,7 @@ void diag_register_with_bridge(void)
 
 void diag_unregister_bridge(void)
 {
-	if (IS_ENABLED(CONFIG_USB_QCOM_DIAG_BRIDGE))
+	if (IS_ENABLED(CONFIG_USB_QTI_DIAG_BRIDGE))
 		diag_unregister_hsic();
 	else if (IS_ENABLED(CONFIG_MHI_BUS))
 		diag_unregister_mhi();

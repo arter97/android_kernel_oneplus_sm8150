@@ -153,7 +153,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		csl_packet->header.request_id <= s_ctrl->last_flush_req
 		&& s_ctrl->last_flush_req != 0) {
 		CAM_ERR(CAM_SENSOR,
-			"reject request %lld, last request to flush %lld",
+			"reject request %lld, last request to flush %d",
 			csl_packet->header.request_id, s_ctrl->last_flush_req);
 		rc = -EINVAL;
 		goto rel_pkt_buf;
@@ -264,7 +264,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 
 rel_pkt_buf:
 	if (cam_mem_put_cpu_buf(config.packet_handle))
-		CAM_WARN(CAM_SENSOR, "Failed in put the buffer: 0x%x",
+		CAM_WARN(CAM_SENSOR, "Failed in put the buffer: 0x%llx",
 			config.packet_handle);
 
 	return rc;
@@ -597,7 +597,7 @@ int32_t cam_handle_mem_ptr(uint64_t handle, struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	if (cam_mem_put_cpu_buf(handle))
-		CAM_WARN(CAM_SENSOR, "Failed to put the command Buffer: 0x%x",
+		CAM_WARN(CAM_SENSOR, "Failed to put the command Buffer: 0x%llx",
 			handle);
 
 	return rc;
@@ -608,7 +608,7 @@ rel_cmd_buf:
 			cmd_desc[i].mem_handle);
 rel_pkt_buf:
 	if (cam_mem_put_cpu_buf(handle))
-		CAM_WARN(CAM_SENSOR, "Failed to put the command Buffer: 0x%x",
+		CAM_WARN(CAM_SENSOR, "Failed to put the command Buffer: 0x%llx",
 			handle);
 
 	return rc;
@@ -631,6 +631,8 @@ void cam_sensor_query_cap(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->sensordata->subdev_id[SUB_MODULE_LED_FLASH];
 	query_cap->ois_slot_id =
 		s_ctrl->sensordata->subdev_id[SUB_MODULE_OIS];
+	query_cap->ir_led_slot_id =
+		s_ctrl->sensordata->subdev_id[SUB_MODULE_IR_LED];
 	query_cap->slot_info =
 		s_ctrl->soc_info.index;
 }
@@ -924,14 +926,13 @@ free_probe_cmd:
 
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		CAM_INFO(CAM_SENSOR,
-				"CAM_ACQUIRE_DEV Success %d",
+				"SENSOR_POWER_UP Success %d",
 				s_ctrl->soc_info.index);
 	}
 		break;
 
 	case AIS_SENSOR_POWER_DOWN: {
-		if ((s_ctrl->sensor_state == CAM_SENSOR_INIT) ||
-			(s_ctrl->sensor_state == CAM_SENSOR_START)) {
+		if (s_ctrl->sensor_state == CAM_SENSOR_START) {
 			rc = -EINVAL;
 			CAM_WARN(CAM_SENSOR,
 				"Not in right state to release %d (%d)",
@@ -950,7 +951,7 @@ free_probe_cmd:
 
 		s_ctrl->sensor_state = CAM_SENSOR_INIT;
 		CAM_INFO(CAM_SENSOR,
-			"CAM_RELEASE_DEV Success %d",
+			"SENSOR_POWER_DOWN Success %d",
 			s_ctrl->soc_info.index);
 	}
 		break;
@@ -1005,7 +1006,7 @@ free_probe_cmd:
 			goto release_mutex;
 		}
 
-		CAM_WARN(CAM_SENSOR, "Read 0x%x : 0x%x <- 0x%x",
+		CAM_DBG(CAM_SENSOR, "Read 0x%x : 0x%x <- 0x%x",
 			i2c_read.i2c_config.slave_addr,
 			i2c_read.reg_addr, i2c_read.reg_data);
 
@@ -1050,7 +1051,7 @@ free_probe_cmd:
 			goto release_mutex;
 		}
 
-		CAM_INFO(CAM_SENSOR,
+		CAM_DBG(CAM_SENSOR,
 			"Write 0x%x, 0x%x <- 0x%x [%d, %d]",
 			i2c_write.i2c_config.slave_addr,
 			i2c_write.wr_payload.reg_addr,
@@ -1164,7 +1165,7 @@ free_probe_cmd:
 			goto release_mutex;
 		}
 
-		CAM_INFO(CAM_SENSOR,
+		CAM_DBG(CAM_SENSOR,
 			"Write 0x%x, %d regs [%d, %d]",
 			i2c_write.i2c_config.slave_addr,
 			i2c_write.count,
@@ -1214,7 +1215,7 @@ free_probe_cmd:
 		bridge_params.v4l2_sub_dev_flag = 0;
 		bridge_params.media_entity_flag = 0;
 		bridge_params.priv = s_ctrl;
-
+		bridge_params.dev_id = CAM_SENSOR;
 		sensor_acq_dev.device_handle =
 			cam_create_device_hdl(&bridge_params);
 		s_ctrl->bridge_intf.device_hdl = sensor_acq_dev.device_handle;
@@ -1365,6 +1366,16 @@ free_probe_cmd:
 	}
 		break;
 	case CAM_CONFIG_DEV: {
+		if (s_ctrl->sensor_state < CAM_SENSOR_ACQUIRE) {
+			rc = -EINVAL;
+			CAM_ERR(CAM_SENSOR,
+				"sensor_id:[0x%x] not acquired to configure [%d] ",
+				s_ctrl->sensordata->slave_info.sensor_id,
+				s_ctrl->sensor_state
+			);
+			goto release_mutex;
+		}
+
 		rc = cam_sensor_i2c_pkt_parse(s_ctrl, arg);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "Failed i2c pkt parse: %d", rc);

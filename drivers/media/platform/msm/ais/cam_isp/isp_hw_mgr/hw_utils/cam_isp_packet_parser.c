@@ -473,6 +473,7 @@ int cam_isp_add_io_buffers(
 	int32_t                             hdl;
 	int                                 mmu_hdl;
 	bool                                mode, is_buf_secure;
+	uint64_t                            req_id;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
 			&prepare->packet->payload +
@@ -481,6 +482,7 @@ int cam_isp_add_io_buffers(
 	num_in_buf  = 0;
 	io_cfg_used_bytes = 0;
 	prepare->pf_data->packet = prepare->packet;
+	req_id = prepare->packet->header.request_id;
 
 	/* Max one hw entries required for each base */
 	if (prepare->num_hw_update_entries + 1 >=
@@ -495,7 +497,7 @@ int cam_isp_add_io_buffers(
 		CAM_DBG(CAM_ISP, "======= io config idx %d ============", i);
 		CAM_DBG(CAM_REQ,
 			"i %d req_id %llu resource_type:%d fence:%d direction %d",
-			i, prepare->packet->header.request_id,
+			i, req_id,
 			io_cfg[i].resource_type, io_cfg[i].fence,
 			io_cfg[i].direction);
 		CAM_DBG(CAM_ISP, "format: %d", io_cfg[i].format);
@@ -622,10 +624,35 @@ int cam_isp_add_io_buffers(
 					mmu_hdl, &io_addr[plane_id], &size);
 				if (rc) {
 					CAM_ERR(CAM_ISP,
-						"no io addr for plane%d",
-						plane_id);
+						"no io addr for plane%d Bufhdl:%d, Size =%d",
+						plane_id,
+						io_cfg[i].mem_handle[plane_id],
+						(int)size);
+					CAM_ERR(CAM_ISP,
+						"Port i %d Reqid %llu res_type:%d fence:%d dir %d",
+						i, req_id,
+						io_cfg[i].resource_type,
+						io_cfg[i].fence,
+						io_cfg[i].direction);
 					rc = -ENOMEM;
 					return rc;
+				}
+
+				if (j == 0) {
+					rc = cam_packet_validate_plane_size(
+							&io_cfg[i],
+							plane_id,
+							size);
+					if (rc) {
+						CAM_ERR(CAM_ISP,
+						"Invalid buffer size, port 0x%x plane %d req_id %llu format %d memh 0x%x",
+						io_cfg[i].resource_type,
+						plane_id,
+						req_id,
+						io_cfg[i].format,
+						io_cfg[i].mem_handle[plane_id]);
+						return -EINVAL;
+					}
 				}
 
 				/* need to update with offset */
@@ -686,52 +713,7 @@ int cam_isp_add_io_buffers(
 				rc = -ENOMEM;
 				return rc;
 			}
-
 			io_cfg_used_bytes += update_buf.cmd.used_bytes;
-
-			if ((kmd_buf_info->used_bytes + io_cfg_used_bytes) <
-				kmd_buf_info->size) {
-				kmd_buf_remain_size = kmd_buf_info->size -
-					(kmd_buf_info->used_bytes +
-					io_cfg_used_bytes);
-			} else {
-				CAM_ERR(CAM_ISP,
-					"no free kmd memory for base %d",
-					base_idx);
-				rc = -ENOMEM;
-				return rc;
-			}
-
-			update_buf.res = res;
-			update_buf.cmd_type = CAM_ISP_HW_CMD_GET_HFR_UPDATE;
-			update_buf.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
-				kmd_buf_info->used_bytes/4 +
-					io_cfg_used_bytes/4;
-
-			update_buf.cmd.size = kmd_buf_remain_size;
-			update_buf.hfr_update->framedrop_pattern =
-			io_cfg[i].framedrop_pattern;
-			update_buf.hfr_update->framedrop_period =
-			io_cfg[i].framedrop_period;
-			update_buf.hfr_update->subsample_pattern =
-			io_cfg[i].subsample_pattern;
-			update_buf.hfr_update->subsample_period =
-			io_cfg[i].subsample_period;
-
-			rc = res->hw_intf->hw_ops.process_cmd(
-				res->hw_intf->hw_priv,
-				CAM_ISP_HW_CMD_GET_HFR_UPDATE, &update_buf,
-				sizeof(struct cam_isp_hw_get_cmd_update));
-
-			if (rc) {
-				CAM_ERR(CAM_ISP, "get buf cmd error:%d",
-					res->res_id);
-				rc = -ENOMEM;
-				return rc;
-			}
-
-			io_cfg_used_bytes += update_buf.cmd.used_bytes;
-
 		}
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX &&
 			io_cfg[i].direction == CAM_BUF_INPUT; j++) {
