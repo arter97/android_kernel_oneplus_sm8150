@@ -4143,6 +4143,8 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 		cb_base = ARM_SMMU_CB(smmu, i);
 
 		fsr = readl_relaxed(cb_base + ARM_SMMU_CB_FSR);
+
+
 		if (fsr & FSR_FAULT) {
 			writel_relaxed(fsr & FSR_FAULT, cb_base +
 				       ARM_SMMU_CB_FSR);

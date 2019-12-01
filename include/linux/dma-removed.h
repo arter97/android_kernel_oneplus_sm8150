@@ -1,4 +1,5 @@
-/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,22 +9,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  */
 
-#include "atoll.dtsi"
+#ifndef __LINUX_DMA_REMOVED_H
+#define __LINUX_DMA_REMOVED_H
 
-/ {
-	model = "Qualcomm Technologies, Inc. ATOLLP";
-	qcom,msm-name = "ATOLLP";
-	qcom,msm-id = <424 0>;
-};
+extern const struct dma_map_ops removed_dma_ops;
 
-&soc {
-	qcom,rmnet-ipa {
-		status="disabled";
-	};
-};
+#endif /*  __LINUX_DMA_REMOVED_H */
 
-&ipa_hw {
-	status="disabled";
-};

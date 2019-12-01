@@ -10,20 +10,17 @@
  * GNU General Public License for more details.
  */
 
-#include "atoll.dtsi"
+/dts-v1/;
+
+#include "atoll-ab.dtsi"
+#include "atoll-idp.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. ATOLLP";
-	qcom,msm-name = "ATOLLP";
-	qcom,msm-id = <424 0>;
+	model = "Qualcomm Technologies, Inc. ATOLL-AB PM6150 IDP";
+	compatible = "qcom,atoll-ab-idp", "qcom,atoll-ab", "qcom,idp";
+	qcom,board-id = <34 0>;
 };
 
-&soc {
-	qcom,rmnet-ipa {
-		status="disabled";
-	};
-};
-
-&ipa_hw {
-	status="disabled";
+&dsi_rm69299_visionox_amoled_vid_display {
+	qcom,dsi-display-active;
 };
