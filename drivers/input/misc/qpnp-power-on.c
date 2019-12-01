@@ -37,7 +37,6 @@
 
 #include <linux/syscalls.h>
 #include <linux/atomic.h>
-#include <linux/oem/param_rw.h>
 #include <linux/oneplus/boot_mode.h>
 
 #include <linux/sched/debug.h>
@@ -1151,18 +1150,13 @@ static void bark_work_func(struct work_struct *work)
 int check_powerkey_count(int press)
 {
     int ret=0;
-    int param_poweroff_count=0;
-
-    ret = get_param_by_index_and_offset(13, 0x30, &param_poweroff_count,
-        sizeof(param_poweroff_count));
+    static int param_poweroff_count=0;
 
     if(press)
         param_poweroff_count ++ ;
     else
         param_poweroff_count -- ;
 
-    ret = set_param_by_index_and_offset(13, 0x30, &param_poweroff_count,
-        sizeof(param_poweroff_count));
     pr_info("param_poweroff_count=%d \n",param_poweroff_count);
     return 0;
 }
