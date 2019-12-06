@@ -125,6 +125,8 @@ struct hdd_apf_context {
 };
 #endif /* FEATURE_WLAN_APF */
 
+#define ACS_COMPLETE_TIMEOUT 3000
+
 /** Number of Tx Queues */
 #if defined(QCA_LL_TX_FLOW_CONTROL_V2) || defined(QCA_LL_PDEV_TX_FLOW_CONTROL)
 #define NUM_TX_QUEUES 5
@@ -1230,6 +1232,7 @@ struct hdd_context;
  * @vdev: object manager vdev context
  * @vdev_lock: lock to protect vdev context access
  * @event_flags: a bitmap of hdd_adapter_flags
+ * @acs_complete_event: acs complete event
  */
 struct hdd_adapter {
 	/* Magic cookie for adapter sanity verification.  Note that this
@@ -1293,6 +1296,7 @@ struct hdd_adapter {
 
 	/* QDF event for session close */
 	qdf_event_t qdf_session_close_event;
+	qdf_event_t acs_complete_event;
 
 	/* QDF event for session open */
 	qdf_event_t qdf_session_open_event;
@@ -1849,7 +1853,7 @@ struct hdd_context {
 	qdf_spinlock_t bus_bw_timer_lock;
 	struct work_struct bus_bw_work;
 	int cur_vote_level;
-	spinlock_t bus_bw_lock;
+	qdf_spinlock_t bus_bw_lock;
 	int cur_rx_level;
 	uint64_t prev_no_rx_offload_pkts;
 	uint64_t prev_rx_offload_pkts;
@@ -2346,6 +2350,27 @@ QDF_STATUS __wlan_hdd_validate_mac_address(struct qdf_mac_addr *mac_addr,
 					   const char *func);
 #ifdef MSM_PLATFORM
 /**
+ * hdd_bus_bw_compute_prev_txrx_stats() - get tx and rx stats
+ * @adapter: hdd adapter reference
+ *
+ * This function get the collected tx and rx stats before starting
+ * the bus bandwidth timer.
+ *
+ * Return: None
+ */
+void hdd_bus_bw_compute_prev_txrx_stats(struct hdd_adapter *adapter);
+
+/**
+ * hdd_bus_bw_compute_reset_prev_txrx_stats() - reset previous tx and rx stats
+ * @adapter: hdd adapter reference
+ *
+ * This function resets the adapter previous tx rx stats.
+ *
+ * Return: None
+ */
+void hdd_bus_bw_compute_reset_prev_txrx_stats(struct hdd_adapter *adapter);
+
+/**
  * hdd_bus_bw_compute_timer_start() - start the bandwidth timer
  * @hdd_ctx: the global hdd context
  *
@@ -2407,6 +2432,16 @@ void hdd_bus_bandwidth_deinit(struct hdd_context *hdd_ctx);
 #define GET_BW_COMPUTE_INTV(config) ((config)->busBandwidthComputeInterval)
 
 #else
+
+static inline
+void hdd_bus_bw_compute_prev_txrx_stats(struct hdd_adapter *adapter)
+{
+}
+
+static inline
+void hdd_bus_bw_compute_reset_prev_txrx_stats(struct hdd_adapter *adapter)
+{
+}
 
 static inline
 void hdd_bus_bw_compute_timer_start(struct hdd_context *hdd_ctx)
@@ -3003,6 +3038,14 @@ bool hdd_local_unsafe_channel_updated(struct hdd_context *hdd_ctx,
 int hdd_enable_disable_ca_event(struct hdd_context *hddctx,
 				uint8_t set_value);
 void wlan_hdd_undo_acs(struct hdd_adapter *adapter);
+
+void
+hdd_modify_nss_in_hdd_cfg(struct hdd_context *hdd_ctx,
+			  uint8_t rx_nss, uint8_t tx_nss,
+			  enum QDF_OPMODE vdev_op_mode,
+			  enum nss_chains_band_info band);
+
+void hdd_store_nss_chains_cfg_in_vdev(struct hdd_adapter *adapter);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
 static inline int
