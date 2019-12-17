@@ -1282,9 +1282,16 @@ static long mtp_send_receive_ioctl(struct file *fp, unsigned int code,
 	 * in kernel context, which is necessary for vfs_read and
 	 * vfs_write to use our buffers in the kernel address space.
 	 */
-	queue_work(dev->wq, work);
-	/* wait for operation to complete */
-	flush_workqueue(dev->wq);
+	dev->xfer_result = 0;
+	if (dev->xfer_file_length) {
+		queue_work(dev->wq, work);
+		/* wait for operation to complete */
+		flush_workqueue(dev->wq);
+
+		/* read the result */
+		smp_rmb();
+	}
+	ret = dev->xfer_result;
 	if (mtp_receive_flag) {
 		mtp_receive_flag = false;
 		pm_qos_update_request_timeout(&devfreq_mtp_request,
@@ -1298,10 +1305,6 @@ static long mtp_send_receive_ioctl(struct file *fp, unsigned int code,
 		msm_cpuidle_set_sleep_disable(false);
 	}
 	fput(filp);
-
-	/* read the result */
-	smp_rmb();
-	ret = dev->xfer_result;
 
 fail:
 	spin_lock_irq(&dev->lock);
