@@ -31,7 +31,6 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
   chmod 755 /dev/resetprop
   /dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
-  rm /dev/resetprop
 
   # Setup swap
   while [ ! -e /dev/block/vnswap0 ]; do
@@ -273,6 +272,10 @@ fi
 misc_link=$(ls -l /dev/block/bootdevice/by-name/misc)
 real_path=${misc_link##*>}
 setprop persist.vendor.mmi.misc_dev_path $real_path
+
+# Disable OP_SLA network boosts
+/dev/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
+rm /dev/resetprop
 
 exit 0
 
