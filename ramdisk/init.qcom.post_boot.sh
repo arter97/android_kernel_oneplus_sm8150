@@ -26,11 +26,8 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mv "$0".tmp "$0"
   chmod 755 "$0"
   chmod 755 /dev/mkswap
-
-  # Google Camera AUX mod
   tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
   chmod 755 /dev/resetprop
-  /dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
 
   # Setup swap
   while [ ! -e /dev/block/vnswap0 ]; do
@@ -275,6 +272,10 @@ setprop persist.vendor.mmi.misc_dev_path $real_path
 
 # Disable OP_SLA network boosts
 /dev/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
+
+# Google Camera AUX mod
+/dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
+
 rm /dev/resetprop
 
 exit 0
