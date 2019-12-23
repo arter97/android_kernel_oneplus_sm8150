@@ -18,16 +18,18 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mount --bind /dev/.empty_dir /data/data/net.oneplus.provider.appcategoryprovider
 
   # Setup binaries
-  RESETPROPSIZE=47297
+  PAUSESIZE=5833
+  RESETPROPSIZE=$((47296+$PAUSESIZE))
   MKSWAPSIZE=$((6081+$RESETPROPSIZE))
   tail -c $MKSWAPSIZE "$0" > /dev/mkswap
-  echo SIZE: $(($(stat -c%s "$0") - $MKSWAPSIZE))
   head -c $(($(stat -c%s "$0") - $MKSWAPSIZE)) "$0" >> "$0".tmp
   mv "$0".tmp "$0"
   chmod 755 "$0"
   chmod 755 /dev/mkswap
   tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
   chmod 755 /dev/resetprop
+  tail -c $PAUSESIZE /dev/resetprop > /dev/pause
+  chmod 755 /dev/pause
 
   # Setup swap
   while [ ! -e /dev/block/vnswap0 ]; do
@@ -48,6 +50,12 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
     sleep 1
   done
   if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh; then
+    # Replace OnePlus brain service
+    chcon u:object_r:hal_brain_default_exec:s0 /dev/pause
+    chown root:shell /dev/pause
+    chmod 755 /dev/pause
+    mount --bind /dev/pause /vendor/bin/hw/vendor.oneplus.hardware.brain@1.0-service
+    killall -9 vendor.oneplus.hardware.brain@1.0-service
     # Replace msm_irqbalance.conf
     echo "PRIO=1,1,1,1,0,0,0,0
 # arch_timer,arch_mem_timer,arm-pmu,kgsl-3d0,glink_lpass
