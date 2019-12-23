@@ -11,13 +11,7 @@
  */
 
 #include "sdxprairie.dtsi"
-#include "sdxprairie-cpe-memory-map.dtsi"
-#include "sdxprairie-cdp.dtsi"
 
-&qnand_1 {
-	status = "ok";
-};
-
-&wsa881x_0214 {
-	qcom,spkr-sd-n-node = <&wsa_spkr_wcd_sd1>;
+&mpss_adsp_mem {
+	reg = <0x90800000 0xf800000>;
 };
