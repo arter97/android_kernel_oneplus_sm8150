@@ -3,8 +3,18 @@
 #include <linux/cdev.h>
 #include <linux/poll.h>
 #include <linux/uaccess.h>
+#include <linux/sched.h>
+#include <linux/sched/cputime.h>
+#include <linux/sched/task.h>
 
 #define HT_CTL_NODE "ht_ctl"
+
+// ioctl
+#define HT_IOC_MAGIC 'k'
+//#define HT_IOC_COLLECT _IOR(HT_IOC_MAGIC, 0, struct ai_parcel)
+#define HT_IOC_SCHEDSTAT _IOWR(HT_IOC_MAGIC, 1, u64)
+//#define HT_IOC_CPU_LOAD _IOWR(HT_IOC_MAGIC, 2, struct cpuload)
+//#define HT_IOC_MAX 2
 
 static int ais_enable = 0;
 module_param(ais_enable, int, 0664);
@@ -57,6 +67,29 @@ static int ht_ctl_close(struct inode *ip, struct file *fp)
 
 static long ht_ctl_ioctl(struct file *file, unsigned int cmd, unsigned long __user arg)
 {
+	if (likely(cmd == HT_IOC_SCHEDSTAT)) {
+		struct task_struct *task;
+		u64 exec_ns, pid;
+
+		if (copy_from_user(&pid, (u64 *) arg, sizeof(u64)))
+			return 0;
+
+		rcu_read_lock();
+		task = find_task_by_vpid(pid);
+		if (likely(task)) {
+			get_task_struct(task);
+			rcu_read_unlock();
+			exec_ns = task_sched_runtime(task);
+			put_task_struct(task);
+		} else {
+			exec_ns = 0;
+			rcu_read_unlock();
+		}
+
+		if (copy_to_user((u64 *) arg, &exec_ns, sizeof(u64)))
+			return 0;
+	}
+
 	return 0;
 }
 
