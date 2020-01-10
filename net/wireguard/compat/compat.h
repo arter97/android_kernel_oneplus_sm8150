@@ -326,7 +326,7 @@ static inline int wait_for_random_bytes(void)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) && !defined(ISRHEL8)
 #include <linux/random.h>
 #include <linux/slab.h>
 struct rng_is_initialized_callback {
@@ -827,7 +827,7 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) && !defined(ISRHEL8)
 #define NLA_EXACT_LEN NLA_UNSPEC
 #endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
@@ -837,6 +837,28 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && defined(__aarch64__)
 #define cpu_have_named_feature(name) (elf_hwcap & (HWCAP_ ## name))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+#include <linux/stddef.h>
+#ifndef offsetofend
+#define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+#define genl_dumpit_info(cb) ({ \
+	struct { struct nlattr **attrs; } *a = (void *)((u8 *)cb->args + offsetofend(struct dump_ctx, next_allowedip)); \
+	BUILD_BUG_ON(sizeof(cb->args) < offsetofend(struct dump_ctx, next_allowedip) + sizeof(*a)); \
+	a->attrs = genl_family_attrbuf(&genl_family); \
+	if (nlmsg_parse(cb->nlh, GENL_HDRLEN + genl_family.hdrsize, a->attrs, genl_family.maxattr, device_policy, NULL) < 0) \
+		memset(a->attrs, 0, (genl_family.maxattr + 1) * sizeof(struct nlattr *)); \
+	a; \
+})
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 5) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)) || LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 18)
+#define ipv6_dst_lookup_flow(a, b, c, d) ipv6_dst_lookup(a, b, &dst, c) + (void *)0 ?: dst
 #endif
 
 #if defined(ISUBUNTU1604)
