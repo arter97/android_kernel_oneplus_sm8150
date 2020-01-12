@@ -677,7 +677,7 @@ int f2fs_merge_page_bio(struct f2fs_io_info *fio)
 	/* ICE support */
 	if (bio && !fscrypt_mergeable_bio(bio, dun,
 				bio_encrypted, bi_crypt_skip))
-		__submit_bio(fio->sbi, bio, fio->type);
+		f2fs_submit_merged_ipu_write(fio->sbi, &bio, NULL);
 
 alloc_new:
 	if (!bio) {
