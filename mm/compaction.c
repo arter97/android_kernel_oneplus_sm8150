@@ -1907,7 +1907,11 @@ static void compact_node(int nid)
 	}
 }
 
+#ifdef CONFIG_ZSWAP
 extern void zswap_compact(void);
+#else
+static inline void zswap_compact(void) {}
+#endif
 /* Compact all nodes in the system */
 static void compact_nodes(void)
 {
