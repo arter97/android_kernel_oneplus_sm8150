@@ -29,8 +29,6 @@ struct selinux_ss {
 	rwlock_t policy_rwlock;
 	u32 latest_granting;
 	struct selinux_map map;
-	struct page *status_page;
-	struct mutex status_lock;
 };
 
 void services_compute_xperms_drivers(struct extended_perms *xperms,
