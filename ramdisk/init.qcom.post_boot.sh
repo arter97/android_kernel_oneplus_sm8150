@@ -11,6 +11,20 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
   rm -f /data/dalvik-cache/arm64/system@priv-app@Houston*
   rm -f /data/dalvik-cache/arm64/system@priv-app@OPAppCategoryProvider*
+
+  # Workaround vdc slowing down boot
+  ( for i in $(seq 1 20); do
+      PID=$(pgrep -f "vdc checkpoint restoreCheckpoint")
+      if [ ! -z $PID ]; then
+        echo "Killing checkpoint vdc process $PID"
+        kill -9 $PID
+        exit
+      fi
+      sleep 1
+    done
+    echo "Timed out while looking for checkpoint vdc process"
+  ) &
+
   # Hide app dirs as well
   mkdir /dev/.empty_dir
   while [ ! -e /data/data/ ]; do sleep 0.01; done
@@ -67,18 +81,6 @@ IGNORED_IRQ=19,38,21,332,188" > /dev/msm_irqbalance.conf
 
     mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
     chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
-
-    # Workaround vdc slowing down boot
-    for i in $(seq 1 20); do
-      PID=$(pgrep -f "vdc checkpoint restoreCheckpoint")
-      if [ ! -z $PID ]; then
-        echo "Killing checkpoint vdc process $PID"
-        kill -9 $PID
-        exit
-      fi
-      sleep 1
-    done
-    echo "Timed out while looking for checkpoint vdc process"
 
     exit
   fi
