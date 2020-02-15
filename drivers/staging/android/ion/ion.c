@@ -110,7 +110,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 					    unsigned long flags)
 {
 	struct ion_buffer *buffer;
-	struct sg_table *table;
 	int ret;
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
@@ -119,6 +118,8 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	buffer->heap = heap;
 	buffer->flags = flags;
+	buffer->dev = dev;
+	buffer->size = len;
 
 	ret = heap->ops->allocate(heap, buffer, len, flags);
 
@@ -141,12 +142,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		goto err1;
 	}
 
-	table = buffer->sg_table;
-	buffer->dev = dev;
-	buffer->size = len;
-
-	buffer->dev = dev;
-	buffer->size = len;
 	INIT_LIST_HEAD(&buffer->attachments);
 	INIT_LIST_HEAD(&buffer->vmas);
 	mutex_init(&buffer->lock);
@@ -154,6 +149,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
 		int i;
 		struct scatterlist *sg;
+		struct sg_table *table;
 
 		/*
 		 * this will set up dma addresses for the sglist -- it is not
@@ -162,6 +158,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		 * practice on our systems the only dma_address space is
 		 * physical addresses.
 		 */
+		table = buffer->sg_table;
 		for_each_sg(table->sgl, sg, table->nents, i) {
 			sg_dma_address(sg) = sg_phys(sg);
 			sg_dma_len(sg) = sg->length;
@@ -1044,6 +1041,28 @@ static const struct file_operations ion_fops = {
 #endif
 };
 
+static int ion_debug_heap_show(struct seq_file *s, void *unused)
+{
+	struct ion_heap *heap = s->private;
+
+	if (heap->debug_show)
+		heap->debug_show(heap, s, unused);
+
+	return 0;
+}
+
+static int ion_debug_heap_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_debug_heap_show, inode->i_private);
+}
+
+static const struct file_operations debug_heap_fops = {
+	.open = ion_debug_heap_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int debug_shrink_set(void *data, u64 val)
 {
 	struct ion_heap *heap = data;
@@ -1081,7 +1100,8 @@ DEFINE_SIMPLE_ATTRIBUTE(debug_shrink_fops, debug_shrink_get,
 
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
-	struct dentry *debug_file;
+	char debug_name[64], buf[256];
+	int ret;
 
 	if (!heap->ops->allocate || !heap->ops->free)
 		pr_err("%s: can not add heap with invalid ops struct.\n",
@@ -1093,8 +1113,11 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_init_deferred_free(heap);
 
-	if ((heap->flags & ION_HEAP_FLAG_DEFER_FREE) || heap->ops->shrink)
-		ion_heap_init_shrinker(heap);
+	if ((heap->flags & ION_HEAP_FLAG_DEFER_FREE) || heap->ops->shrink) {
+		ret = ion_heap_init_shrinker(heap);
+		if (ret)
+			pr_err("%s: Failed to register shrinker\n", __func__);
+	}
 
 	heap->dev = dev;
 	down_write(&dev->lock);
@@ -1105,20 +1128,22 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	plist_node_init(&heap->node, -heap->id);
 	plist_add(&heap->node, &dev->heaps);
 
+	if (heap->debug_show) {
+		snprintf(debug_name, 64, "%s_stats", heap->name);
+		if (!debugfs_create_file(debug_name, 0664, dev->debug_root,
+					 heap, &debug_heap_fops))
+			pr_err("Failed to create heap debugfs at %s/%s\n",
+			       dentry_path(dev->debug_root, buf, 256),
+			       debug_name);
+	}
+
 	if (heap->shrinker.count_objects && heap->shrinker.scan_objects) {
-		char debug_name[64];
-
 		snprintf(debug_name, 64, "%s_shrink", heap->name);
-		debug_file = debugfs_create_file(
-			debug_name, 0644, dev->debug_root, heap,
-			&debug_shrink_fops);
-		if (!debug_file) {
-			char buf[256], *path;
-
-			path = dentry_path(dev->debug_root, buf, 256);
-			pr_err("Failed to create heap shrinker debugfs at %s/%s\n",
-			       path, debug_name);
-		}
+		if (!debugfs_create_file(debug_name, 0644, dev->debug_root,
+					 heap, &debug_shrink_fops))
+			pr_err("Failed to create heap debugfs at %s/%s\n",
+			       dentry_path(dev->debug_root, buf, 256),
+			       debug_name);
 	}
 
 	dev->heap_cnt++;
@@ -1147,13 +1172,6 @@ struct ion_device *ion_device_create(void)
 	}
 
 	idev->debug_root = debugfs_create_dir("ion", NULL);
-	if (!idev->debug_root) {
-		pr_err("ion: failed to create debugfs root directory.\n");
-		goto debugfs_done;
-	}
-
-debugfs_done:
-
 	idev->buffers = RB_ROOT;
 	mutex_init(&idev->buffer_lock);
 	init_rwsem(&idev->lock);
