@@ -2914,8 +2914,6 @@ static QDF_STATUS send_scan_start_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->n_probes = params->n_probes;
 	cmd->scan_ctrl_flags_ext = params->scan_ctrl_flags_ext;
 
-	WMI_LOGD("scan_ctrl_flags_ext = %x", cmd->scan_ctrl_flags_ext);
-
 	if (params->scan_random.randomize)
 		wmi_copy_scan_random_mac(params->scan_random.mac_addr,
 					 params->scan_random.mac_mask,
@@ -13143,6 +13141,13 @@ void wmi_copy_resource_config(wmi_resource_config *resource_cfg,
 		WMI_RSRC_CFG_FLAG_PACKET_CAPTURE_SUPPORT_SET(
 				resource_cfg->flag1, 1);
 
+	if (tgt_res_cfg->time_sync_ftm)
+		WMI_RSRC_CFG_FLAG_AUDIO_SYNC_SUPPORT_SET(resource_cfg->flag1,
+							 1);
+	WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_IFACE_SUPPORT_SET(
+		resource_cfg->host_service_flags,
+		tgt_res_cfg->nan_separate_iface_support);
+
 	wmi_copy_twt_resource_config(resource_cfg, tgt_res_cfg);
 }
 
@@ -16077,9 +16082,12 @@ send_roam_scan_offload_ap_profile_cmd_tlv(wmi_unified_t wmi_handle,
 	score_param->roam_score_delta_pcnt = ap_profile->param.roam_score_delta;
 	score_param->roam_score_delta_mask =
 				ap_profile->param.roam_trigger_bitmap;
-	WMI_LOGD("Roam score delta:%d Roam_trigger_bitmap:%x",
+	score_param->candidate_min_roam_score =
+				ap_profile->param.cand_min_roam_score_delta;
+	WMI_LOGD("Roam score delta:%d Roam_trigger_bitmap:%x cand min score delta = %d",
 		 score_param->roam_score_delta_pcnt,
-		 score_param->roam_score_delta_mask);
+		 score_param->roam_score_delta_mask,
+		 score_param->candidate_min_roam_score);
 
 	buf_ptr += sizeof(*score_param);
 	WMITLV_SET_HDR(buf_ptr, WMITLV_TAG_ARRAY_STRUC,
@@ -24453,6 +24461,12 @@ static void populate_tlv_events_id(uint32_t *event_ids)
 				WMI_VDEV_MGMT_OFFLOAD_EVENTID;
 	event_ids[wmi_roam_pmkid_request_event_id] =
 				WMI_ROAM_PMKID_REQUEST_EVENTID;
+#ifdef FEATURE_WLAN_TIME_SYNC_FTM
+	event_ids[wmi_wlan_time_sync_ftm_start_stop_event_id] =
+				WMI_VDEV_AUDIO_SYNC_START_STOP_EVENTID;
+	event_ids[wmi_wlan_time_sync_q_master_slave_offset_eventid] =
+			WMI_VDEV_AUDIO_SYNC_Q_MASTER_SLAVE_OFFSET_EVENTID;
+#endif
 }
 
 /**
@@ -24704,6 +24718,8 @@ static void populate_tlv_service(uint32_t *wmi_service)
 	wmi_service[wmi_service_nan_vdev] = WMI_SERVICE_NAN_VDEV_SUPPORT;
 	wmi_service[wmi_service_packet_capture_support] =
 			WMI_SERVICE_PACKET_CAPTURE_SUPPORT;
+	wmi_service[wmi_service_time_sync_ftm] =
+			WMI_SERVICE_AUDIO_SYNC_SUPPORT;
 }
 
 #ifndef CONFIG_MCL
