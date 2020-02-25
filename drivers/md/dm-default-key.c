@@ -39,7 +39,7 @@ static int default_key_ctr_optional(struct dm_target *ti,
 				    unsigned int argc, char **argv)
 {
 	struct default_key_c *dkc = ti->private;
-	struct dm_arg_set as;
+	struct dm_arg_set as = {0};
 	static const struct dm_arg _args[] = {
 		{0, 2, "Invalid number of feature args"},
 	};
@@ -62,16 +62,14 @@ static int default_key_ctr_optional(struct dm_target *ti,
 			return -EINVAL;
 		}
 
-		if (!strcasecmp(opt_string, "set_dun"))
+		if (!strcasecmp(opt_string, "set_dun")) {
 			dkc->set_dun = true;
-
-		else if (sscanf(opt_string, "dun_offset:%llu%c",
+		} else if (sscanf(opt_string, "dun_offset:%llu%c",
 				&dkc->dun_offset, &dummy) == 1) {
 			if (dkc->dun_offset == 0) {
 				ti->error = "dun_offset cannot be 0";
 				return -EINVAL;
 			}
-
 		} else {
 			ti->error = "Invalid feature arguments";
 			return -EINVAL;
