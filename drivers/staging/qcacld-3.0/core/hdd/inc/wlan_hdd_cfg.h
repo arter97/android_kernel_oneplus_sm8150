@@ -5650,6 +5650,11 @@ enum hdd_link_speed_rpt_type {
 #else
 #define CFG_ENABLE_PACKET_LOG_DEFAULT    (0)
 #endif
+
+#define CFG_PACKET_LOG_BUFFER_SIZE_NAME    "PktlogBufSize"
+#define CFG_PACKET_LOG_BUFFER_SIZE_DEFAULT (10)
+#define CFG_PACKET_LOG_BUFFER_SIZE_MIN     (1)
+#define CFG_PACKET_LOG_BUFFER_SIZE_MAX     (10)
 #endif
 
 
@@ -8383,6 +8388,29 @@ enum hdd_link_speed_rpt_type {
 #define CFG_ENABLE_NAN_SUPPORT_DEFAULT                  (0)
 #define CFG_ENABLE_NAN_SUPPORT_MIN                      (0)
 #define CFG_ENABLE_NAN_SUPPORT_MAX                      (1)
+
+/*
+ * <ini>
+ * nan_separate_iface_support - Separate iface creation for NAN
+ * @Min: 0
+ * @Max: 1
+ * @Default: 1
+ *
+ * Value is 1 when Host HDD supports separate iface creation for NAN
+ *
+ * Related: None
+ *
+ * Supported Feature: NAN
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_NAN_SEPARATE_IFACE_SUPP                "nan_separate_iface_support"
+#define CFG_NAN_SEPARATE_IFACE_SUPP_DEFAULT        (1)
+#define CFG_NAN_SEPARATE_IFACE_SUPP_MIN            (0)
+#define CFG_NAN_SEPARATE_IFACE_SUPP_MAX            (1)
+
 #endif
 
 #define CFG_ENABLE_SELF_RECOVERY                   "gEnableSelfRecovery"
@@ -16093,6 +16121,37 @@ enum hdd_external_acs_policy {
 
 /*
  * <ini>
+ * min_roam_score_delta - Difference of roam score values between connected
+ * AP and roam candidate AP.
+ * @Min: 0
+ * @Max: 10000
+ * @Default: 1850
+ *
+ * This ini is used during CU and low rssi based roam triggers, consider
+ * AP as roam candidate only if its roam score is better than connected
+ * AP score by at least min_roam_score_delta.
+ * If user configured "roam_score_delta" and "min_roam_score_delta" both,
+ * then firmware selects roam candidate AP by considering values of both
+ * INIs.
+ * Example: If DUT is connected with AP1 and roam candidate AP2 has roam
+ * score greater than roam_score_delta and min_roam_score_delta then only
+ * firmware will trigger roaming to AP2.
+ *
+ * Related: roam_score_delta
+ *
+ * Supported Feature: Roaming
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_CAND_MIN_ROAM_SCORE_DELTA "min_roam_score_delta"
+#define CFG_CAND_MIN_ROAM_SCORE_DELTA_DEFAULT 1850
+#define CFG_CAND_MIN_ROAM_SCORE_DELTA_MAX 10000
+#define CFG_CAND_MIN_ROAM_SCORE_DELTA_MIN 0
+
+/*
+ * <ini>
  * roam_score_delta_bitmap - bitmap to enable roam triggers on
  * which roam score delta is to be applied during roam candidate
  * selection
@@ -17416,6 +17475,7 @@ struct hdd_config {
 
 #ifndef REMOVE_PKT_LOG
 	bool enablePacketLog;
+	uint8_t pktlog_buf_size;
 #endif
 
 #ifdef MSM_PLATFORM
@@ -17479,6 +17539,7 @@ struct hdd_config {
 #endif
 #ifdef WLAN_FEATURE_NAN
 	bool enable_nan_support;
+	bool nan_separate_iface_support;
 #endif
 	bool enableSelfRecovery;
 #ifdef FEATURE_WLAN_FORCE_SAP_SCC
@@ -17923,6 +17984,7 @@ struct hdd_config {
 	uint8_t enable_rtt_support;
 
 	uint32_t roam_score_delta;
+	uint32_t min_roam_score_delta;
 	uint32_t roam_score_delta_bitmap;
 	bool prefer_btm_query;
 	bool btm_abridge_config;

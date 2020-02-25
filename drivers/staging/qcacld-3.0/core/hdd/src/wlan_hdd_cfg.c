@@ -3000,6 +3000,13 @@ struct reg_table_entry g_registry_table[] = {
 		     CFG_ENABLE_PACKET_LOG_DEFAULT,
 		     CFG_ENABLE_PACKET_LOG_MIN,
 		     CFG_ENABLE_PACKET_LOG_MAX),
+
+	REG_VARIABLE(CFG_PACKET_LOG_BUFFER_SIZE_NAME, WLAN_PARAM_Integer,
+		     struct hdd_config, pktlog_buf_size,
+		     VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		     CFG_PACKET_LOG_BUFFER_SIZE_DEFAULT,
+		     CFG_PACKET_LOG_BUFFER_SIZE_MIN,
+		     CFG_PACKET_LOG_BUFFER_SIZE_MAX),
 #endif
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
@@ -3250,6 +3257,13 @@ struct reg_table_entry g_registry_table[] = {
 		     CFG_ENABLE_NAN_SUPPORT_DEFAULT,
 		     CFG_ENABLE_NAN_SUPPORT_MIN,
 		     CFG_ENABLE_NAN_SUPPORT_MAX),
+
+	REG_VARIABLE(CFG_NAN_SEPARATE_IFACE_SUPP, WLAN_PARAM_Integer,
+		     struct hdd_config, nan_separate_iface_support,
+		     VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		     CFG_NAN_SEPARATE_IFACE_SUPP_DEFAULT,
+		     CFG_NAN_SEPARATE_IFACE_SUPP_MIN,
+		     CFG_NAN_SEPARATE_IFACE_SUPP_MAX),
 #endif
 
 	REG_VARIABLE(CFG_ENABLE_SELF_RECOVERY, WLAN_PARAM_Integer,
@@ -5984,6 +5998,13 @@ struct reg_table_entry g_registry_table[] = {
 		     CFG_ROAM_SCORE_DELTA_DEFAULT,
 		     CFG_ROAM_SCORE_DELTA_MIN,
 		     CFG_ROAM_SCORE_DELTA_MAX),
+
+	REG_VARIABLE(CFG_CAND_MIN_ROAM_SCORE_DELTA, WLAN_PARAM_Integer,
+		     struct hdd_config, min_roam_score_delta,
+		     VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		     CFG_CAND_MIN_ROAM_SCORE_DELTA_DEFAULT,
+		     CFG_CAND_MIN_ROAM_SCORE_DELTA_MIN,
+		     CFG_CAND_MIN_ROAM_SCORE_DELTA_MAX),
 
 	REG_VARIABLE(CFG_ROAM_TRIGGER_DELTA_BITMAP, WLAN_PARAM_Integer,
 		     struct hdd_config, roam_score_delta_bitmap,
@@ -9447,6 +9468,8 @@ static void hdd_update_bss_score_params(struct hdd_config *config,
 		hdd_limit_max_per_index_score(config->band_weight_per_index);
 
 	score_params->roam_score_delta = config->roam_score_delta;
+	score_params->cand_min_roam_score_delta =
+				config->min_roam_score_delta;
 	score_params->roam_score_delta_bitmap = config->roam_score_delta_bitmap;
 
 	score_params->rssi_score.best_rssi_threshold =
