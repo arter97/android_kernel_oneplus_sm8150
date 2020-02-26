@@ -194,6 +194,7 @@ static void sde_hw_lm_clear_dim_layer(struct sde_hw_mixer *ctx)
 	}
 }
 
+bool sde_hw_dim_active;
 static void sde_hw_lm_setup_dim_layer(struct sde_hw_mixer *ctx,
 		struct sde_hw_dim_layer *dim_layer)
 {
@@ -210,7 +211,12 @@ static void sde_hw_lm_setup_dim_layer(struct sde_hw_mixer *ctx,
 		return;
 	}
 
-	alpha = dim_layer->color_fill.color_3 & 0xFF;
+	if (dim_layer->color_fill.color_3) {
+		sde_hw_dim_go_active();
+		alpha = dim_layer->color_fill.color_3 & 0xFF;
+	} else {
+		sde_hw_dim_go_inactive();
+	}
 	val = ((dim_layer->color_fill.color_1 << 2) & 0xFFF) << 16 |
 			((dim_layer->color_fill.color_0 << 2) & 0xFFF);
 	SDE_REG_WRITE(c, LM_FG_COLOR_FILL_COLOR_0 + stage_off, val);
