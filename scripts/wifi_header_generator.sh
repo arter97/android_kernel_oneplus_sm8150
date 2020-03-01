@@ -5,6 +5,6 @@ if [ ! -e "$@" ] || [ -z "$@" ]; then
   exit 1
 fi
 
-echo "const char wlan_cfg[] = {"
+echo "static const char wlan_cfg[] __initconst = {"
 cat "$@" | grep -ve '^$\|^#' | sed 's@\"@\\\\"@g' | while read line; do printf '\t\"%s\\n\"\n' "$line"; done
 echo "};"
