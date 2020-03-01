@@ -221,8 +221,8 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 }
 
 #ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
-static DEFINE_SPINLOCK(lmk_lock);
-static struct rb_root tasks_scoreadj = RB_ROOT;
+DEFINE_SPINLOCK(lmk_lock);
+struct rb_root tasks_scoreadj = RB_ROOT;
 /*
  * Makesure to invoke the function with holding sighand->siglock
  */
