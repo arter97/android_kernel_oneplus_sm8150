@@ -1315,12 +1315,12 @@ QDF_STATUS wlansap_set_channel_change_with_csa(struct sap_context *sapContext,
 	}
 
 #ifdef WLAN_DEBUG
-		sap_debug(": sap chan:%d target:%d conn on 5GHz:%d, csa_reason:%s(%d)",
-			 sapContext->channel, targetChannel,
-		policy_mgr_is_any_mode_active_on_band_along_with_session(
-			 pMac->psoc, sapContext->sessionId, POLICY_MGR_BAND_5),
-			 sap_get_csa_reason_str(sapContext->csa_reason),
-			 sapContext->csa_reason);
+	sap_nofl_debug("SAP CSA: %d ---> %d conn on 5GHz:%d, csa_reason:%s(%d) strict %d vdev %d",
+		       sapContext->channel, targetChannel,
+		       policy_mgr_is_any_mode_active_on_band_along_with_session(
+		       pMac->psoc, sapContext->sessionId, POLICY_MGR_BAND_5),
+		       sap_get_csa_reason_str(sapContext->csa_reason),
+		       sapContext->csa_reason, strict, sapContext->sessionId);
 #endif
 
 	sta_sap_scc_on_dfs_chan =
@@ -1386,7 +1386,7 @@ QDF_STATUS wlansap_set_channel_change_with_csa(struct sap_context *sapContext,
 			 * user input is used for the bandwidth
 			 */
 			if (target_bw != CH_WIDTH_MAX) {
-				sap_info("target bw:%d new width:%d",
+				sap_nofl_debug("SAP CSA: target bw:%d new width:%d",
 					 target_bw,
 					 pMac->sap.SapDfsInfo.
 					 new_ch_params.ch_width);
@@ -1440,10 +1440,6 @@ QDF_STATUS wlansap_set_channel_change_with_csa(struct sap_context *sapContext,
 
 		return QDF_STATUS_E_FAULT;
 	}
-
-	QDF_TRACE(QDF_MODULE_ID_SAP, QDF_TRACE_LEVEL_INFO_HIGH,
-		  "%s: Posted eSAP_CHANNEL_SWITCH_ANNOUNCEMENT_START successfully to sap_fsm for Channel = %d",
-		  __func__, targetChannel);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1746,9 +1742,6 @@ QDF_STATUS wlansap_channel_change_request(struct sap_context *sapContext,
 		 (phy_mode == eCSR_DOT11_MODE_11a))
 		phy_mode = eCSR_DOT11_MODE_11g;
 
-	sap_debug("phy_mode: %d, target_channel: %d new phy_mode: %d",
-		  sapContext->csr_roamProfile.phyMode,
-		  target_channel, phy_mode);
 	sapContext->csr_roamProfile.phyMode = phy_mode;
 
 	if (sapContext->csr_roamProfile.ChannelInfo.numOfChannels == 0 ||
@@ -2506,10 +2499,8 @@ QDF_STATUS wlansap_acs_chselect(struct sap_context *sap_context,
 		return sap_signal_hdd_event(sap_context, NULL,
 				eSAP_ACS_CHANNEL_SELECTED,
 				(void *) eSAP_STATUS_SUCCESS);
-	} else if (QDF_STATUS_SUCCESS == qdf_status) {
-		QDF_TRACE(QDF_MODULE_ID_SAP, QDF_TRACE_LEVEL_INFO_HIGH,
-			FL("Successfully Issued a Pre Start Bss Scan Request"));
 	}
+
 	return qdf_status;
 }
 
@@ -2622,16 +2613,9 @@ wlansap_is_channel_present_in_acs_list(uint8_t ch,
 {
 	uint8_t i;
 
-	for (i = 0; i < ch_count; i++) {
-		if (ch_list[i] == ch) {
-			/*
-			 * channel was given by hostpad for ACS, and is present
-			 * in PCL.
-			 */
-			sap_debug("channel present in acs cfg channel list %d", ch);
+	for (i = 0; i < ch_count; i++)
+		if (ch_list[i] == ch)
 			return true;
-		}
-	}
 
 	return false;
 }
