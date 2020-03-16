@@ -46,16 +46,16 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   chmod 755 /dev/pause
 
   # Setup swap
-  while [ ! -e /dev/block/vnswap0 ]; do
+  while [ ! -e /dev/block/vbswap0 ]; do
     sleep 1
   done
-  if ! grep -q vnswap /proc/swaps; then
+  if ! grep -q vbswap /proc/swaps; then
     # 4GB
-    echo 4294967296 > /sys/devices/virtual/block/vnswap0/disksize
+    echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
     echo 130 > /proc/sys/vm/swappiness
-    # System mkswap behaves incorrectly with vnswap
-    /dev/mkswap /dev/block/vnswap0
-    swapon /dev/block/vnswap0
+    # System mkswap behaves incorrectly with vbswap
+    /dev/mkswap /dev/block/vbswap0
+    swapon /dev/block/vbswap0
     rm /dev/mkswap
   fi
 
