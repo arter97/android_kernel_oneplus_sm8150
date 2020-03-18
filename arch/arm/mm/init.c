@@ -356,7 +356,7 @@ static inline void poison_init_mem(void *s, size_t count)
 		*p++ = 0xe7fddef0;
 }
 
-static inline void
+static inline void __init
 free_memmap(unsigned long start_pfn, unsigned long end_pfn)
 {
 	struct page *start_pg, *end_pg;
@@ -623,7 +623,9 @@ void __init mem_init(void)
 	 * be detected at build time already.
 	 */
 #ifdef CONFIG_MMU
+#ifndef CONFIG_MODULES_USE_VMALLOC
 	BUILD_BUG_ON(TASK_SIZE				> MODULES_VADDR);
+#endif
 	BUG_ON(TASK_SIZE 				> MODULES_VADDR);
 #endif
 

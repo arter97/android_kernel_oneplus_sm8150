@@ -11,6 +11,20 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
   rm -f /data/dalvik-cache/arm64/system@priv-app@Houston*
   rm -f /data/dalvik-cache/arm64/system@priv-app@OPAppCategoryProvider*
+
+  # Workaround vdc slowing down boot
+  ( for i in $(seq 1 20); do
+      PID=$(pgrep -f "vdc checkpoint restoreCheckpoint")
+      if [ ! -z $PID ]; then
+        echo "Killing checkpoint vdc process $PID"
+        kill -9 $PID
+        exit
+      fi
+      sleep 1
+    done
+    echo "Timed out while looking for checkpoint vdc process"
+  ) &
+
   # Hide app dirs as well
   mkdir /dev/.empty_dir
   while [ ! -e /data/data/ ]; do sleep 0.01; done
@@ -32,16 +46,16 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   chmod 755 /dev/pause
 
   # Setup swap
-  while [ ! -e /dev/block/vnswap0 ]; do
+  while [ ! -e /dev/block/vbswap0 ]; do
     sleep 1
   done
-  if ! grep -q vnswap /proc/swaps; then
+  if ! grep -q vbswap /proc/swaps; then
     # 4GB
-    echo 4294967296 > /sys/devices/virtual/block/vnswap0/disksize
+    echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
     echo 130 > /proc/sys/vm/swappiness
-    # System mkswap behaves incorrectly with vnswap
-    /dev/mkswap /dev/block/vnswap0
-    swapon /dev/block/vnswap0
+    # System mkswap behaves incorrectly with vbswap
+    /dev/mkswap /dev/block/vbswap0
+    swapon /dev/block/vbswap0
     rm /dev/mkswap
   fi
 
@@ -67,18 +81,6 @@ IGNORED_IRQ=19,38,21,332,188" > /dev/msm_irqbalance.conf
 
     mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
     chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
-
-    # Workaround vdc slowing down boot
-    for i in $(seq 1 20); do
-      PID=$(pgrep -f "vdc checkpoint restoreCheckpoint")
-      if [ ! -z $PID ]; then
-        echo "Killing checkpoint vdc process $PID"
-        kill -9 $PID
-        exit
-      fi
-      sleep 1
-    done
-    echo "Timed out while looking for checkpoint vdc process"
 
     exit
   fi

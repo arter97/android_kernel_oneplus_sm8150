@@ -16,6 +16,11 @@
 #define ISRHEL7
 #elif RHEL_MAJOR == 8
 #define ISRHEL8
+#ifdef RHEL_MINOR
+#if RHEL_MINOR == 2
+#define ISRHEL82
+#endif
+#endif
 #endif
 #endif
 #ifdef UTS_UBUNTU_RELEASE_ABI
@@ -36,6 +41,10 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 #error "WireGuard requires Linux >= 3.10"
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+#error "WireGuard has been merged into Linux >= 5.6 and therefore this compatibility module is no longer required."
 #endif
 
 #if defined(ISRHEL7)
@@ -90,7 +99,7 @@
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 27) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) || \
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 8) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)) || \
     (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 40) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)) || \
-    (LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 54))) && !defined(ISUBUNTU1404) && (!defined(ISRHEL7) || RHEL_MINOR < 7) /* TODO: remove < 7 workaround once CentOS 7.7 comes out. */
+    (LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 54))) && !defined(ISUBUNTU1404) && !defined(ISRHEL7)
 #include <linux/if.h>
 #include <net/ip_tunnels.h>
 #define IP6_ECN_set_ce(a, b) IP6_ECN_set_ce(b)
@@ -779,7 +788,7 @@ struct __kernel_timespec {
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && !defined(ISRHEL82)
 #include <linux/skbuff.h>
 #define skb_probe_transport_header(a) skb_probe_transport_header(a, 0)
 #endif
@@ -788,7 +797,7 @@ struct __kernel_timespec {
 #define ignore_df local_df
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && !defined(ISRHEL82)
 /* Note that all intentional uses of the non-_bh variety need to explicitly
  * undef these, conditionalized on COMPAT_CANNOT_DEPRECIATE_BH_RCU.
  */
@@ -830,7 +839,7 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) && !defined(ISRHEL8)
 #define NLA_EXACT_LEN NLA_UNSPEC
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && !defined(ISRHEL82)
 #define NLA_MIN_LEN NLA_UNSPEC
 #define COMPAT_CANNOT_INDIVIDUAL_NETLINK_OPS_POLICY
 #endif
@@ -861,6 +870,156 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 #define ipv6_dst_lookup_flow(a, b, c, d) ipv6_dst_lookup(a, b, &dst, c) + (void *)0 ?: dst
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
+#include <linux/skbuff.h>
+#ifndef skb_list_walk_safe
+#define skb_list_walk_safe(first, skb, next)                                   \
+	for ((skb) = (first), (next) = (skb) ? (skb)->next : NULL; (skb);      \
+	     (skb) = (next), (next) = (skb) ? (skb)->next : NULL)
+#endif
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+#define blake2s_init zinc_blake2s_init
+#define blake2s_init_key zinc_blake2s_init_key
+#define blake2s_update zinc_blake2s_update
+#define blake2s_final zinc_blake2s_final
+#define blake2s_hmac zinc_blake2s_hmac
+#define chacha20 zinc_chacha20
+#define hchacha20 zinc_hchacha20
+#define chacha20poly1305_encrypt zinc_chacha20poly1305_encrypt
+#define chacha20poly1305_encrypt_sg_inplace zinc_chacha20poly1305_encrypt_sg_inplace
+#define chacha20poly1305_decrypt zinc_chacha20poly1305_decrypt
+#define chacha20poly1305_decrypt_sg_inplace zinc_chacha20poly1305_decrypt_sg_inplace
+#define xchacha20poly1305_encrypt zinc_xchacha20poly1305_encrypt
+#define xchacha20poly1305_decrypt zinc_xchacha20poly1305_decrypt
+#define curve25519 zinc_curve25519
+#define curve25519_generate_secret zinc_curve25519_generate_secret
+#define curve25519_generate_public zinc_curve25519_generate_public
+#define poly1305_init zinc_poly1305_init
+#define poly1305_update zinc_poly1305_update
+#define poly1305_final zinc_poly1305_final
+#define blake2s_compress_ssse3 zinc_blake2s_compress_ssse3
+#define blake2s_compress_avx512 zinc_blake2s_compress_avx512
+#define poly1305_init_arm zinc_poly1305_init_arm
+#define poly1305_blocks_arm zinc_poly1305_blocks_arm
+#define poly1305_emit_arm zinc_poly1305_emit_arm
+#define poly1305_blocks_neon zinc_poly1305_blocks_neon
+#define poly1305_emit_neon zinc_poly1305_emit_neon
+#define poly1305_init_mips zinc_poly1305_init_mips
+#define poly1305_blocks_mips zinc_poly1305_blocks_mips
+#define poly1305_emit_mips zinc_poly1305_emit_mips
+#define poly1305_init_x86_64 zinc_poly1305_init_x86_64
+#define poly1305_blocks_x86_64 zinc_poly1305_blocks_x86_64
+#define poly1305_emit_x86_64 zinc_poly1305_emit_x86_64
+#define poly1305_emit_avx zinc_poly1305_emit_avx
+#define poly1305_blocks_avx zinc_poly1305_blocks_avx
+#define poly1305_blocks_avx2 zinc_poly1305_blocks_avx2
+#define poly1305_blocks_avx512 zinc_poly1305_blocks_avx512
+#define curve25519_neon zinc_curve25519_neon
+#define hchacha20_ssse3 zinc_hchacha20_ssse3
+#define chacha20_ssse3 zinc_chacha20_ssse3
+#define chacha20_avx2 zinc_chacha20_avx2
+#define chacha20_avx512 zinc_chacha20_avx512
+#define chacha20_avx512vl zinc_chacha20_avx512vl
+#define chacha20_mips zinc_chacha20_mips
+#define chacha20_arm zinc_chacha20_arm
+#define hchacha20_arm zinc_hchacha20_arm
+#define chacha20_neon zinc_chacha20_neon
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+#include <linux/skbuff.h>
+static inline int skb_ensure_writable(struct sk_buff *skb, int write_len)
+{
+	if (!pskb_may_pull(skb, write_len))
+		return -ENOMEM;
+
+	if (!skb_cloned(skb) || skb_clone_writable(skb, write_len))
+		return 0;
+
+	return pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
+#if IS_ENABLED(CONFIG_NF_NAT)
+#include <linux/ip.h>
+#include <linux/icmpv6.h>
+#include <net/ipv6.h>
+#include <net/icmp.h>
+#include <net/netfilter/nf_conntrack.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#include <net/netfilter/nf_nat_core.h>
+#endif
+static inline void icmp_ndo_send(struct sk_buff *skb_in, int type, int code, __be32 info)
+{
+	struct sk_buff *cloned_skb = NULL;
+	enum ip_conntrack_info ctinfo;
+	struct nf_conn *ct;
+	__be32 orig_ip;
+
+	ct = nf_ct_get(skb_in, &ctinfo);
+	if (!ct || !(ct->status & IPS_SRC_NAT)) {
+		icmp_send(skb_in, type, code, info);
+		return;
+	}
+
+	if (skb_shared(skb_in))
+		skb_in = cloned_skb = skb_clone(skb_in, GFP_ATOMIC);
+
+	if (unlikely(!skb_in || skb_network_header(skb_in) < skb_in->head ||
+	    (skb_network_header(skb_in) + sizeof(struct iphdr)) >
+	    skb_tail_pointer(skb_in) || skb_ensure_writable(skb_in,
+	    skb_network_offset(skb_in) + sizeof(struct iphdr))))
+		goto out;
+
+	orig_ip = ip_hdr(skb_in)->saddr;
+	ip_hdr(skb_in)->saddr = ct->tuplehash[0].tuple.src.u3.ip;
+	icmp_send(skb_in, type, code, info);
+	ip_hdr(skb_in)->saddr = orig_ip;
+out:
+	consume_skb(cloned_skb);
+}
+static inline void icmpv6_ndo_send(struct sk_buff *skb_in, u8 type, u8 code, __u32 info)
+{
+	struct sk_buff *cloned_skb = NULL;
+	enum ip_conntrack_info ctinfo;
+	struct in6_addr orig_ip;
+	struct nf_conn *ct;
+
+	ct = nf_ct_get(skb_in, &ctinfo);
+	if (!ct || !(ct->status & IPS_SRC_NAT)) {
+		icmpv6_send(skb_in, type, code, info);
+		return;
+	}
+
+	if (skb_shared(skb_in))
+		skb_in = cloned_skb = skb_clone(skb_in, GFP_ATOMIC);
+
+	if (unlikely(!skb_in || skb_network_header(skb_in) < skb_in->head ||
+	    (skb_network_header(skb_in) + sizeof(struct ipv6hdr)) >
+	    skb_tail_pointer(skb_in) || skb_ensure_writable(skb_in,
+	    skb_network_offset(skb_in) + sizeof(struct ipv6hdr))))
+		goto out;
+
+	orig_ip = ipv6_hdr(skb_in)->saddr;
+	ipv6_hdr(skb_in)->saddr = ct->tuplehash[0].tuple.src.u3.in6;
+	icmpv6_send(skb_in, type, code, info);
+	ipv6_hdr(skb_in)->saddr = orig_ip;
+out:
+	consume_skb(cloned_skb);
+}
+#else
+#define icmp_ndo_send icmp_send
+#define icmpv6_ndo_send icmpv6_send
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#define COMPAT_CANNOT_USE_MAX_MTU
+#endif
+
 #if defined(ISUBUNTU1604)
 #include <linux/siphash.h>
 #ifndef _WG_LINUX_SIPHASH_H
@@ -883,40 +1042,6 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 #include <linux/bug.h>
 #undef BUILD_BUG_ON
 #define BUILD_BUG_ON(x)
-#endif
-
-/* https://lkml.kernel.org/r/20170624021727.17835-1-Jason@zx2c4.com */
-#if IS_ENABLED(CONFIG_NF_CONNTRACK)
-#include <linux/ip.h>
-#include <linux/icmpv6.h>
-#include <net/ipv6.h>
-#include <net/icmp.h>
-#include <net/netfilter/nf_conntrack.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-#include <net/netfilter/nf_nat_core.h>
-#endif
-static inline void new_icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info)
-{
-	enum ip_conntrack_info ctinfo;
-	struct nf_conn *ct = nf_ct_get(skb_in, &ctinfo);
-	if (skb_network_header(skb_in) < skb_in->head || (skb_network_header(skb_in) + sizeof(struct iphdr)) > skb_tail_pointer(skb_in))
-		return;
-	if (ct)
-		ip_hdr(skb_in)->saddr = ct->tuplehash[0].tuple.src.u3.ip;
-	icmp_send(skb_in, type, code, info);
-}
-static inline void new_icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 info)
-{
-	enum ip_conntrack_info ctinfo;
-	struct nf_conn *ct = nf_ct_get(skb, &ctinfo);
-	if (skb_network_header(skb) < skb->head || (skb_network_header(skb) + sizeof(struct ipv6hdr)) > skb_tail_pointer(skb))
-		return;
-	if (ct)
-		ipv6_hdr(skb)->saddr = ct->tuplehash[0].tuple.src.u3.in6;
-	icmpv6_send(skb, type, code, info);
-}
-#define icmp_send(a,b,c,d) new_icmp_send(a,b,c,d)
-#define icmpv6_send(a,b,c,d) new_icmpv6_send(a,b,c,d)
 #endif
 
 /* PaX compatibility */

@@ -52,7 +52,11 @@ void end_swap_bio_write(struct bio *bio)
 {
 	struct page *page = bio->bi_io_vec[0].bv_page;
 
+#ifdef CONFIG_VBSWAP
+	if (likely(bio->bi_status)) {
+#else
 	if (bio->bi_status) {
+#endif
 		SetPageError(page);
 		/*
 		 * We failed to write the page out to swap-space.
@@ -63,7 +67,7 @@ void end_swap_bio_write(struct bio *bio)
 		 * Also clear PG_reclaim to avoid rotate_reclaimable_page()
 		 */
 		set_page_dirty(page);
-#ifndef CONFIG_VNSWAP
+#ifndef CONFIG_VBSWAP
 		pr_alert_ratelimited("Write-error on swap-device (%u:%u:%llu)\n",
 			 MAJOR(bio_dev(bio)),
 			 MINOR(bio_dev(bio)),
@@ -79,6 +83,7 @@ static void swap_slot_free_notify(struct page *page)
 {
 	struct swap_info_struct *sis;
 	struct gendisk *disk;
+	swp_entry_t entry;
 
 	/*
 	 * There is no guarantee that the page is in swap cache - the software
@@ -110,11 +115,11 @@ static void swap_slot_free_notify(struct page *page)
 	 * we again wish to reclaim it.
 	 */
 	disk = sis->bdev->bd_disk;
-	if (disk->fops->swap_slot_free_notify) {
-		swp_entry_t entry;
+	entry.val = page_private(page);
+	if (disk->fops->swap_slot_free_notify &&
+			__swap_count(sis, entry) == 1) {
 		unsigned long offset;
 
-		entry.val = page_private(page);
 		offset = swp_offset(entry);
 
 		SetPageDirty(page);
@@ -259,7 +264,7 @@ int swap_writepage(struct page *page, struct writeback_control *wbc)
 		end_page_writeback(page);
 		goto out;
 	}
-#ifdef CONFIG_VNSWAP
+#ifdef CONFIG_VBSWAP
 	set_page_dirty(page);
 	ClearPageReclaim(page);
 	unlock_page(page);

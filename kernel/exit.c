@@ -77,7 +77,6 @@ static void __unhash_process(struct task_struct *p, bool group_dead)
 		detach_pid(p, PIDTYPE_SID);
 
 		list_del_rcu(&p->tasks);
-		delete_from_adj_tree(p);
 		list_del_init(&p->sibling);
 		__this_cpu_dec(process_counts);
 	}
@@ -497,6 +496,7 @@ static void exit_mm(void)
 {
 	struct mm_struct *mm = current->mm;
 	struct core_state *core_state;
+	int mm_released;
 
 	exit_mm_release(current, mm);
 	if (!mm)
@@ -543,9 +543,16 @@ static void exit_mm(void)
 	enter_lazy_tlb(mm, current);
 	task_unlock(current);
 	mm_update_next_owner(mm);
-	mmput(mm);
+
+	mm_released = mmput(mm);
+#ifdef CONFIG_ANDROID_SIMPLE_LMK
+	clear_thread_flag(TIF_MEMDIE);
+#else
 	if (test_thread_flag(TIF_MEMDIE))
 		exit_oom_victim();
+#endif
+	if (mm_released)
+		set_tsk_thread_flag(current, TIF_MM_RELEASED);
 }
 
 static struct task_struct *find_alive_thread(struct task_struct *p)

@@ -25,6 +25,7 @@ config ANDROID_VSOC
 
 config ANDROID_LOW_MEMORY_KILLER
 	bool "Android Low Memory Killer"
+	select HAVE_LOW_MEMORY_KILLER
 	---help---
 	  Registers processes to be killed when low memory conditions, this is useful
 	  as there is no particular swap space on android.
@@ -41,14 +42,6 @@ config ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 	  Detect oom_adj values written to
 	  /sys/module/lowmemorykiller/parameters/adj and convert them
 	  to oom_score_adj values.
-
-config ANDROID_LMK_ADJ_RBTREE
-	bool "Use RBTREE for Android Low Memory Killer"
-	depends on ANDROID_LOW_MEMORY_KILLER
-	default N
-	---help---
-	  Use oom_score_adj rbtree to select the best proecss to kill
-	  when system in low memory status.
 
 source "drivers/staging/android/ion/Kconfig"
 

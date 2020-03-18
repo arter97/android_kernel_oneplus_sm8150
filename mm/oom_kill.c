@@ -599,7 +599,7 @@ static int oom_reaper(void *unused)
 	return 0;
 }
 
-static void wake_oom_reaper(struct task_struct *tsk)
+void wake_oom_reaper(struct task_struct *tsk)
 {
 	if (!oom_reaper_th)
 		return;
@@ -1001,7 +1001,7 @@ bool out_of_memory(struct oom_control *oc)
 	unsigned long freed = 0;
 	enum oom_constraint constraint = CONSTRAINT_NONE;
 
-	if (oom_killer_disabled)
+	if (oom_killer_disabled || IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 		return false;
 
 	if (try_online_one_block(numa_node_id())) {
@@ -1088,6 +1088,9 @@ void pagefault_out_of_memory(void)
 		.gfp_mask = 0,
 		.order = 0,
 	};
+
+	if (IS_ENABLED(CONFIG_HAVE_LOW_MEMORY_KILLER))
+		return;
 
 	if (mem_cgroup_oom_synchronize(true))
 		return;

@@ -1816,13 +1816,12 @@ int ipa3_table_dma_cmd(
 
 	IPADBG("In\n");
 
-	memset(desc, 0, sizeof(desc));
-	memset(cmd_pyld, 0, sizeof(cmd_pyld));
-
 	if (!sram_compatible)
 		dma->mem_type = 0;
 
 	memset(&cmd, 0, sizeof(cmd));
+	memset(desc, 0, sizeof(desc));
+	memset(cmd_pyld, 0, sizeof(cmd_pyld));
 
 	if (!dev->is_dev_init) {
 		IPAERR_RL("NAT hasn't been initialized\n");
@@ -1867,7 +1866,9 @@ int ipa3_table_dma_cmd(
 		}
 	}
 
-	/* IC to close the coal frame before HPS Clear if coal is enabled */
+	/*
+	 * IC to close the coal frame before HPS Clear if coal is enabled
+	 */
 	if (ipa3_get_ep_mapping(IPA_CLIENT_APPS_WAN_COAL_CONS) != -1) {
 		i = ipa3_get_ep_mapping(IPA_CLIENT_APPS_WAN_COAL_CONS);
 		reg_write_coal_close.skip_pipeline_clear = false;
