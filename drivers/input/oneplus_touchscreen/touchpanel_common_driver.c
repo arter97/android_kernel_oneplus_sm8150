@@ -74,7 +74,7 @@ static uint8_t Down2UpSwip_enable = 0;	// |^
 static uint8_t Mgestrue_enable = 1;	// M
 static uint8_t Wgestrue_enable = 1;	// W
 static uint8_t Sgestrue_enable = 1;	// S
-static uint8_t SingleTap_enable = 0;	// single tap
+static uint8_t SingleTap_enable = 1;	// single tap
 
 /*******Part2:declear Area********************************/
 static void speedup_resume(struct work_struct *work);
