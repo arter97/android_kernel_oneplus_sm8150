@@ -435,6 +435,9 @@ ifeq ($(CONFIG_EARLY_INIT),true)
 KBUILD_CFLAGS    += -DCONFIG_EARLY_SERVICES
 endif
 
+# Avoid gcc-10 regression
+KBUILD_CFLAGS	+= --param=max-inline-insns-auto=1000
+
 # Optimization for sm8150
 KBUILD_CFLAGS	+= -mcpu=cortex-a76.cortex-a55+crc+crypto -Werror=vla
 
