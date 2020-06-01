@@ -572,6 +572,7 @@ struct smb_charger {
 	bool			ok_to_pd;
 	bool			typec_legacy;
 	bool			typec_irq_en;
+	bool			typec_role_swap_failed;
 
 	/* cached status */
 /* @bsp, 2019/04/17 Battery & Charging porting */
