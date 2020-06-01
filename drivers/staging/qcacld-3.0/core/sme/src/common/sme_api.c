@@ -17073,13 +17073,18 @@ QDF_STATUS sme_set_roam_triggers(mac_handle_t mac_handle,
 	tpAniSirGlobal mac = PMAC_STRUCT(mac_handle);
 	struct scheduler_msg message = {0};
 	struct roam_triggers *roam_trigger_data;
+	tCsrNeighborRoamControlInfo *neighbor_roam_info;
 
 	/* per contract must make a copy of the params when messaging */
 	roam_trigger_data = qdf_mem_malloc(sizeof(*roam_trigger_data));
 	if (!roam_trigger_data)
 		return QDF_STATUS_E_NOMEM;
+
 	*roam_trigger_data = *triggers;
 
+	neighbor_roam_info = &mac->roam.neighborRoamInfo[triggers->vdev_id];
+	neighbor_roam_info->cfgParams.roam_trigger_bitmap =
+				roam_trigger_data->trigger_bitmap;
 	status = sme_acquire_global_lock(&mac->sme);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		qdf_mem_free(roam_trigger_data);
@@ -17232,4 +17237,45 @@ QDF_STATUS sme_get_prev_connected_bss_ies(mac_handle_t mac_handle,
 end:
 	sme_release_global_lock(&mac->sme);
 	return status;
+}
+
+QDF_STATUS sme_handle_peer_cleanup(tHalHandle hal, uint8_t vdev_id)
+{
+	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
+	tpAniSirGlobal mac = PMAC_STRUCT(hal);
+	struct scheduler_msg sch_msg = {0};
+	struct sir_gen_req *req;
+	struct csr_roam_session *csr_session;
+
+	qdf_status = sme_acquire_global_lock(&mac->sme);
+	if (QDF_IS_STATUS_ERROR(qdf_status))
+		return qdf_status;
+
+	csr_session = CSR_GET_SESSION(mac, vdev_id);
+	if (!csr_session) {
+		sme_err("session %d not found", vdev_id);
+		qdf_status = QDF_STATUS_E_FAILURE;
+		goto error;
+	}
+	req = qdf_mem_malloc(sizeof(*req));
+	if (!req) {
+		qdf_status = QDF_STATUS_E_NOMEM;
+		sme_err("memory allocation failed");
+		goto error;
+	}
+	req->vdev_id = vdev_id;
+
+	sch_msg.type = eWNI_SME_PEER_CLEANUP;
+	sch_msg.bodyptr = req;
+
+	qdf_status = scheduler_post_message(QDF_MODULE_ID_SME,
+					    QDF_MODULE_ID_PE,
+					    QDF_MODULE_ID_PE,
+					    &sch_msg);
+	if (QDF_IS_STATUS_ERROR(qdf_status))
+		goto error;
+error:
+	sme_release_global_lock(&mac->sme);
+
+	return qdf_status;
 }

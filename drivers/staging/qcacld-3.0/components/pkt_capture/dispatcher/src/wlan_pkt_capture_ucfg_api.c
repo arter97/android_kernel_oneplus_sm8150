@@ -213,6 +213,15 @@ ucfg_pkt_capture_process_mgmt_tx_data(struct wlan_objmgr_pdev *pdev,
 					pkt_capture_mgmt_status_map(status));
 }
 
+void
+ucfg_pkt_capture_mgmt_tx(struct wlan_objmgr_pdev *pdev,
+			 qdf_nbuf_t nbuf,
+			 uint16_t chan_freq,
+			 uint8_t preamble_type)
+{
+	pkt_capture_mgmt_tx(pdev, nbuf, chan_freq, preamble_type);
+}
+
 /**
  * ucfg_process_pktcapture_mgmt_tx_completion(): process mgmt tx completion
  * for pkt capture mode
@@ -230,54 +239,6 @@ ucfg_pkt_capture_mgmt_tx_completion(struct wlan_objmgr_pdev *pdev,
 				    struct mgmt_offload_event_params *params)
 {
 	pkt_capture_mgmt_tx_completion(pdev, desc_id, status, params);
-}
-
-int ucfg_pkt_capture_enable_ops(struct wlan_objmgr_vdev *vdev)
-{
-	struct pkt_capture_vdev_priv *vdev_priv;
-	struct wlan_pkt_capture_rx_ops *rx_ops;
-	struct wlan_pkt_capture_tx_ops *tx_ops;
-	struct wlan_objmgr_psoc *psoc;
-	enum pkt_capture_mode mode;
-	QDF_STATUS status;
-	int ret;
-
-	if (!vdev)
-		return -EINVAL;
-
-	psoc = wlan_vdev_get_psoc(vdev);
-	if (!psoc)
-		return -EINVAL;
-
-	vdev_priv = pkt_capture_vdev_get_priv(vdev);
-	if (!vdev_priv) {
-		pkt_capture_err("vdev_priv got NULL");
-		return -EINVAL;
-	}
-
-	if (vdev_priv->is_ops_registered)
-		return 0;
-
-	rx_ops = &vdev_priv->rx_ops;
-	tx_ops = &vdev_priv->tx_ops;
-
-	status = rx_ops->pkt_capture_register_mgmt_data_offload_event(psoc);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		pkt_capture_err("Unable to register mgmt offload handler");
-		return -EINVAL;
-	}
-
-	mode = ucfg_pkt_capture_get_mode(psoc);
-	ret = tx_ops->pkt_capture_send_mode(psoc,
-					    vdev->vdev_objmgr.vdev_id,
-					    mode);
-	if (ret) {
-		pkt_capture_err("Unable to send packet capture mode to fw");
-		return ret;
-	}
-	vdev_priv->is_ops_registered = true;
-
-	return 0;
 }
 
 void ucfg_pkt_capture_rx_msdu_process(
@@ -329,4 +290,25 @@ ucfg_pkt_capture_tx_completion_process(
 				mon_buf_list, TXRX_PROCESS_TYPE_DATA_TX_COMPL,
 				tid, status, pkt_format, bssid, pdev,
 				tx_retry_cnt);
+}
+
+void ucfg_pkt_capture_record_channel(void)
+{
+	pkt_capture_record_channel();
+}
+
+int
+ucfg_pkt_capture_register_wma_callbacks(struct wlan_objmgr_psoc *psoc,
+					struct pkt_capture_callbacks *cb_obj)
+{
+	struct pkt_psoc_priv *psoc_priv = pkt_capture_psoc_get_priv(psoc);
+
+	if (!psoc_priv) {
+		pkt_capture_err("psoc priv is NULL");
+		return -EINVAL;
+	}
+
+	psoc_priv->cb_obj.get_rmf_status = cb_obj->get_rmf_status;
+
+	return 0;
 }

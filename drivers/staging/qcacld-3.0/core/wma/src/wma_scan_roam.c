@@ -398,15 +398,18 @@ static void wma_roam_scan_offload_set_params(
 				roam_req->RoamKeyMgmtOffloadEnabled;
 	wma_roam_scan_fill_self_caps(wma_handle,
 				     &params->roam_offload_params, roam_req);
+	params->rct_validity_timer = roam_req->rct_validity_timer;
 	params->is_adaptive_11r = roam_req->is_adaptive_11r_connection;
 	params->fw_okc = roam_req->pmkid_modes.fw_okc;
 	params->fw_pmksa_cache = roam_req->pmkid_modes.fw_pmksa_cache;
-	wma_debug("qos_caps %d, qos_enabled %d, ho_delay_for_rx %d, roam_scan_mode %d roam_preauth: retrycount %d, no_ack_timeout %d",
+	params->is_sae_same_pmk = roam_req->is_sae_single_pmk;
+	wma_debug("qos_caps %d, qos_enabled %d, ho_delay_for_rx %d, roam_scan_mode %d roam_preauth: retrycount %d, no_ack_timeout %d SAE Single PMK:%d",
 		 params->roam_offload_params.qos_caps,
 		 params->roam_offload_params.qos_enabled,
 		 params->roam_offload_params.ho_delay_for_rx, params->mode,
 		 params->roam_offload_params.roam_preauth_retry_count,
-		 params->roam_offload_params.roam_preauth_no_ack_timeout);
+		 params->roam_offload_params.roam_preauth_no_ack_timeout,
+		 params->is_sae_same_pmk);
 }
 #else
 static void wma_roam_scan_offload_set_params(
@@ -1781,6 +1784,7 @@ QDF_STATUS wma_process_roaming_config(tp_wma_handle wma_handle,
 		 */
 		wma_handle->suitable_ap_hb_failure = false;
 
+		wma_set_roam_triggers(wma_handle, &roam_req->roam_triggers);
 		qdf_status = wma_roam_scan_offload_rssi_thresh(wma_handle,
 								roam_req);
 		if (qdf_status != QDF_STATUS_SUCCESS)
@@ -1990,6 +1994,18 @@ QDF_STATUS wma_process_roaming_config(tp_wma_handle wma_handle,
 
 		wma_send_disconnect_roam_params(wma_handle, roam_req);
 		wma_send_idle_roam_params(wma_handle, roam_req);
+
+		/*
+		 * Disable all roaming triggers if RSO stop is as part of
+		 * disconnect
+		 */
+		if (mode == WMI_ROAM_SCAN_MODE_NONE) {
+			struct roam_triggers roam_triggers;
+
+			roam_triggers.vdev_id = roam_req->sessionId;
+			roam_triggers.trigger_bitmap = 0;
+			wma_set_roam_triggers(wma_handle, &roam_triggers);
+		}
 
 		if (roam_req->reason ==
 		    REASON_OS_REQUESTED_ROAMING_NOW) {
@@ -3194,6 +3210,8 @@ static char *wma_get_roam_trigger_str(uint32_t roam_scan_trigger)
                 return "DEAUTH RECEIVED";
         case WMI_ROAM_TRIGGER_REASON_IDLE:
                 return "IDLE STATE SCAN";
+	case WMI_ROAM_TRIGGER_REASON_STA_KICKOUT:
+		return "STA KICKOUT";
         case WMI_ROAM_TRIGGER_REASON_NONE:
                 return "NONE";
         default:
@@ -3266,6 +3284,20 @@ static char *wma_get_roam_fail_reason_str(uint32_t result)
 		return "M4 frame dropped internally";
 	case WMI_ROAM_FAIL_REASON_EAPOL_M4_NO_ACK:
 		return "No ACK for M4 frame";
+	case WMI_ROAM_FAIL_REASON_NO_SCAN_FOR_FINAL_BMISS:
+		return "No scan on final BMISS";
+	case WMI_ROAM_FAIL_REASON_DISCONNECT:
+		return "Disconnect received during handoff";
+	case WMI_ROAM_FAIL_REASON_SYNC:
+		return "Previous roam sync pending";
+	case WMI_ROAM_FAIL_REASON_SAE_INVALID_PMKID:
+		return "Reason assoc reject - invalid PMKID";
+	case WMI_ROAM_FAIL_REASON_SAE_PREAUTH_TIMEOUT:
+		return "SAE preauth timed out";
+	case WMI_ROAM_FAIL_REASON_SAE_PREAUTH_FAIL:
+		return "SAE preauth failed";
+	case WMI_ROAM_FAIL_REASON_UNABLE_TO_START_ROAM_HO:
+		return "Start handoff failed- internal error";
 	default:
 		return "Unknown";
 	}
@@ -3559,27 +3591,35 @@ wma_rso_print_11kv_info(struct wmi_neighbor_report_data *neigh_rpt,
 		return;
 
 	tmp = buf;
-	for (i = 0; i < num_ch; i++) {
+	if (num_ch) {
 		buf_cons = qdf_snprint(tmp, buf_left, "{ ");
 		buf_left -= buf_cons;
 		tmp += buf_cons;
 
-		buf_cons = qdf_snprint(tmp, buf_left, "%d ",
-				       neigh_rpt->freq[i]);
-		buf_left -= buf_cons;
-		tmp += buf_cons;
+		for (i = 0; i < num_ch; i++) {
+			buf_cons = qdf_snprint(tmp, buf_left, "%d ",
+					       neigh_rpt->freq[i]);
+			buf_left -= buf_cons;
+			tmp += buf_cons;
+		}
 
 		buf_cons = qdf_snprint(tmp, buf_left, "}");
 		buf_left -= buf_cons;
 		tmp += buf_cons;
 	}
 	wma_get_converted_timestamp(neigh_rpt->req_time, time);
-	WMA_LOGI("%s [%s] RX: VDEV[%d] %s", time,
-		 (type == 1) ? "BTM" : "NEIGH_RPT", vdev_id, buf);
+	WMA_LOGI("%s [%s] VDEV[%d]", time,
+		 (type == 1) ? "BTM_QUERY" : "NEIGH_RPT_REQ", vdev_id);
 
-	wma_get_converted_timestamp(neigh_rpt->resp_time, time1);
-	WMA_LOGI("%s [%s] TX: VDEV[%d]", time1,
-		 (type == 1) ? "BTM" : "NEIGH_RPT", vdev_id);
+	if (neigh_rpt->resp_time) {
+		wma_get_converted_timestamp(neigh_rpt->resp_time, time1);
+		WMA_LOGI("%s [%s] VDEV[%d] %s", time1,
+			 (type == 1) ? "BTM_REQ" : "NEIGH_RPT_RSP", vdev_id,
+			 (num_ch > 0) ? buf : "NO Ch update");
+	} else {
+		WMA_LOGI("%s No response received from AP",
+			 (type == 1) ? "BTM" : "NEIGH_RPT");
+	}
 	qdf_mem_free(buf);
 }
 
@@ -6460,6 +6500,15 @@ int wma_roam_event_callback(WMA_HANDLE handle, uint8_t *event_buf,
 					     wmi_event->vdev_id,
 					     frame, wmi_event->notif_params1,
 					     wmi_event->notif_params);
+		roam_synch_data = qdf_mem_malloc(sizeof(*roam_synch_data));
+		if (!roam_synch_data)
+			return -ENOMEM;
+
+		roam_synch_data->roamedVdevId = wmi_event->vdev_id;
+		wma_handle->csr_roam_synch_cb(
+				wma_handle->mac_context,
+				roam_synch_data, NULL, SIR_ROAMING_DEAUTH);
+		qdf_mem_free(roam_synch_data);
 		break;
 	default:
 		WMA_LOGD("%s:Unhandled Roam Event %x for vdevid %x", __func__,
@@ -6795,11 +6844,8 @@ QDF_STATUS wma_get_roam_scan_ch(tp_wma_handle wma,
 QDF_STATUS wma_set_roam_triggers(tp_wma_handle wma,
 				 struct roam_triggers *triggers)
 {
-	if (!wma_is_vdev_valid(triggers->vdev_id)) {
-		WMA_LOGE("%s: vdev_id: %d is not active", __func__,
-			 triggers->vdev_id);
+	if (!wma_is_vdev_valid(triggers->vdev_id))
 		return QDF_STATUS_E_INVAL;
-	}
 
 	return wmi_unified_set_roam_triggers(wma->wmi_handle, triggers);
 }
