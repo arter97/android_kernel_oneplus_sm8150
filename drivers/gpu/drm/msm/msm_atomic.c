@@ -24,7 +24,6 @@
 #include "msm_gem.h"
 #include "msm_fence.h"
 #include "sde_trace.h"
-#include "sde_hw_mdss.h"
 
 #define MULTIPLE_CONN_DETECTED(x) (x > 1)
 
@@ -619,13 +618,6 @@ static void complete_commit(struct msm_commit *c)
 	kms->funcs->complete_commit(kms, state);
 
 	drm_atomic_state_put(state);
-
-	// Ensure dim layer frame is committed
-	if (unlikely(sde_hw_dim_active) && hbm_active) {
-		hbm_level = 1;
-		mb();
-		queue_work(system_highpri_wq, &hbm_work);
-	}
 
 	priv->commit_end_time =  ktime_get(); //commit end time
 

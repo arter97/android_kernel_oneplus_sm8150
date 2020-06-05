@@ -560,30 +560,6 @@ struct sde_hw_dim_layer {
 	struct sde_mdss_color color_fill;
 	struct sde_rect rect;
 };
-
-extern bool sde_hw_dim_active;
-#define DIM_LAYER_INACTIVE	0x00
-#define DIM_LAYER_ACTIVE	0x01
-#define DIM_LAYER_REQUESTED	0x02
-
-extern struct work_struct hbm_work;
-extern bool hbm_active;
-extern int hbm_level;
-#define sde_hw_dim_go_active() \
-	do { \
-		sde_hw_dim_active = true; \
-		mb(); \
-	} while (0)
-#define sde_hw_dim_go_inactive() \
-	do { \
-		if (unlikely(sde_hw_dim_active)) { \
-			sde_hw_dim_active = false; \
-			hbm_level = 0; \
-			mb(); \
-			queue_work(system_highpri_wq, &hbm_work); \
-		} \
-	} while (0)
-
 struct fingerprint_dim_layer {
 	uint32_t flags;
 	uint32_t stage;
