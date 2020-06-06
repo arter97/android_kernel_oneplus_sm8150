@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -906,8 +906,6 @@ int afe_sizeof_cfg_cmd(u16 port_id)
 		break;
 	case RT_PROXY_PORT_001_RX:
 	case RT_PROXY_PORT_001_TX:
-	case RT_PROXY_PORT_002_RX:
-	case RT_PROXY_PORT_002_TX:
 		ret_size = SIZEOF_CFG_CMD(afe_param_id_rt_proxy_port_cfg);
 		break;
 	case AFE_PORT_ID_USB_RX:
@@ -4305,8 +4303,6 @@ static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 		break;
 	case RT_PROXY_PORT_001_RX:
 	case RT_PROXY_PORT_001_TX:
-	case RT_PROXY_PORT_002_RX:
-	case RT_PROXY_PORT_002_TX:
 		cfg_type = AFE_PARAM_ID_RT_PROXY_CONFIG;
 		break;
 	case INT_BT_SCO_RX:
@@ -4811,10 +4807,6 @@ int afe_get_port_index(u16 port_id)
 		return IDX_AFE_PORT_ID_RX_CODEC_DMA_RX_6;
 	case AFE_PORT_ID_RX_CODEC_DMA_RX_7:
 		return IDX_AFE_PORT_ID_RX_CODEC_DMA_RX_7;
-	case RT_PROXY_PORT_002_RX:
-		return IDX_RT_PROXY_PORT_002_RX;
-	case RT_PROXY_PORT_002_TX:
-		return IDX_RT_PROXY_PORT_002_TX;
 	case AFE_PORT_ID_PSEUDOPORT_01:
 		return IDX_AFE_PORT_ID_PSEUDOPORT_01;
 	case AFE_LOOPBACK_TX:
@@ -6931,8 +6923,6 @@ int afe_validate_port(u16 port_id)
 	case AFE_PORT_ID_TX_CODEC_DMA_TX_5:
 	case AFE_PORT_ID_RX_CODEC_DMA_RX_6:
 	case AFE_PORT_ID_RX_CODEC_DMA_RX_7:
-	case RT_PROXY_PORT_002_RX:
-	case RT_PROXY_PORT_002_TX:
 	case AFE_PORT_ID_PSEUDOPORT_01:
 	{
 		ret = 0;
