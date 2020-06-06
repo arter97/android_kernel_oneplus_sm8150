@@ -220,7 +220,6 @@ pkt_capture_update_tx_status(
 			struct pkt_capture_tx_hdr_elem_t *pktcapture_hdr)
 {
 	struct mon_channel *ch_info = &pdev->mon_ch_info;
-	uint16_t channel_flags = 0;
 
 	tx_status->tsft = (u_int64_t)(pktcapture_hdr->timestamp);
 	tx_status->chan_freq = ch_info->ch_freq;
@@ -229,17 +228,16 @@ pkt_capture_update_tx_status(
 	pkt_capture_tx_get_phy_info(pktcapture_hdr, tx_status);
 
 	if (pktcapture_hdr->preamble == 0)
-		channel_flags |= IEEE80211_CHAN_OFDM;
+		tx_status->ofdm_flag = 1;
 	else if (pktcapture_hdr->preamble == 1)
-		channel_flags |= IEEE80211_CHAN_CCK;
+		tx_status->cck_flag = 1;
 
-	channel_flags |=
-		(WLAN_REG_CHAN_TO_BAND(ch_info->ch_num) == BAND_2G ?
-		IEEE80211_CHAN_2GHZ : IEEE80211_CHAN_5GHZ);
-
-	tx_status->chan_flags = channel_flags;
-	tx_status->ant_signal_db = pktcapture_hdr->rssi_comb;
-	tx_status->rssi_comb = pktcapture_hdr->rssi_comb;
+	/* RSSI is filled with TPC which will be normalized
+	 * during radiotap updation, so add 96 here
+	 */
+	tx_status->ant_signal_db =
+			pktcapture_hdr->rssi_comb - NORMALIZED_TO_NOISE_FLOOR;
+	tx_status->rssi_comb = tx_status->ant_signal_db;
 	tx_status->tx_status = pktcapture_hdr->status;
 	tx_status->tx_retry_cnt = pktcapture_hdr->tx_retry_cnt;
 	tx_status->add_rtap_ext = true;
@@ -529,12 +527,7 @@ pkt_capture_rx_data_cb(
 		 */
 		headroom = qdf_nbuf_headroom(msdu);
 		qdf_nbuf_update_radiotap(&rx_status, msdu, headroom);
-
-		if (QDF_STATUS_SUCCESS !=
-		    cb_ctx->mon_cb(cb_ctx->mon_ctx, msdu)) {
-			pkt_capture_err("Frame Rx to HDD failed");
-			qdf_nbuf_free(msdu);
-		}
+		pkt_capture_mon(cb_ctx, msdu, vdev, 0);
 		msdu = next_buf;
 	}
 
@@ -707,13 +700,7 @@ pkt_capture_tx_data_cb(
 		 */
 		headroom = qdf_nbuf_headroom(msdu);
 		qdf_nbuf_update_radiotap(&tx_status, msdu, headroom);
-
-		if (QDF_STATUS_SUCCESS !=
-		    cb_ctx->mon_cb(cb_ctx->mon_ctx, msdu)) {
-			pkt_capture_err("Frame Tx to HDD failed");
-			qdf_nbuf_free(msdu);
-		}
-
+		pkt_capture_mon(cb_ctx, msdu, vdev, 0);
 		msdu = next_buf;
 	}
 	return;

@@ -572,6 +572,7 @@ struct smb_charger {
 	bool			ok_to_pd;
 	bool			typec_legacy;
 	bool			typec_irq_en;
+	bool			typec_role_swap_failed;
 
 	/* cached status */
 /* @bsp, 2019/04/17 Battery & Charging porting */
@@ -620,6 +621,7 @@ struct smb_charger {
 	bool				disable_normal_chg_for_dash;
 	bool				ship_mode;
 	bool				dash_on;
+	bool				chg_disabled;
 	bool				chg_ovp;
 	bool				is_power_changed;
 	bool				recharge_pending;
@@ -821,6 +823,9 @@ extern bool get_prop_fast_chg_started(struct smb_charger *chg);
 extern void mcu_en_gpio_set(int value);
 extern void switch_mode_to_normal(void);
 extern struct smb_charger *g_chg;
+/* add to update fg node value on panel event */
+extern int panel_flag1;
+extern int panel_flag2;
 void op_disconnect_vbus(struct smb_charger *chg, bool enable);
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);

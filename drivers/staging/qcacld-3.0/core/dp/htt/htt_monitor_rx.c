@@ -50,6 +50,8 @@ enum {
 	HW_RX_DECAP_FORMAT_ETH2,
 };
 
+struct mon_rx_status g_ppdu_rx_status;
+
 /**
  * htt_rx_mon_note_capture_channel() - Make note of channel to update in
  * radiotap
@@ -426,12 +428,7 @@ static void htt_mon_rx_get_phy_info(struct htt_host_rx_desc_base *rx_desc,
 	rx_status->ht_flags = ht_flags;
 	rx_status->vht_flags = vht_flags;
 	rx_status->rtap_flags |= ((preamble == SHORT_PREAMBLE) ? BIT(1) : 0);
-	if (bw == 0)
-		rx_status->vht_flag_values2 = 0;
-	else if (bw == 1)
-		rx_status->vht_flag_values2 = 1;
-	else if (bw == 2)
-		rx_status->vht_flag_values2 = 4;
+	rx_status->vht_flag_values2 = bw;
 }
 
 /**
@@ -468,7 +465,6 @@ void htt_rx_mon_get_rx_status(htt_pdev_handle pdev,
 			      struct htt_host_rx_desc_base *rx_desc,
 			      struct mon_rx_status *rx_status)
 {
-	uint16_t channel_flags = 0;
 	struct mon_channel *ch_info = &pdev->mon_ch_info;
 
 	rx_status->tsft = (u_int64_t)TSF_TIMESTAMP(rx_desc);
@@ -476,13 +472,12 @@ void htt_rx_mon_get_rx_status(htt_pdev_handle pdev,
 	rx_status->chan_num = ch_info->ch_num;
 	htt_mon_rx_get_phy_info(rx_desc, rx_status);
 	rx_status->rtap_flags |= htt_mon_rx_get_rtap_flags(rx_desc);
-	channel_flags |= rx_desc->ppdu_start.l_sig_rate_select ?
-		IEEE80211_CHAN_CCK : IEEE80211_CHAN_OFDM;
-	channel_flags |=
-		(cds_chan_to_band(ch_info->ch_num) == CDS_BAND_2GHZ ?
-		IEEE80211_CHAN_2GHZ : IEEE80211_CHAN_5GHZ);
 
-	rx_status->chan_flags = channel_flags;
+	if (rx_desc->ppdu_start.l_sig_rate_select)
+		rx_status->cck_flag = 1;
+	else
+		rx_status->ofdm_flag = 1;
+
 	rx_status->ant_signal_db = rx_desc->ppdu_start.rssi_comb;
 	rx_status->rssi_comb = rx_desc->ppdu_start.rssi_comb;
 }
@@ -511,7 +506,6 @@ int htt_rx_mon_amsdu_rx_in_order_pop_ll(htt_pdev_handle pdev,
 	uint32_t *msg_word;
 	uint32_t msdu_count;
 	struct htt_host_rx_desc_base *rx_desc;
-	struct mon_rx_status rx_status = {0};
 	uint32_t amsdu_len;
 	uint32_t len;
 	uint32_t last_frag;
@@ -623,7 +617,12 @@ int htt_rx_mon_amsdu_rx_in_order_pop_ll(htt_pdev_handle pdev,
 		 * Make the netbuf's data pointer point to the payload rather
 		 * than the descriptor.
 		 */
-		htt_rx_mon_get_rx_status(pdev, rx_desc, &rx_status);
+		if (rx_desc->attention.first_mpdu) {
+			memset(&g_ppdu_rx_status, 0,
+			       sizeof(struct mon_rx_status));
+			htt_rx_mon_get_rx_status(pdev, rx_desc,
+						 &g_ppdu_rx_status);
+		}
 		/*
 		 * For certain platform, 350 bytes of headroom is already
 		 * appended to accommodate radiotap header but
@@ -659,7 +658,7 @@ int htt_rx_mon_amsdu_rx_in_order_pop_ll(htt_pdev_handle pdev,
 		 */
 		if (qdf_nbuf_head(msdu) == qdf_nbuf_data(msdu))
 			qdf_nbuf_pull_head(msdu, HTT_RX_STD_DESC_RESERVATION);
-		qdf_nbuf_update_radiotap(&rx_status, msdu,
+		qdf_nbuf_update_radiotap(&g_ppdu_rx_status, msdu,
 					 HTT_RX_STD_DESC_RESERVATION);
 		amsdu_len = HTT_RX_IN_ORD_PADDR_IND_MSDU_LEN_GET(*(msg_word +
 						NEXT_FIELD_OFFSET_IN32));

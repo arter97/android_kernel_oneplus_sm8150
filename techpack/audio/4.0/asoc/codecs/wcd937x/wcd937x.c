@@ -36,6 +36,8 @@
 #define WCD937X_VERSION_ENTRY_SIZE 32
 #define EAR_RX_PATH_AUX 1
 
+#define NUM_ATTEMPTS 5
+
 enum {
 	CODEC_TX = 0,
 	CODEC_RX,
@@ -1396,7 +1398,7 @@ int wcd937x_micbias_control(struct snd_soc_codec *codec,
 			snd_soc_update_bits(codec, WCD937X_MICB2_TEST_CTL_2, 0x01, 0x01);
 			snd_soc_update_bits(codec, WCD937X_MICB3_TEST_CTL_2, 0x01, 0x01);
 			snd_soc_update_bits(codec, micb_reg, 0xC0, 0x40);
-			if (post_on_event && wcd937x->mbhc)
+			if (post_on_event)
 				blocking_notifier_call_chain(
 					&wcd937x->mbhc->notifier, post_on_event,
 					&wcd937x->mbhc->wcd_mbhc);
@@ -1471,14 +1473,18 @@ static int wcd937x_get_logical_addr(struct swr_device *swr_dev)
 {
 	int ret = 0;
 	uint8_t devnum = 0;
+	int num_retry = NUM_ATTEMPTS;
 
-	ret = swr_get_logical_dev_num(swr_dev, swr_dev->addr, &devnum);
-	if (ret) {
-		dev_err(&swr_dev->dev,
-			"%s get devnum %d for dev addr %lx failed\n",
-			__func__, devnum, swr_dev->addr);
-		return ret;
-	}
+	do {
+		ret = swr_get_logical_dev_num(swr_dev, swr_dev->addr, &devnum);
+		if (ret) {
+			dev_err(&swr_dev->dev,
+				"%s get devnum %d for dev addr %lx failed\n",
+				__func__, devnum, swr_dev->addr);
+			/* retry after 1ms */
+			usleep_range(1000, 1010);
+		}
+	} while (ret && --num_retry);
 	swr_dev->dev_num = devnum;
 	return 0;
 }
@@ -1520,14 +1526,13 @@ static int wcd937x_event_notify(struct notifier_block *block,
 		break;
 	case BOLERO_WCD_EVT_SSR_UP:
 		wcd937x_reset(wcd937x->dev);
+		/* allow reset to take effect */
+		usleep_range(10000, 10010);
 		wcd937x_get_logical_addr(wcd937x->tx_swr_dev);
 		wcd937x_get_logical_addr(wcd937x->rx_swr_dev);
+		wcd937x_init_reg(codec);
 		regcache_mark_dirty(wcd937x->regmap);
 		regcache_sync(wcd937x->regmap);
-		/* Enable surge protection */
-		snd_soc_update_bits(codec,
-				WCD937X_HPH_SURGE_HPHLR_SURGE_EN,
-				0xFF, 0xD9);
 		/* Initialize MBHC module */
 		mbhc = &wcd937x->mbhc->wcd_mbhc;
 		ret = wcd937x_mbhc_post_ssr_init(wcd937x->mbhc, codec);
@@ -1630,6 +1635,7 @@ static int wcd937x_codec_enable_micbias_pullup(struct snd_soc_dapm_widget *w,
 {
 	return __wcd937x_codec_enable_micbias_pullup(w, event);
 }
+
 static int wcd937x_rx_hph_mode_get(struct snd_kcontrol *kcontrol,
 				 struct snd_ctl_elem_value *ucontrol)
 {
@@ -2379,7 +2385,8 @@ static int wcd937x_soc_codec_probe(struct snd_soc_codec *codec)
 
 	wcd937x->codec = codec;
 	snd_soc_codec_init_regmap(codec, wcd937x->regmap);
-	variant = (snd_soc_read(codec, WCD937X_DIGITAL_EFUSE_REG_0) & 0x0E) >> 1;
+	variant = (snd_soc_read(codec, WCD937X_DIGITAL_EFUSE_REG_0) & 0x1E)
+				>> 1;
 	wcd937x->variant = variant;
 
 	wcd937x->fw_data = devm_kzalloc(codec->dev,

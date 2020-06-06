@@ -1,10 +1,12 @@
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2017 aQuantia Corporation. All rights reserved
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Atlantic Network Driver
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2017 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #undef TRACE_SYSTEM
@@ -228,7 +230,7 @@ TRACE_EVENT(atl_tx_context_descr,
 		__field(unsigned int, ring_idx)
 		__field(unsigned int, pointer)
 		/* Tx Context Descriptor */
-		__field(u16, out_len)
+		__field(u8, out_len)
 		__field(u8, tun_len)
 		__field(u64, resvd3)
 		__field(u16, mss_len)
@@ -243,9 +245,9 @@ TRACE_EVENT(atl_tx_context_descr,
 	TP_fast_assign(
 		__entry->ring_idx = ring_idx;
 		__entry->pointer = pointer;
-		__entry->out_len = DESCR_FIELD(descr[0], 63, 48);
-		__entry->tun_len = DESCR_FIELD(descr[0], 47, 40);
-		__entry->resvd3 = DESCR_FIELD(descr[0], 39, 0);
+		__entry->out_len = DESCR_FIELD(descr[0], 63, 56);
+		__entry->tun_len = DESCR_FIELD(descr[0], 55, 48);
+		__entry->resvd3 = DESCR_FIELD(descr[0], 47, 0);
 		__entry->mss_len = DESCR_FIELD(descr[1], 63, 48);
 		__entry->l4_len = DESCR_FIELD(descr[1], 47, 40);
 		__entry->l3_len = DESCR_FIELD(descr[1], 39, 31);

@@ -499,6 +499,7 @@ static int map_lookup_elem(union bpf_attr *attr)
 	int ufd = attr->map_fd;
 	struct bpf_map *map;
 	void *key, *value, *ptr;
+	char value_onstack[32];
 	u32 value_size;
 	struct fd f;
 	int err;
@@ -531,10 +532,14 @@ static int map_lookup_elem(union bpf_attr *attr)
 	else
 		value_size = map->value_size;
 
-	err = -ENOMEM;
-	value = kmalloc(value_size, GFP_USER | __GFP_NOWARN);
-	if (!value)
-		goto free_key;
+	if (likely(value_size <= sizeof(value_onstack))) {
+		value = value_onstack;
+	} else {
+		err = -ENOMEM;
+		value = kmalloc(value_size, GFP_USER | __GFP_NOWARN);
+		if (!value)
+			goto free_key;
+	}
 
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH) {
@@ -570,7 +575,8 @@ static int map_lookup_elem(union bpf_attr *attr)
 	err = 0;
 
 free_value:
-	kfree(value);
+	if (unlikely(value != value_onstack))
+		kfree(value);
 free_key:
 	kfree(key);
 err_put:
@@ -598,6 +604,7 @@ static int map_update_elem(union bpf_attr *attr)
 	int ufd = attr->map_fd;
 	struct bpf_map *map;
 	void *key, *value;
+	char value_onstack[16];
 	u32 value_size;
 	struct fd f;
 	int err;
@@ -628,10 +635,14 @@ static int map_update_elem(union bpf_attr *attr)
 	else
 		value_size = map->value_size;
 
-	err = -ENOMEM;
-	value = kmalloc(value_size, GFP_USER | __GFP_NOWARN);
-	if (!value)
-		goto free_key;
+	if (likely(value_size <= sizeof(value_onstack))) {
+		value = value_onstack;
+	} else {
+		err = -ENOMEM;
+		value = kmalloc(value_size, GFP_USER | __GFP_NOWARN);
+		if (!value)
+			goto free_key;
+	}
 
 	err = -EFAULT;
 	if (copy_from_user(value, uvalue, value_size) != 0)
@@ -672,7 +683,8 @@ static int map_update_elem(union bpf_attr *attr)
 	if (!err)
 		trace_bpf_map_update_elem(map, ufd, key, value);
 free_value:
-	kfree(value);
+	if (unlikely(value != value_onstack))
+		kfree(value);
 free_key:
 	kfree(key);
 err_put:
@@ -737,6 +749,7 @@ static int map_get_next_key(union bpf_attr *attr)
 	int ufd = attr->map_fd;
 	struct bpf_map *map;
 	void *key, *next_key;
+	char next_key_onstack[48];
 	struct fd f;
 	int err;
 
@@ -763,10 +776,14 @@ static int map_get_next_key(union bpf_attr *attr)
 		key = NULL;
 	}
 
-	err = -ENOMEM;
-	next_key = kmalloc(map->key_size, GFP_USER);
-	if (!next_key)
-		goto free_key;
+	if (likely(map->key_size <= sizeof(next_key_onstack))) {
+		next_key = next_key_onstack;
+	} else {
+		err = -ENOMEM;
+		next_key = kmalloc(map->key_size, GFP_USER);
+		if (!next_key)
+			goto free_key;
+	}
 
 	rcu_read_lock();
 	err = map->ops->map_get_next_key(map, key, next_key);
@@ -782,7 +799,8 @@ static int map_get_next_key(union bpf_attr *attr)
 	err = 0;
 
 free_next_key:
-	kfree(next_key);
+	if (unlikely(next_key != next_key_onstack))
+		kfree(next_key);
 free_key:
 	kfree(key);
 err_put:
@@ -1458,7 +1476,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 				   union bpf_attr __user *uattr)
 {
 	struct bpf_prog_info __user *uinfo = u64_to_user_ptr(attr->info.info);
-	struct bpf_prog_info info = {};
+	struct bpf_prog_info info;
 	u32 info_len = attr->info.info_len;
 	char __user *uinsns;
 	u32 ulen;
@@ -1469,6 +1487,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 		return err;
 	info_len = min_t(u32, sizeof(info), info_len);
 
+	memset(&info, 0, sizeof(info));
 	if (copy_from_user(&info, uinfo, info_len))
 		return -EFAULT;
 
@@ -1514,7 +1533,7 @@ static int bpf_map_get_info_by_fd(struct bpf_map *map,
 				  union bpf_attr __user *uattr)
 {
 	struct bpf_map_info __user *uinfo = u64_to_user_ptr(attr->info.info);
-	struct bpf_map_info info = {};
+	struct bpf_map_info info;
 	u32 info_len = attr->info.info_len;
 	int err;
 
@@ -1523,6 +1542,7 @@ static int bpf_map_get_info_by_fd(struct bpf_map *map,
 		return err;
 	info_len = min_t(u32, sizeof(info), info_len);
 
+	memset(&info, 0, sizeof(info));
 	info.type = map->map_type;
 	info.id = map->id;
 	info.key_size = map->key_size;
@@ -1568,7 +1588,7 @@ static int bpf_obj_get_info_by_fd(const union bpf_attr *attr,
 
 SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size)
 {
-	union bpf_attr attr = {};
+	union bpf_attr attr;
 	int err;
 
 	if (sysctl_unprivileged_bpf_disabled && !capable(CAP_SYS_ADMIN))
@@ -1580,6 +1600,7 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 	size = min_t(u32, size, sizeof(attr));
 
 	/* copy attributes from user space, may be less than sizeof(bpf_attr) */
+	memset(&attr, 0, sizeof(attr));
 	if (copy_from_user(&attr, uattr, size) != 0)
 		return -EFAULT;
 

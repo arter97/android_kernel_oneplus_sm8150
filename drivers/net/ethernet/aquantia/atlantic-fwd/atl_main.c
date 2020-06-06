@@ -1,10 +1,12 @@
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2017 aQuantia Corporation. All rights reserved
+// SPDX-License-Identifier: GPL-2.0-only
+/* Atlantic Network Driver
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2017 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include "atl_common.h"
@@ -13,6 +15,7 @@
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
 #include <linux/pm_runtime.h>
+#include "atl_macsec.h"
 
 #include "atl_qcom.h"
 
@@ -36,8 +39,6 @@ module_param_named(sleep_delay, atl_sleep_delay, uint, 0644);
 static void atl_start_link(struct atl_nic *nic)
 {
 	struct atl_hw *hw = &nic->hw;
-
-	atl_set_media_detect(nic, !!(nic->priv_flags & ATL_PF_BIT(MEDIA_DETECT)));
 
 	hw->link_state.force_off = 0;
 	hw->mcp.ops->set_link(hw, true);
@@ -126,7 +127,7 @@ static int atl_open(struct net_device *ndev)
 
 	pm_runtime_put_sync(&nic->hw.pdev->dev);
 
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	atlfwd_nl_on_open(nic->ndev);
 #endif
 
@@ -203,7 +204,7 @@ static const struct net_device_ops atl_ndev_ops = {
 	.ndo_open = atl_open,
 	.ndo_stop = atl_ndo_close,
 	.ndo_start_xmit = atl_start_xmit,
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	.ndo_select_queue = atlfwd_nl_select_queue,
 #endif
 	.ndo_vlan_rx_add_vid = atl_vlan_rx_add_vid,
@@ -341,6 +342,26 @@ static int atl_check_reset(struct atl_nic *nic)
 	return atl_do_reset(nic);
 }
 
+int atl_fw_configure(struct atl_hw *hw)
+{
+	struct atl_nic *nic = container_of(hw, struct atl_nic, hw);
+	int ret;
+
+	ret = hw->mcp.ops->set_mediadetect(hw,
+			!!(nic->priv_flags & ATL_PF_BIT(MEDIA_DETECT)));
+	if (ret && ret != -EOPNOTSUPP)
+		return ret;
+	ret = hw->mcp.ops->set_pad_stripping(hw,
+			!!(nic->priv_flags & ATL_PF_BIT(STRIP_PAD)));
+	if (ret && ret != -EOPNOTSUPP)
+		return ret;
+	ret = hw->mcp.ops->update_thermal(hw);
+	if (ret == -EOPNOTSUPP)
+		ret = 0;
+
+	return ret;
+}
+
 static void atl_work(struct work_struct *work)
 {
 	struct atl_nic *nic = container_of(work, struct atl_nic, work);
@@ -354,7 +375,7 @@ static void atl_work(struct work_struct *work)
 	if (ret)
 		goto out;
 	atl_refresh_link(nic);
-#ifdef NETIF_F_HW_MACSEC
+#if IS_ENABLED(CONFIG_MACSEC) && defined(NETIF_F_HW_MACSEC)
 	atl_macsec_work(nic);
 #endif
 out:
@@ -372,22 +393,28 @@ static void atl_work_timer(struct timer_list *timer)
 
 static const struct pci_device_id atl_pci_tbl[] = {
 	{ PCI_VDEVICE(AQUANTIA, 0x0001), ATL_UNKNOWN},
-	{ PCI_VDEVICE(AQUANTIA, 0xd107), ATL_AQC107},
-	{ PCI_VDEVICE(AQUANTIA, 0x07b1), ATL_AQC107},
-	{ PCI_VDEVICE(AQUANTIA, 0x87b1), ATL_AQC107},
-	{ PCI_VDEVICE(AQUANTIA, 0xd108), ATL_AQC108},
-	{ PCI_VDEVICE(AQUANTIA, 0x08b1), ATL_AQC108},
-	{ PCI_VDEVICE(AQUANTIA, 0x88b1), ATL_AQC108},
-	{ PCI_VDEVICE(AQUANTIA, 0xd109), ATL_AQC109},
-	{ PCI_VDEVICE(AQUANTIA, 0x09b1), ATL_AQC109},
-	{ PCI_VDEVICE(AQUANTIA, 0x89b1), ATL_AQC109},
-	{ PCI_VDEVICE(AQUANTIA, 0xd100), ATL_AQC100},
-	{ PCI_VDEVICE(AQUANTIA, 0x00b1), ATL_AQC107},
-	{ PCI_VDEVICE(AQUANTIA, 0x80b1), ATL_AQC107},
-	{ PCI_VDEVICE(AQUANTIA, 0x11b1), ATL_AQC108},
-	{ PCI_VDEVICE(AQUANTIA, 0x91b1), ATL_AQC108},
-	{ PCI_VDEVICE(AQUANTIA, 0x12b1), ATL_AQC109},
-	{ PCI_VDEVICE(AQUANTIA, 0x92b1), ATL_AQC109},
+	{ PCI_VDEVICE(AQUANTIA, 0xd107), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x07b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x87b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0xd108), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x08b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x88b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0xd109), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x09b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x89b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0xd100), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x00b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x80b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x11b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x91b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x12b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x92b1), ATL_ATLANTIC},
+	{ PCI_VDEVICE(AQUANTIA, 0x00c0), ATL_ANTIGUA},
+	{ PCI_VDEVICE(AQUANTIA, 0x04c0), ATL_ANTIGUA},
+	{ PCI_VDEVICE(AQUANTIA, 0x12c0), ATL_ANTIGUA},
+	{ PCI_VDEVICE(AQUANTIA, 0x14c0), ATL_ANTIGUA},
+	{ PCI_VDEVICE(AQUANTIA, 0x93c0), ATL_ANTIGUA},
+	{ PCI_VDEVICE(AQUANTIA, 0x94c0), ATL_ANTIGUA},
 	{}
 };
 
@@ -413,7 +440,7 @@ static int atl_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Number of queues:
 	 * Extra TX queue is used for redirection to FWD ring.
 	 */
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	const unsigned int txqs = atl_max_queues + 1;
 #else
 	const unsigned int txqs = atl_max_queues;
@@ -462,7 +489,7 @@ static int atl_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	INIT_WORK(&nic->work, atl_work);
 	mutex_init(&nic->hw.mcp.lock);
 
-#ifdef CONFIG_ATLFWD_FWD
+#if IS_ENABLED(CONFIG_ATLFWD_FWD)
 	BLOCKING_INIT_NOTIFIER_HEAD(&nic->fwd.nh_clients);
 #endif
 
@@ -524,7 +551,7 @@ static int atl_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (pci_64)
 		ndev->features |= NETIF_F_HIGHDMA;
 
-#ifdef NETIF_F_HW_MACSEC
+#if IS_ENABLED(CONFIG_MACSEC) && defined(NETIF_F_HW_MACSEC)
 	if (hw->mcp.caps_low & atl_fw2_macsec)
 		ndev->features |= NETIF_F_HW_MACSEC;
 #endif
@@ -537,7 +564,7 @@ static int atl_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	hw->non_ring_intr_mask = BIT(ATL_NUM_NON_RING_IRQS) - 1;
 	ndev->netdev_ops = &atl_ndev_ops;
-#ifdef NETIF_F_HW_MACSEC
+#if IS_ENABLED(CONFIG_MACSEC) && defined(NETIF_F_HW_MACSEC)
 	if (hw->mcp.caps_low & atl_fw2_macsec)
 		ndev->macsec_ops = &atl_macsec_ops,
 #endif
@@ -574,7 +601,7 @@ static int atl_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	atl_intr_enable_non_ring(nic);
 	mod_timer(&nic->work_timer, jiffies + HZ);
 
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	atlfwd_nl_on_probe(nic->ndev);
 #endif
 
@@ -603,24 +630,26 @@ err_dma:
 
 static void atl_remove(struct pci_dev *pdev)
 {
-	int disable_needed;
 	struct atl_nic *nic = pci_get_drvdata(pdev);
+	int disable_needed;
+	bool wol_force;
 
 	if (!nic)
 		return;
 
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	atlfwd_nl_on_remove(nic->ndev);
 #endif
 
 	atl_stop(nic, true);
 	disable_needed = test_and_clear_bit(ATL_ST_ENABLED, &nic->hw.state);
+	wol_force = !!(nic->hw.mcp.caps_low & atl_fw2_wake_on_link_force);
 	del_timer_sync(&nic->work_timer);
 	cancel_work_sync(&nic->work);
 	atl_intr_disable_all(&nic->hw);
 	unregister_netdev(nic->ndev);
 
-#ifdef CONFIG_ATLFWD_FWD
+#if IS_ENABLED(CONFIG_ATLFWD_FWD)
 	atl_fwd_release_rings(nic);
 #endif
 
@@ -629,7 +658,7 @@ static void atl_remove(struct pci_dev *pdev)
 	free_netdev(nic->ndev);
 	pci_release_regions(pdev);
 
-	if (nic->hw.mcp.caps_low & atl_fw2_wake_on_link_force)
+	if (wol_force)
 		pm_runtime_get_sync(&pdev->dev);
 
 	if (disable_needed)
@@ -656,6 +685,8 @@ static int atl_suspend_common(struct device *dev, unsigned int wol_mode)
 		ret = hw->mcp.ops->enable_wol(hw, wol_mode);
 		if (ret)
 			atl_dev_err("Enable WoL failed: %d\n", -ret);
+	} else {
+		hw->mcp.ops->deinit(hw);
 	}
 
 	clear_bit(ATL_ST_ENABLED, &hw->state);
@@ -876,7 +907,7 @@ static int __init atl_module_init(void)
 	if (ret)
 		goto err_pci_reg;
 
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	ret = atlfwd_nl_init();
 	if (ret)
 		goto err_fwd_netlink;
@@ -884,7 +915,7 @@ static int __init atl_module_init(void)
 
 	return 0;
 
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 err_fwd_netlink:
 #endif
 	pci_unregister_driver(&atl_pci_ops);
@@ -898,7 +929,7 @@ module_init(atl_module_init);
 
 static void __exit atl_module_exit(void)
 {
-#ifdef CONFIG_ATLFWD_FWD_NETLINK
+#if IS_ENABLED(CONFIG_ATLFWD_FWD_NETLINK)
 	atlfwd_nl_exit();
 #endif
 

@@ -3015,6 +3015,7 @@
 			     <GIC_SPI 424 IRQ_TYPE_LEVEL_HIGH /* CE10 */ >,
 			     <GIC_SPI 425 IRQ_TYPE_LEVEL_HIGH /* CE11 */ >;
 		qcom,wlan-msa-fixed-region = <&wlan_fw_mem>;
+		qcom,hyp_disabled;
 		vdd-cx-mx-supply = <&L9A>;
 		vdd-1.8-xo-supply = <&L1C>;
 		vdd-1.3-rfa-supply = <&L2C>;
@@ -3076,7 +3077,7 @@
 		interrupt-names = "slimbus_irq", "slimbus_bam_irq";
 		qcom,apps-ch-pipes = <0x700000>;
 		qcom,ea-pc = <0x340>;
-		qcom,iommu-s1-bypass;
+		qcom,iommu-atomic-ctx;
 		status = "ok";
 
 		iommu_slim_aud_ctrl_cb: qcom,iommu_slim_ctrl_cb {
