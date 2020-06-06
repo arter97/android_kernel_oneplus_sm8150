@@ -3409,8 +3409,7 @@ static int dsi_panel_parse_roi_alignment(struct dsi_parser_utils *utils,
 }
 
 static int dsi_panel_parse_partial_update_caps(struct dsi_display_mode *mode,
-				struct dsi_parser_utils *utils,
-				struct dsi_panel *panel)
+				struct dsi_parser_utils *utils)
 {
 	struct msm_roi_caps *roi_caps = NULL;
 	int rc = 0;
@@ -3418,11 +3417,6 @@ static int dsi_panel_parse_partial_update_caps(struct dsi_display_mode *mode,
 	if (!mode || !mode->priv_info) {
 		pr_err("invalid arguments\n");
 		return -EINVAL;
-	}
-
-	if (panel->hw_type != DSI_PANEL_SAMSUNG_S6E3HC2) {
-		pr_info("Partial update disabled\n");
-		return 0;
 	}
 
 	roi_caps = &mode->priv_info->roi_caps;
@@ -4368,7 +4362,7 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 			goto parse_fail;
 		}
 
-		rc = dsi_panel_parse_partial_update_caps(mode, utils, panel);
+		rc = dsi_panel_parse_partial_update_caps(mode, utils);
 		if (rc)
 			pr_err("failed to partial update caps, rc=%d\n", rc);
 
