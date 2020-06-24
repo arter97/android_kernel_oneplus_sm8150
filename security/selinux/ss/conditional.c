@@ -217,7 +217,7 @@ int cond_read_bool(struct policydb *p, struct hashtab *h, void *fp)
 	if (!booldatum)
 		return -ENOMEM;
 
-	rc = next_entry(buf, fp, sizeof buf);
+	rc = next_entry(buf, fp, sizeof(buf));
 	if (rc)
 		goto err;
 
@@ -418,7 +418,7 @@ int cond_read_list(struct policydb *p, void *fp)
 	u32 i, len;
 	int rc;
 
-	rc = next_entry(buf, fp, sizeof buf);
+	rc = next_entry(buf, fp, sizeof(buf));
 	if (rc)
 		return rc;
 
