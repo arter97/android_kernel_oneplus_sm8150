@@ -17,6 +17,8 @@
 #include <linux/workqueue.h>
 //#include "flask.h"
 
+#define SELINUX_LABEL_LENGTH 128
+
 #define SECSID_NULL			0x00000000 /* unspecified SID */
 #define SECSID_WILD			0xffffffff /* wildcard SID */
 #define SECCLASS_NULL			0x0000 /* no class */
@@ -304,10 +306,19 @@ int security_change_sid(struct selinux_state *state, u32 ssid, u32 tsid,
 int security_sid_to_context(struct selinux_state *state, u32 sid,
 			    char **scontext, u32 *scontext_len);
 
+int security_sid_to_context_stack(struct selinux_state *state, u32 sid,
+			    char **scontext, u32 *scontext_len);
+
 int security_sid_to_context_force(struct selinux_state *state,
 				  u32 sid, char **scontext, u32 *scontext_len);
 
+int security_sid_to_context_force_stack(struct selinux_state *state,
+				  u32 sid, char **scontext, u32 *scontext_len);
+
 int security_sid_to_context_inval(struct selinux_state *state,
+				  u32 sid, char **scontext, u32 *scontext_len);
+
+int security_sid_to_context_inval_stack(struct selinux_state *state,
 				  u32 sid, char **scontext, u32 *scontext_len);
 
 int security_context_to_sid(struct selinux_state *state,
