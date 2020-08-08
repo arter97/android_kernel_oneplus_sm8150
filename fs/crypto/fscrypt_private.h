@@ -231,14 +231,15 @@ typedef enum {
 
 /* crypto.c */
 extern struct kmem_cache *fscrypt_info_cachep;
-int fscrypt_initialize(unsigned int cop_flags);
-int fscrypt_crypt_block(const struct inode *inode, fscrypt_direction_t rw,
-			u64 lblk_num, struct page *src_page,
-			struct page *dest_page, unsigned int len,
-			unsigned int offs, gfp_t gfp_flags);
-struct page *fscrypt_alloc_bounce_page(gfp_t gfp_flags);
+extern int fscrypt_initialize(unsigned int cop_flags);
+extern int fscrypt_crypt_block(const struct inode *inode,
+			       fscrypt_direction_t rw, u64 lblk_num,
+			       struct page *src_page, struct page *dest_page,
+			       unsigned int len, unsigned int offs,
+			       gfp_t gfp_flags);
+extern struct page *fscrypt_alloc_bounce_page(gfp_t gfp_flags);
 
-void __printf(3, 4) __cold
+extern void __printf(3, 4) __cold
 fscrypt_msg(const struct inode *inode, const char *level, const char *fmt, ...);
 
 #define fscrypt_warn(inode, fmt, ...)		\
@@ -263,10 +264,12 @@ void fscrypt_generate_iv(union fscrypt_iv *iv, u64 lblk_num,
 			 const struct fscrypt_info *ci);
 
 /* fname.c */
-int fscrypt_fname_encrypt(const struct inode *inode, const struct qstr *iname,
-			  u8 *out, unsigned int olen);
-bool fscrypt_fname_encrypted_size(const struct inode *inode, u32 orig_len,
-				  u32 max_len, u32 *encrypted_len_ret);
+extern int fscrypt_fname_encrypt(const struct inode *inode,
+				 const struct qstr *iname,
+				 u8 *out, unsigned int olen);
+extern bool fscrypt_fname_encrypted_size(const struct inode *inode,
+					 u32 orig_len, u32 max_len,
+					 u32 *encrypted_len_ret);
 extern const struct dentry_operations fscrypt_d_ops;
 
 /* hkdf.c */
@@ -275,8 +278,8 @@ struct fscrypt_hkdf {
 	struct crypto_shash *hmac_tfm;
 };
 
-int fscrypt_init_hkdf(struct fscrypt_hkdf *hkdf, const u8 *master_key,
-		      unsigned int master_key_size);
+extern int fscrypt_init_hkdf(struct fscrypt_hkdf *hkdf, const u8 *master_key,
+			     unsigned int master_key_size);
 
 /*
  * The list of contexts in which fscrypt uses HKDF.  These values are used as
@@ -291,11 +294,11 @@ int fscrypt_init_hkdf(struct fscrypt_hkdf *hkdf, const u8 *master_key,
 #define HKDF_CONTEXT_IV_INO_LBLK_64_KEY	4
 #define HKDF_CONTEXT_DIRHASH_KEY	5
 
-int fscrypt_hkdf_expand(const struct fscrypt_hkdf *hkdf, u8 context,
-			const u8 *info, unsigned int infolen,
-			u8 *okm, unsigned int okmlen);
+extern int fscrypt_hkdf_expand(const struct fscrypt_hkdf *hkdf, u8 context,
+			       const u8 *info, unsigned int infolen,
+			       u8 *okm, unsigned int okmlen);
 
-void fscrypt_destroy_hkdf(struct fscrypt_hkdf *hkdf);
+extern void fscrypt_destroy_hkdf(struct fscrypt_hkdf *hkdf);
 
 /* keyring.c */
 
@@ -433,14 +436,14 @@ static inline int master_key_spec_len(const struct fscrypt_key_specifier *spec)
 	return 0;
 }
 
-struct key *
+extern struct key *
 fscrypt_find_master_key(struct super_block *sb,
 			const struct fscrypt_key_specifier *mk_spec);
 
-int fscrypt_verify_key_added(struct super_block *sb,
-			     const u8 identifier[FSCRYPT_KEY_IDENTIFIER_SIZE]);
+extern int fscrypt_verify_key_added(struct super_block *sb,
+				    const u8 identifier[FSCRYPT_KEY_IDENTIFIER_SIZE]);
 
-int __init fscrypt_init_keyring(void);
+extern int __init fscrypt_init_keyring(void);
 
 /* keysetup.c */
 
@@ -454,32 +457,33 @@ struct fscrypt_mode {
 
 extern struct fscrypt_mode fscrypt_modes[];
 
-struct crypto_skcipher *fscrypt_allocate_skcipher(struct fscrypt_mode *mode,
-						  const u8 *raw_key,
-						  const struct inode *inode);
+extern struct crypto_skcipher *
+fscrypt_allocate_skcipher(struct fscrypt_mode *mode, const u8 *raw_key,
+			  const struct inode *inode);
 
-int fscrypt_set_per_file_enc_key(struct fscrypt_info *ci, const u8 *raw_key);
+extern int fscrypt_set_per_file_enc_key(struct fscrypt_info *ci,
+					const u8 *raw_key);
 
-int fscrypt_derive_dirhash_key(struct fscrypt_info *ci,
-			       const struct fscrypt_master_key *mk);
+extern int fscrypt_derive_dirhash_key(struct fscrypt_info *ci,
+				      const struct fscrypt_master_key *mk);
 
 /* keysetup_v1.c */
 
-void fscrypt_put_direct_key(struct fscrypt_direct_key *dk);
+extern void fscrypt_put_direct_key(struct fscrypt_direct_key *dk);
 
-int fscrypt_setup_v1_file_key(struct fscrypt_info *ci,
-			      const u8 *raw_master_key);
+extern int fscrypt_setup_v1_file_key(struct fscrypt_info *ci,
+				     const u8 *raw_master_key);
 
-int fscrypt_setup_v1_file_key_via_subscribed_keyrings(struct fscrypt_info *ci);
-
+extern int fscrypt_setup_v1_file_key_via_subscribed_keyrings(
+					struct fscrypt_info *ci);
 /* policy.c */
 
-bool fscrypt_policies_equal(const union fscrypt_policy *policy1,
-			    const union fscrypt_policy *policy2);
-bool fscrypt_supported_policy(const union fscrypt_policy *policy_u,
-			      const struct inode *inode);
-int fscrypt_policy_from_context(union fscrypt_policy *policy_u,
-				const union fscrypt_context *ctx_u,
-				int ctx_size);
+extern bool fscrypt_policies_equal(const union fscrypt_policy *policy1,
+				   const union fscrypt_policy *policy2);
+extern bool fscrypt_supported_policy(const union fscrypt_policy *policy_u,
+				     const struct inode *inode);
+extern int fscrypt_policy_from_context(union fscrypt_policy *policy_u,
+				       const union fscrypt_context *ctx_u,
+				       int ctx_size);
 
 #endif /* _FSCRYPT_PRIVATE_H */
