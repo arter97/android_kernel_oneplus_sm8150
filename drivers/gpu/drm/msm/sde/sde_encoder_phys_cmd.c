@@ -1493,15 +1493,6 @@ static int _sde_encoder_phys_cmd_wait_for_ctl_start(
 	return ret;
 }
 
-static void sde_encoder_phys_cmd_ctl_start_work(struct work_struct *work)
-{
-	struct sde_encoder_phys_cmd *cmd_enc = container_of(work,
-							    typeof(*cmd_enc),
-							    ctl_wait_work);
-
-	_sde_encoder_phys_cmd_wait_for_ctl_start(&cmd_enc->base);
-}
-
 static int sde_encoder_phys_cmd_wait_for_tx_complete(
 		struct sde_encoder_phys *phys_enc)
 {
@@ -1536,9 +1527,9 @@ static int sde_encoder_phys_cmd_wait_for_commit_done(
 
 	/* only required for master controller */
 	if (sde_encoder_phys_cmd_is_master(phys_enc))
-		queue_work(system_unbound_wq, &cmd_enc->ctl_wait_work);
+		rc = _sde_encoder_phys_cmd_wait_for_ctl_start(phys_enc);
 
-	if (sde_encoder_phys_cmd_is_master(phys_enc) &&
+	if (!rc && sde_encoder_phys_cmd_is_master(phys_enc) &&
 			cmd_enc->autorefresh.cfg.enable)
 		rc = _sde_encoder_phys_cmd_wait_for_autorefresh_done(phys_enc);
 
@@ -1631,9 +1622,6 @@ static void sde_encoder_phys_cmd_prepare_commit(
 
 	if (!sde_encoder_phys_cmd_is_master(phys_enc))
 		return;
-
-	/* Wait for ctl_start interrupt for the previous commit if needed */
-	flush_work(&cmd_enc->ctl_wait_work);
 
 	SDE_EVT32(DRMID(phys_enc->parent), phys_enc->intf_idx - INTF_0,
 			cmd_enc->autorefresh.cfg.enable);
@@ -1841,7 +1829,6 @@ struct sde_encoder_phys *sde_encoder_phys_cmd_init(
 	init_waitqueue_head(&cmd_enc->pending_vblank_wq);
 	atomic_set(&cmd_enc->autorefresh.kickoff_cnt, 0);
 	init_waitqueue_head(&cmd_enc->autorefresh.kickoff_wq);
-	INIT_WORK(&cmd_enc->ctl_wait_work, sde_encoder_phys_cmd_ctl_start_work);
 
 	SDE_DEBUG_CMDENC(cmd_enc, "created\n");
 
