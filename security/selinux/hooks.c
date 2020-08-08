@@ -3307,7 +3307,6 @@ static int selinux_inode_getsecurity(struct inode *inode, const char *name, void
 	u32 size;
 	int error;
 	char *context = NULL;
-	char context_onstack[SELINUX_LABEL_LENGTH];
 	const struct inode_security_struct *isec = inode->i_security;
 
 	if (strcmp(name, XATTR_SELINUX_SUFFIX))
@@ -3322,27 +3321,20 @@ static int selinux_inode_getsecurity(struct inode *inode, const char *name, void
 	 * and lack of permission just means that we fall back to the
 	 * in-core context value, not a denial.
 	 */
-	if (!alloc)
-		context = context_onstack;
-	if (has_cap_mac_admin(false)) {
-		if (alloc)
-			error = security_sid_to_context_force(isec->sid, &context,
-							      &size);
-		else
-			error = security_sid_to_context_force_stack(isec->sid, &context,
-							      &size);
-	} else {
-		if (alloc)
-			error = security_sid_to_context(isec->sid, &context, &size);
-		else
-			error = security_sid_to_context_stack(isec->sid, &context, &size);
-	}
+	if (has_cap_mac_admin(false))
+		error = security_sid_to_context_force(isec->sid, &context,
+						      &size);
+	else
+		error = security_sid_to_context(isec->sid, &context, &size);
 	if (error)
 		return error;
 	error = size;
-	if (alloc)
+	if (alloc) {
 		*buffer = context;
-
+		goto out_nofree;
+	}
+	kfree(context);
+out_nofree:
 	return error;
 }
 
@@ -4834,7 +4826,6 @@ static int selinux_socket_getpeersec_stream(struct socket *sock, char __user *op
 {
 	int err = 0;
 	char *scontext;
-	char buf[SELINUX_LABEL_LENGTH];
 	u32 scontext_len;
 	struct sk_security_struct *sksec = sock->sk->sk_security;
 	u32 peer_sid = SECSID_NULL;
@@ -4845,9 +4836,7 @@ static int selinux_socket_getpeersec_stream(struct socket *sock, char __user *op
 	if (peer_sid == SECSID_NULL)
 		return -ENOPROTOOPT;
 
-	scontext = buf;
-
-	err = security_sid_to_context_stack(peer_sid, &scontext, &scontext_len);
+	err = security_sid_to_context(peer_sid, &scontext, &scontext_len);
 	if (err)
 		return err;
 
@@ -4862,7 +4851,7 @@ static int selinux_socket_getpeersec_stream(struct socket *sock, char __user *op
 out_len:
 	if (put_user(scontext_len, optlen))
 		err = -EFAULT;
-
+	kfree(scontext);
 	return err;
 }
 
