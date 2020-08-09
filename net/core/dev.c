@@ -4666,7 +4666,7 @@ static void flush_backlog(struct work_struct *work)
 	skb_queue_walk_safe(&sd->input_pkt_queue, skb, tmp) {
 		if (skb->dev->reg_state == NETREG_UNREGISTERING) {
 			__skb_unlink(skb, &sd->input_pkt_queue);
-			kfree_skb(skb);
+			dev_kfree_skb_irq(skb);
 			input_queue_head_incr(sd);
 		}
 	}
@@ -6651,15 +6651,15 @@ static int __dev_set_promiscuity(struct net_device *dev, int inc, bool notify)
 			dev->flags & IFF_PROMISC ? "entered" : "left");
 		if (audit_enabled) {
 			current_uid_gid(&uid, &gid);
-			audit_log(current->audit_context, GFP_ATOMIC,
-				AUDIT_ANOM_PROMISCUOUS,
-				"dev=%s prom=%d old_prom=%d auid=%u uid=%u gid=%u ses=%u",
-				dev->name, (dev->flags & IFF_PROMISC),
-				(old_flags & IFF_PROMISC),
-				from_kuid(&init_user_ns, audit_get_loginuid(current)),
-				from_kuid(&init_user_ns, uid),
-				from_kgid(&init_user_ns, gid),
-				audit_get_sessionid(current));
+			audit_log(audit_context(), GFP_ATOMIC,
+				  AUDIT_ANOM_PROMISCUOUS,
+				  "dev=%s prom=%d old_prom=%d auid=%u uid=%u gid=%u ses=%u",
+				  dev->name, (dev->flags & IFF_PROMISC),
+				  (old_flags & IFF_PROMISC),
+				  from_kuid(&init_user_ns, audit_get_loginuid(current)),
+				  from_kuid(&init_user_ns, uid),
+				  from_kgid(&init_user_ns, gid),
+				  audit_get_sessionid(current));
 		}
 
 		dev_change_rx_flags(dev, IFF_PROMISC);
