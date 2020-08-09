@@ -102,23 +102,13 @@ static unsigned long sel_last_ino = SEL_INO_NEXT - 1;
 #define SEL_INO_MASK			0x00ffffff
 
 #define TMPBUFLEN	12
-static bool arter97;
-static int __init arter97_param(char *str)
-{
-	if (*str)
-		return 0;
-	arter97 = true;
-	return 1;
-}
-__setup("arter97", arter97_param);
-
 static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 				size_t count, loff_t *ppos)
 {
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
 
-	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", arter97 ? 1 : selinux_enforcing);
+	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", selinux_enforcing);
 	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
 }
 
@@ -130,9 +120,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 	char *page = NULL;
 	ssize_t length;
 	int new_value;
-
-	if (arter97)
-		return count;
 
 	if (count >= PAGE_SIZE)
 		return -ENOMEM;
