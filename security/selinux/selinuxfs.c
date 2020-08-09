@@ -125,7 +125,7 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
 
-#if 1
+#if 0
 	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
 
 	length = scnprintf(tmpbuf, TMPBUFLEN, "%d",
@@ -141,7 +141,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 
 {
-#if 1
+#if 0
 	struct selinux_fs_info *fsi = file_inode(file)->i_sb->s_fs_info;
 	struct selinux_state *state = fsi->state;
 	char *page = NULL;
