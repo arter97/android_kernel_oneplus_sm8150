@@ -9,8 +9,6 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   # Disable Houston and cc_ctl
   mount --bind /dev/.post_boot /system/priv-app/Houston/Houston.apk
   mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
-  rm -f /data/dalvik-cache/arm64/system@priv-app@Houston*
-  rm -f /data/dalvik-cache/arm64/system@priv-app@OPAppCategoryProvider*
 
   # Workaround vdc slowing down boot
   ( for i in $(seq 1 20); do
@@ -25,11 +23,8 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
     echo "Timed out while looking for checkpoint vdc process"
   ) &
 
-  # Hide app dirs as well
-  mkdir /dev/.empty_dir
-  while [ ! -e /data/data/ ]; do sleep 0.01; done
-  mount --bind /dev/.empty_dir /data/data/com.oneplus.houston
-  mount --bind /dev/.empty_dir /data/data/net.oneplus.provider.appcategoryprovider
+  # Wait until data is mounted
+  while [ ! -e /data/data/ ]; do sleep 1; done
 
   # Setup binaries
   PAUSESIZE=5833

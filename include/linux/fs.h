@@ -35,7 +35,6 @@
 #include <linux/delayed_call.h>
 #include <linux/uuid.h>
 #include <linux/errseq.h>
-#include <linux/selinux.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -590,9 +589,7 @@ struct inode {
 	struct address_space	*i_mapping;
 
 #ifdef CONFIG_SECURITY
-#ifndef CONFIG_SECURITY_SELINUX
 	void			*i_security;
-#endif
 #endif
 
 	/* Stat data, not accessed from path walking */
@@ -679,13 +676,6 @@ struct inode {
 #endif
 
 	void			*i_private; /* fs or device private pointer */
-#ifdef CONFIG_SECURITY_SELINUX
-	/*
-	 * This needs to be at the end so its size won't cause the rest of the
-	 * struct to be broken across cachelines, thereby wrecking performance.
-	 */
-	struct inode_security_struct i_security[1];
-#endif
 } __randomize_layout;
 
 static inline unsigned int i_blocksize(const struct inode *node)
@@ -891,9 +881,7 @@ struct file {
 
 	u64			f_version;
 #ifdef CONFIG_SECURITY
-#ifndef CONFIG_SECURITY_SELINUX
 	void			*f_security;
-#endif
 #endif
 	/* needed for tty driver, and maybe others */
 	void			*private_data;
@@ -908,13 +896,6 @@ struct file {
 #ifdef CONFIG_FILE_TABLE_DEBUG
 	struct hlist_node f_hash;
 #endif /* #ifdef CONFIG_FILE_TABLE_DEBUG */
-#ifdef CONFIG_SECURITY_SELINUX
-	/*
-	 * This needs to be at the end so its size won't cause the rest of the
-	 * struct to be broken across cachelines, thereby wrecking performance.
-	 */
-	struct file_security_struct f_security[1];
-#endif
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
@@ -2052,6 +2033,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  * I_OVL_INUSE		Used by overlayfs to get exclusive ownership on upper
  *			and work dirs among overlayfs mounts.
  *
+ * I_SYNC_QUEUED	Inode is queued in b_io or b_more_io writeback lists.
+ *			Used to detect that mark_inode_dirty() should not move
+ * 			inode between dirty lists.
+ *
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
 #define I_DIRTY_SYNC		(1 << 0)
@@ -2069,10 +2054,9 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
 #define I_LINKABLE		(1 << 10)
 #define I_DIRTY_TIME		(1 << 11)
-#define __I_DIRTY_TIME_EXPIRED	12
-#define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
 #define I_WB_SWITCH		(1 << 13)
-#define I_OVL_INUSE			(1 << 14)
+#define I_OVL_INUSE		(1 << 14)
+#define I_SYNC_QUEUED		(1 << 17)
 
 #define I_DIRTY (I_DIRTY_SYNC | I_DIRTY_DATASYNC | I_DIRTY_PAGES)
 #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)

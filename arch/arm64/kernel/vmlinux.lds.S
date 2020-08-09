@@ -160,9 +160,6 @@ SECTIONS
 		KEEP(*(.altinstructions))
 		__alt_instructions_end = .;
 	}
-	.altinstr_replacement : {
-		KEEP(*(.altinstr_replacement))
-	}
 
 	. = ALIGN(PAGE_SIZE);
 	__inittext_end = .;
@@ -173,7 +170,6 @@ SECTIONS
 		INIT_SETUP(16)
 		INIT_CALLS
 		CON_INITCALL
-		SECURITY_INITCALL
 		INIT_RAM_FS
 		*(.init.rodata.* .init.bss)	/* from the EFI stub */
 	}
