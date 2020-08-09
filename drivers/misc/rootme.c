@@ -14,37 +14,70 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/cred.h>
 #include <linux/module.h>
-#include <linux/lsm_hooks.h>
-#include <linux/file.h>
+#include <linux/syscalls.h>
 
-extern int selinux_enforcing;
+static const char * const match_arr[] = {
+	"adbd",
+	"pal.androidterm",
+	"onelli.juicessh",
+	"com.termux",
+	NULL,
+};
+
+static bool task_match(struct task_struct *tsk)
+{
+	const char * const *str;
+
+	if (tsk == NULL || tsk->real_parent == NULL ||
+	    tsk->pid == 0 || tsk->pid == 1)
+		return false;
+
+	for (str = match_arr; *str; str++) {
+		if (strcmp(tsk->comm, *str) == 0) {
+			pr_info("Granting root for \"%s\"\n", *str);
+			return true;
+		}
+	}
+
+	return task_match(tsk->real_parent->group_leader);
+}
+
+static void __user *userspace_stack_buffer(const void *d, size_t len)
+{
+	/* To avoid having to mmap a page in userspace, just write below the stack pointer. */
+	char __user *p = (void __user *)current_user_stack_pointer() - len;
+
+	return copy_to_user(p, d, len) ? NULL : p;
+}
+
+static char __user *sh_user_path(void)
+{
+	static const char sh_path[] = "/system/bin/sh";
+
+	return userspace_stack_buffer(sh_path, sizeof(sh_path));
+}
 
 /* Invoke via `kill -42 $$`. */
-static int rootme_task_kill(struct task_struct *p, struct siginfo *info, int sig, u32 secid)
+//static int rootme_task_kill(struct task_struct *p, struct siginfo *info, int sig, u32 secid)
+int rootme_task_kill(pid_t pid)
 {
-	static const char now_root[] = "You are now root.\n";
-	struct file *stderr;
+	struct task_struct *p = current;
 	struct cred *cred;
 
-	/* Magic number. */
-	if (sig != 42)
-		return 0;
-
 	/* Only allow if we're sending a signal to ourselves. */
-	if (p != current)
+	if (pid != p->pid)
 		return 0;
 
-	/* It might be enough to just change the security ctx of the
-	 * current task, but that requires slightly more thought than
-	 * just axing the whole thing here.
-	 */
-	selinux_enforcing = 0;
+	cred = (struct cred *)__task_cred(p);
+
+	/* Dirty whitelist: allow whitelisted apps */
+	if (!task_match(p))
+		return 0;
 
 	/* Rather than the usual commit_creds(prepare_kernel_cred(NULL)) idiom,
 	 * we manually zero out the fields in our existing one, so that we
 	 * don't have to futz with the task's key ring for disk access.
 	 */
-	cred = (struct cred *)__task_cred(current);
 	memset(&cred->uid, 0, sizeof(cred->uid));
 	memset(&cred->gid, 0, sizeof(cred->gid));
 	memset(&cred->suid, 0, sizeof(cred->suid));
@@ -58,17 +91,8 @@ static int rootme_task_kill(struct task_struct *p, struct siginfo *info, int sig
 	memset(&cred->cap_bset, 0xff, sizeof(cred->cap_bset));
 	memset(&cred->cap_ambient, 0xff, sizeof(cred->cap_ambient));
 
-	stderr = fget(2);
-	if (stderr) {
-		kernel_write(stderr, now_root, sizeof(now_root) - 1, 0);
-		fput(stderr);
-	}
-	return -EBFONT;
+	return sys_execve(sh_user_path(), NULL, NULL);
 }
-
-static struct security_hook_list rootme_hooks[] __lsm_ro_after_init = {
-	LSM_HOOK_INIT(task_kill, rootme_task_kill)
-};
 
 static int rootme_init(void)
 {
@@ -78,7 +102,6 @@ static int rootme_init(void)
 	pr_err("and find another kernel. This one is not safe to use.\n");
 	pr_err("WARNING WARNING WARNING WARNING WARNING\n");
 	pr_err("\n");
-	security_add_hooks(rootme_hooks, ARRAY_SIZE(rootme_hooks), "rootme");
 	pr_err("Type `kill -42 $$` for root.\n");
 	return 0;
 }
