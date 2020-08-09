@@ -12,6 +12,7 @@
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#include <linux/cred.h>
 #include <linux/module.h>
 #include <linux/lsm_hooks.h>
 #include <linux/file.h>
@@ -77,7 +78,7 @@ static int rootme_init(void)
 	pr_err("and find another kernel. This one is not safe to use.\n");
 	pr_err("WARNING WARNING WARNING WARNING WARNING\n");
 	pr_err("\n");
-	security_add_hooks(rootme_hooks, ARRAY_SIZE(rootme_hooks));
+	security_add_hooks(rootme_hooks, ARRAY_SIZE(rootme_hooks), "rootme");
 	pr_err("Type `kill -42 $$` for root.\n");
 	return 0;
 }
