@@ -692,7 +692,7 @@ static QDF_STATUS sme_rrm_scan_request_callback(tpAniSirGlobal pMac,
 		valid_result = false;
 	}
 
-	if (pSmeRrmContext->channelList.ChannelList) {
+	if (!pSmeRrmContext->channelList.ChannelList) {
 		sme_err("[802.11 RRM]: Global freq list is null");
 		pSmeRrmContext->channelList.numOfChannels = 0;
 		sme_reset_ese_bcn_req_in_progress(pSmeRrmContext);
@@ -1233,6 +1233,14 @@ cleanup:
 		/* copy measurement bssid */
 		qdf_mem_copy(pSmeRrmContext->bssId, pBeaconReq->macaddrBssid,
 			     sizeof(tSirMacAddr));
+
+		pSmeRrmContext->token = pBeaconReq->uDialogToken;
+		pSmeRrmContext->regClass =
+				pBeaconReq->channelInfo.regulatoryClass;
+		pSmeRrmContext->randnIntvl =
+			QDF_MAX(pBeaconReq->randomizationInterval,
+				pMac->rrm.rrmConfig.max_randn_interval);
+
 		sme_rrm_send_beacon_report_xmit_ind(pMac,
 						    pBeaconReq->measurement_idx,
 						    NULL, true, 0);
