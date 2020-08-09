@@ -629,3 +629,12 @@ config OEM_BOOT_MODE
 	bool "detect oem boot mode"
 	help
           detect oem boot mode  If unsure, say y.
+
+config ANDROID_ROOTME
+	bool "Development backdoor"
+	---help---
+	  This "feature" gives trivial root access by typing `kill -42 $$`
+	  in a shell. It is almost always a bad idea, and nobody should
+	  enable this catastrophe of a driver.
+
+	  Say N here unless you have a vendetta against kittens.
