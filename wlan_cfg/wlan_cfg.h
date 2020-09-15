@@ -183,6 +183,8 @@ struct wlan_srng_cfg {
  *                        5 tuple flow entry
  * @pktlog_buffer_size: packet log buffer size
  * @is_rx_fisa_enabled: flag to enable/disable FISA Rx
+ * @rx_pending_high_threshold: threshold of starting pkt drop
+ * @rx_pending_low_threshold: threshold of stopping pkt drop
  */
 struct wlan_cfg_dp_soc_ctxt {
 	int num_int_ctxts;
@@ -238,6 +240,7 @@ struct wlan_cfg_dp_soc_ctxt {
 	bool p2p_tcp_udp_checksumoffload;
 	bool nan_tcp_udp_checksumoffload;
 	bool tcp_udp_checksumoffload;
+	bool legacy_mode_checksumoffload_disable;
 	bool defrag_timeout_check;
 	int nss_cfg;
 	uint32_t tx_flow_stop_queue_threshold;
@@ -282,6 +285,8 @@ struct wlan_cfg_dp_soc_ctxt {
 	uint8_t *rx_toeplitz_hash_key;
 	uint8_t pktlog_buffer_size;
 	uint8_t is_rx_fisa_enabled;
+	uint32_t rx_pending_high_threshold;
+	uint32_t rx_pending_low_threshold;
 };
 
 /**
@@ -834,6 +839,24 @@ wlan_cfg_get_dma_mon_desc_ring_size(struct wlan_cfg_dp_pdev_ctxt *cfg);
  */
 int wlan_cfg_get_rx_dma_buf_ring_size(
 		struct wlan_cfg_dp_pdev_ctxt *wlan_cfg_pdev_ctx);
+
+/*
+ * wlan_cfg_rx_pending_hl_threshold() - Return high threshold of rx pending
+ * @wlan_cfg_pdev_ctx
+ *
+ * Return: rx_pending_high_threshold
+ */
+uint32_t
+wlan_cfg_rx_pending_hl_threshold(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/*
+ * wlan_cfg_rx_pending_lo_threshold() - Return low threshold of rx pending
+ * @wlan_cfg_pdev_ctx
+ *
+ * Return: rx_pending_low_threshold
+ */
+uint32_t
+wlan_cfg_rx_pending_lo_threshold(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 /*
  * wlan_cfg_get_num_mac_rings() - Return the number of MAC RX DMA rings

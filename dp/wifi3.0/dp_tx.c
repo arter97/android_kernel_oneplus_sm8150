@@ -648,6 +648,10 @@ static QDF_STATUS dp_tx_prepare_tso(struct dp_vdev *vdev,
 }
 #endif
 
+QDF_COMPILE_TIME_ASSERT(dp_tx_htt_metadata_len_check,
+			(DP_TX_MSDU_INFO_META_DATA_DWORDS * 4 >=
+			 sizeof(struct htt_tx_msdu_desc_ext2_t)));
+
 /**
  * dp_tx_prepare_ext_desc() - Allocate and prepare MSDU extension descriptor
  * @vdev: DP Vdev handle
@@ -681,6 +685,7 @@ struct dp_tx_ext_desc_elem_s *dp_tx_prepare_ext_desc(struct dp_vdev *vdev,
 				&msdu_info->meta_data[0],
 				sizeof(struct htt_tx_msdu_desc_ext2_t));
 		qdf_atomic_inc(&vdev->pdev->num_tx_exception);
+		msdu_ext_desc->flags |= DP_TX_EXT_DESC_FLAG_METADATA_VALID;
 	}
 
 	switch (msdu_info->frm_type) {
@@ -1137,6 +1142,12 @@ static QDF_STATUS dp_tx_hw_enqueue(struct dp_soc *soc, struct dp_vdev *vdev,
 		length = HAL_TX_EXT_DESC_WITH_META_DATA;
 		type = HAL_TX_BUF_TYPE_EXT_DESC;
 		dma_addr = tx_desc->msdu_ext_desc->paddr;
+
+		if (tx_desc->msdu_ext_desc->flags &
+			DP_TX_EXT_DESC_FLAG_METADATA_VALID)
+			length = HAL_TX_EXT_DESC_WITH_META_DATA;
+		else
+			length = HAL_TX_EXTENSION_DESC_LEN_BYTES;
 	} else {
 		length = qdf_nbuf_len(tx_desc->nbuf) - tx_desc->pkt_offset;
 		type = HAL_TX_BUF_TYPE_BUFFER;
@@ -1348,7 +1359,7 @@ static void dp_tx_get_tid(struct dp_vdev *vdev, qdf_nbuf_t nbuf,
 	DP_TX_TID_OVERRIDE(msdu_info, nbuf);
 	if (qdf_likely(vdev->tx_encap_type != htt_cmn_pkt_type_raw)) {
 		eh = (qdf_ether_header_t *)nbuf->data;
-		hdr_ptr = eh->ether_dhost;
+		hdr_ptr = (uint8_t *)(eh->ether_dhost);
 		L3datap = hdr_ptr + sizeof(qdf_ether_header_t);
 	} else {
 		qdf_dot3_qosframe_t *qos_wh =
@@ -1709,7 +1720,7 @@ noinline
 qdf_nbuf_t dp_tx_send_msdu_multiple(struct dp_vdev *vdev, qdf_nbuf_t nbuf,
 				    struct dp_tx_msdu_info_s *msdu_info)
 {
-	uint8_t i;
+	uint32_t i;
 	struct dp_pdev *pdev = vdev->pdev;
 	struct dp_soc *soc = pdev->soc;
 	struct dp_tx_desc_s *tx_desc;
@@ -2122,7 +2133,8 @@ dp_tx_send_exception(struct cdp_soc_t *soc, uint8_t vdev_id, qdf_nbuf_t nbuf,
 	msdu_info.tid = tx_exc_metadata->tid;
 
 	eh = (qdf_ether_header_t *)qdf_nbuf_data(nbuf);
-	dp_verbose_debug("skb %pM", nbuf->data);
+	dp_verbose_debug("skb "QDF_MAC_ADDR_FMT,
+			 QDF_MAC_ADDR_REF(nbuf->data));
 
 	DP_STATS_INC_PKT(vdev, tx_i.rcvd, 1, qdf_nbuf_len(nbuf));
 
@@ -2323,7 +2335,8 @@ qdf_nbuf_t dp_tx_send(struct cdp_soc_t *soc, uint8_t vdev_id, qdf_nbuf_t nbuf)
 
 	eh = (qdf_ether_header_t *)qdf_nbuf_data(nbuf);
 
-	dp_verbose_debug("skb %pM", nbuf->data);
+	dp_verbose_debug("skb "QDF_MAC_ADDR_FMT,
+			 QDF_MAC_ADDR_REF(nbuf->data));
 
 	/*
 	 * Set Default Host TID value to invalid TID

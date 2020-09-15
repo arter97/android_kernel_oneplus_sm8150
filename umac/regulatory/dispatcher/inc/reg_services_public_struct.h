@@ -54,6 +54,7 @@
 #define REGULATORY_CHAN_NO_160MHZ    BIT(8)
 #define REGULATORY_CHAN_NO_20MHZ     BIT(11)
 #define REGULATORY_CHAN_NO_10MHZ     BIT(12)
+#define REGULATORY_CHAN_INVALID      BIT(14)
 
 #define REGULATORY_PHYMODE_NO11A     BIT(0)
 #define REGULATORY_PHYMODE_NO11B     BIT(1)
@@ -948,6 +949,7 @@ enum restart_beaconing_on_ch_avoid_rule {
  * away from active LTE channels
  * @enable_srd_chan_in_master_mode: SRD channel support in master mode
  * @enable_11d_in_world_mode: enable 11d in world mode
+ * @retain_nol_across_regdmn_update: Retain the NOL list across the regdomain.
  */
 struct reg_config_vars {
 	uint32_t enable_11d_support;
@@ -960,6 +962,7 @@ struct reg_config_vars {
 	enum restart_beaconing_on_ch_avoid_rule restart_beaconing;
 	bool enable_srd_chan_in_master_mode;
 	bool enable_11d_in_world_mode;
+	bool retain_nol_across_regdmn_update;
 };
 
 /**
