@@ -199,13 +199,13 @@ static bool hdd_nud_honour_failure(struct hdd_adapter *adapter)
 			->nud_tracking.tx_rx_stats.gw_rx_packets);
 
 	if (!tx_transmitted || !tx_acked || !gw_rx_pkt) {
-		hdd_debug("NUD_FAILURE_HONORED [mac:%pM]",
-			  adapter->nud_tracking.gw_mac_addr.bytes);
+		hdd_debug("NUD_FAILURE_HONORED [mac:"QDF_MAC_ADDR_FMT"]",
+			  QDF_MAC_ADDR_REF(adapter->nud_tracking.gw_mac_addr.bytes));
 		hdd_nud_stats_info(adapter);
 		return true;
 	}
-	hdd_debug("NUD_FAILURE_NOT_HONORED [mac:%pM]",
-		  adapter->nud_tracking.gw_mac_addr.bytes);
+	hdd_debug("NUD_FAILURE_NOT_HONORED [mac:"QDF_MAC_ADDR_FMT"]",
+		  QDF_MAC_ADDR_REF(adapter->nud_tracking.gw_mac_addr.bytes));
 	hdd_nud_stats_info(adapter);
 	return false;
 }
@@ -252,6 +252,8 @@ hdd_handle_nud_fail_sta(struct hdd_context *hdd_ctx,
 
 	ap_info.bssid = sta_ctx->conn_info.bssid;
 	ap_info.reject_ap_type = DRIVER_AVOID_TYPE;
+	ap_info.reject_reason = REASON_NUD_FAILURE;
+	ap_info.source = ADDED_BY_DRIVER;
 	ucfg_blm_add_bssid_to_reject_list(hdd_ctx->pdev, &ap_info);
 
 	if (roaming_offload_enabled(hdd_ctx))

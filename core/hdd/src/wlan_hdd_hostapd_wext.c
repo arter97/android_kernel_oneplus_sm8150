@@ -175,17 +175,21 @@ static int __iw_softap_set_two_ints_getnone(struct net_device *dev,
 			ret = cdp_txrx_stats_request(soc, adapter->vdev_id,
 						     &req);
 
-			hdd_for_each_sta_ref(adapter->sta_info_list, sta_info) {
-				hdd_debug("bss_id: " QDF_MAC_ADDR_STR,
-					  QDF_MAC_ADDR_ARRAY(
+			hdd_for_each_sta_ref(
+					adapter->sta_info_list, sta_info,
+					STA_INFO_SAP_SET_TWO_INTS_GETNONE) {
+				hdd_debug("bss_id: " QDF_MAC_ADDR_FMT,
+					  QDF_MAC_ADDR_REF(
 					  sta_info->sta_mac.bytes));
 
 				req.peer_addr = (char *)
 					&sta_info->sta_mac;
 				ret = cdp_txrx_stats_request(
 					soc, adapter->vdev_id, &req);
-				hdd_put_sta_info_ref(&adapter->sta_info_list,
-						     &sta_info, true);
+				hdd_put_sta_info_ref(
+					&adapter->sta_info_list, &sta_info,
+					true,
+					STA_INFO_SAP_SET_TWO_INTS_GETNONE);
 			}
 		} else {
 			ret = cdp_txrx_stats_request(soc, adapter->vdev_id,
@@ -273,8 +277,8 @@ static void print_mac_list(struct qdf_mac_addr *macList, uint8_t size)
 
 	for (i = 0; i < size; i++) {
 		macArray = (macList + i)->bytes;
-		pr_info("ACL entry %i - "QDF_MAC_ADDR_STR"\n",
-			i, QDF_MAC_ADDR_ARRAY(macArray));
+		pr_info("ACL entry %i - "QDF_MAC_ADDR_FMT"\n",
+			i, QDF_MAC_ADDR_REF(macArray));
 	}
 }
 
@@ -1419,8 +1423,8 @@ int __iw_softap_modify_acl(struct net_device *dev,
 	i++;
 	cmd = (int)(*(value + i));
 
-	hdd_debug("Modify ACL mac:" QDF_MAC_ADDR_STR " type: %d cmd: %d",
-	       QDF_MAC_ADDR_ARRAY(peer_mac), list_type, cmd);
+	hdd_debug("Modify ACL mac:" QDF_MAC_ADDR_FMT " type: %d cmd: %d",
+	       QDF_MAC_ADDR_REF(peer_mac), list_type, cmd);
 
 	qdf_status = wlansap_modify_acl(
 		WLAN_HDD_GET_SAP_CTX_PTR(adapter),
@@ -1728,14 +1732,16 @@ static __iw_softap_getassoc_stamacaddr(struct net_device *dev,
 	maclist_index = sizeof(maclist_index);
 	left = wrqu->data.length - maclist_index;
 
-	hdd_for_each_sta_ref(adapter->sta_info_list, sta_info) {
+	hdd_for_each_sta_ref(adapter->sta_info_list, sta_info,
+			     STA_INFO_SAP_GETASSOC_STAMACADDR) {
 		if (!qdf_is_macaddr_broadcast(&sta_info->sta_mac)) {
 			memcpy(&buf[maclist_index], &sta_info->sta_mac,
 			       QDF_MAC_ADDR_SIZE);
 			maclist_index += QDF_MAC_ADDR_SIZE;
 			left -= QDF_MAC_ADDR_SIZE;
 		}
-		hdd_put_sta_info_ref(&adapter->sta_info_list, &sta_info, true);
+		hdd_put_sta_info_ref(&adapter->sta_info_list, &sta_info, true,
+				     STA_INFO_SAP_GETASSOC_STAMACADDR);
 	}
 
 	*((u32 *) buf) = maclist_index;
@@ -1813,8 +1819,8 @@ static __iw_softap_disassoc_sta(struct net_device *dev,
 	 */
 	peer_macaddr = (uint8_t *) (extra);
 
-	hdd_debug("data " QDF_MAC_ADDR_STR,
-		  QDF_MAC_ADDR_ARRAY(peer_macaddr));
+	hdd_debug("data " QDF_MAC_ADDR_FMT,
+		  QDF_MAC_ADDR_REF(peer_macaddr));
 	wlansap_populate_del_sta_params(peer_macaddr,
 					eSIR_MAC_DEAUTH_LEAVING_BSS_REASON,
 					SIR_MAC_MGMT_DISASSOC,
@@ -1968,11 +1974,13 @@ static int iw_get_channel_list(struct net_device *dev,
 
 	for (i = band_start_channel; i <= band_end_channel; i++) {
 		if ((CHANNEL_STATE_ENABLE ==
-		     wlan_reg_get_channel_state(hdd_ctx->pdev,
-						WLAN_REG_CH_NUM(i))) ||
+		     wlan_reg_get_channel_state_for_freq(
+						hdd_ctx->pdev,
+						WLAN_REG_CH_TO_FREQ(i))) ||
 		    (is_dfs_mode_enabled && CHANNEL_STATE_DFS ==
-		     wlan_reg_get_channel_state(hdd_ctx->pdev,
-						WLAN_REG_CH_NUM(i)))) {
+		     wlan_reg_get_channel_state_for_freq(
+						hdd_ctx->pdev,
+						WLAN_REG_CH_TO_FREQ(i)))) {
 			channel_list->channels[num_channels] =
 						WLAN_REG_CH_NUM(i);
 			num_channels++;
@@ -2228,30 +2236,29 @@ static int hdd_softap_get_sta_info(struct hdd_adapter *adapter,
 
 	written = scnprintf(buf, size, "\nstaId staAddress\n");
 
-	hdd_for_each_sta_ref(adapter->sta_info_list, sta) {
+	hdd_for_each_sta_ref(adapter->sta_info_list, sta,
+			     STA_INFO_SOFTAP_GET_STA_INFO) {
 		if (written >= size - 1) {
 			hdd_put_sta_info_ref(&adapter->sta_info_list,
-					     &sta, true);
+					     &sta, true,
+					     STA_INFO_SOFTAP_GET_STA_INFO);
 			break;
 		}
 
 		if (QDF_IS_ADDR_BROADCAST(sta->sta_mac.bytes)) {
 			hdd_put_sta_info_ref(&adapter->sta_info_list,
-					     &sta, true);
+					     &sta, true,
+					     STA_INFO_SOFTAP_GET_STA_INFO);
 			continue;
 		}
 
 		written += scnprintf(buf + written, size - written,
-				     QDF_MAC_ADDR_STR
+				     QDF_MAC_ADDR_FMT
 				     " ecsa=%d\n",
-				     sta->sta_mac.bytes[0],
-				     sta->sta_mac.bytes[1],
-				     sta->sta_mac.bytes[2],
-				     sta->sta_mac.bytes[3],
-				     sta->sta_mac.bytes[4],
-				     sta->sta_mac.bytes[5],
+				     QDF_MAC_ADDR_REF(sta->sta_mac.bytes),
 				     sta->ecsa_capable);
-		hdd_put_sta_info_ref(&adapter->sta_info_list, &sta, true);
+		hdd_put_sta_info_ref(&adapter->sta_info_list, &sta, true,
+				     STA_INFO_SOFTAP_GET_STA_INFO);
 	}
 
 	hdd_exit();
@@ -2495,17 +2502,21 @@ int __iw_get_softap_linkspeed(struct net_device *dev,
 	if (wrqu->data.length < 17 || !QDF_IS_STATUS_SUCCESS(status)) {
 		struct hdd_station_info *sta_info;
 
-		hdd_for_each_sta_ref(adapter->sta_info_list, sta_info) {
+		hdd_for_each_sta_ref(adapter->sta_info_list, sta_info,
+				     STA_INFO_GET_SOFTAP_LINKSPEED) {
 			if (!qdf_is_macaddr_broadcast(&sta_info->sta_mac)) {
 				qdf_copy_macaddr(&mac_address,
 						 &sta_info->sta_mac);
 				status = QDF_STATUS_SUCCESS;
-				hdd_put_sta_info_ref(&adapter->sta_info_list,
-						     &sta_info, true);
+				hdd_put_sta_info_ref(
+						&adapter->sta_info_list,
+						&sta_info, true,
+						STA_INFO_GET_SOFTAP_LINKSPEED);
 				break;
 			}
 			hdd_put_sta_info_ref(&adapter->sta_info_list,
-					     &sta_info, true);
+					     &sta_info, true,
+					     STA_INFO_GET_SOFTAP_LINKSPEED);
 		}
 	}
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
@@ -2616,8 +2627,8 @@ __iw_get_peer_rssi(struct net_device *dev, struct iw_request_info *info,
 		wrqu->data.length +=
 			scnprintf(extra + wrqu->data.length,
 				  IW_PRIV_SIZE_MASK - wrqu->data.length,
-				  "[%pM] [%d]\n",
-				  rssi_info->peer_stats[i].peer_macaddr,
+				  "["QDF_MAC_ADDR_FMT"] [%d]\n",
+				  QDF_MAC_ADDR_REF(rssi_info->peer_stats[i].peer_macaddr),
 				  rssi_info->peer_stats[i].peer_rssi);
 
 	wrqu->data.length++;

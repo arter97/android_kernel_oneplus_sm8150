@@ -136,8 +136,8 @@ static void lim_delete_sta_util(struct mac_context *mac_ctx, tpDeleteStaContext 
 			pe_debug("Received SIR_LIM_DELETE_STA_CONTEXT_IND for "
 					"STA that either has no context or "
 					"in some transit state, Addr = "
-					QDF_MAC_ADDR_STR,
-					QDF_MAC_ADDR_ARRAY(msg->bssId));
+					QDF_MAC_ADDR_FMT,
+					QDF_MAC_ADDR_REF(msg->bssId));
 			return;
 		}
 
@@ -246,6 +246,8 @@ void lim_delete_sta_context(struct mac_context *mac_ctx,
 			qdf_mem_copy(&ap_info.bssid, msg->addr2,
 				     QDF_MAC_ADDR_SIZE);
 			ap_info.reject_ap_type = DRIVER_AVOID_TYPE;
+			ap_info.reject_reason = REASON_STA_KICKOUT;
+			ap_info.source = ADDED_BY_DRIVER;
 			wlan_blm_add_bssid_to_reject_list(mac_ctx->pdev,
 							  &ap_info);
 
@@ -415,8 +417,8 @@ lim_tear_down_link_with_ap(struct mac_context *mac, uint8_t sessionId,
 				mac->lim.gLimHeartBeatApMacIndex = 1;
 
 			pe_debug("HB Failure on MAC "
-				 QDF_MAC_ADDR_STR" Store it on Index %d",
-				 QDF_MAC_ADDR_ARRAY(sta->staAddr), apCount);
+				 QDF_MAC_ADDR_FMT" Store it on Index %d",
+				 QDF_MAC_ADDR_REF(sta->staAddr), apCount);
 
 			sir_copy_mac_addr(mac->lim.gLimHeartBeatApMac[apCount],
 					  sta->staAddr);

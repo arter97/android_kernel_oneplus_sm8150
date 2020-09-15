@@ -213,6 +213,9 @@ struct hdd_config {
 #ifdef FEATURE_RUNTIME_PM
 	uint8_t runtime_pm;
 #endif
+#ifdef WLAN_FEATURE_WMI_SEND_RECV_QMI
+	bool is_qmi_stats_enabled;
+#endif
 	uint8_t inform_bss_rssi_raw;
 
 	bool mac_provision;
@@ -252,6 +255,7 @@ struct hdd_config {
 	/* Duration for which periodic logging should be done */
 	uint32_t periodic_stats_timer_duration;
 #endif /* WLAN_FEATURE_PERIODIC_STA_STATS */
+	uint8_t nb_commands_interval;
 };
 
 /**

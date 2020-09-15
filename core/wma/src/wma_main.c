@@ -696,8 +696,8 @@ static void wma_process_send_addba_req(tp_wma_handle wma_handle,
 	if (QDF_STATUS_SUCCESS != status) {
 		WMA_LOGE(FL("Failed to process WMA_SEND_ADDBA_REQ"));
 	}
-	wma_debug("sent ADDBA req to" QDF_MAC_ADDR_STR "tid %d buff_size %d",
-			QDF_MAC_ADDR_ARRAY(send_addba->mac_addr),
+	wma_debug("sent ADDBA req to" QDF_MAC_ADDR_FMT "tid %d buff_size %d",
+			QDF_MAC_ADDR_REF(send_addba->mac_addr),
 			send_addba->param.tidno,
 			send_addba->param.buffersize);
 
@@ -1964,22 +1964,6 @@ static void wma_target_if_open(tp_wma_handle wma_handle)
 }
 
 /**
- * wma_target_if_close() - Detach UMAC modules' interface with wmi layer
- * @wma_handle: wma handle
- *
- * Return: None
- */
-static void wma_target_if_close(tp_wma_handle wma_handle)
-{
-	struct wlan_objmgr_psoc *psoc = wma_handle->psoc;
-
-	if (!psoc)
-		return;
-
-	wlan_global_lmac_if_close(psoc);
-}
-
-/**
  * wma_legacy_service_ready_event_handler() - legacy (ext)service ready handler
  * @event_id: event_id
  * @handle: wma handle
@@ -2041,12 +2025,17 @@ static int wma_flush_complete_evt_handler(void *handle,
 	reason_code = wmi_event->reserved0;
 	WMA_LOGD("Received reason code %d from FW", reason_code);
 
-	buf_ptr = (uint8_t *)wmi_event;
-	buf_ptr = buf_ptr + sizeof(wmi_debug_mesg_flush_complete_fixed_param) +
-		  WMI_TLV_HDR_SIZE;
-	data_stall_event = (wmi_debug_mesg_fw_data_stall_param *) buf_ptr;
+	if (reason_code == WMA_DATA_STALL_TRIGGER) {
+		buf_ptr = (uint8_t *)wmi_event;
+		buf_ptr = buf_ptr +
+			  sizeof(wmi_debug_mesg_flush_complete_fixed_param) +
+			  WMI_TLV_HDR_SIZE;
+		data_stall_event =
+				(wmi_debug_mesg_fw_data_stall_param *)buf_ptr;
+	}
 
-	if (((data_stall_event->tlv_header & 0xFFFF0000) >> 16 ==
+	if (reason_code == WMA_DATA_STALL_TRIGGER &&
+	    ((data_stall_event->tlv_header & 0xFFFF0000) >> 16 ==
 	      WMITLV_TAG_STRUC_wmi_debug_mesg_fw_data_stall_param)) {
 		/**
 		 * Log data stall info received from FW:
@@ -3526,6 +3515,7 @@ void wma_send_msg_by_priority(tp_wma_handle wma_handle, uint16_t msg_type,
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		if (body_ptr)
 			qdf_mem_free(body_ptr);
+		wma_err("Failed to send msg");
 	}
 }
 
@@ -3560,8 +3550,8 @@ static int wma_set_base_macaddr_indicate(tp_wma_handle wma_handle,
 				     (uint8_t *)customAddr);
 	if (err)
 		return -EIO;
-	wma_debug("Base MAC Addr: " QDF_MAC_ADDR_STR,
-		 QDF_MAC_ADDR_ARRAY((*customAddr)));
+	wma_debug("Base MAC Addr: " QDF_MAC_ADDR_FMT,
+		 QDF_MAC_ADDR_REF((*customAddr)));
 
 	return 0;
 }
@@ -4524,7 +4514,6 @@ QDF_STATUS wma_close(void)
 
 	wlan_objmgr_psoc_release_ref(wma_handle->psoc, WLAN_LEGACY_WMA_ID);
 	wma_handle->psoc = NULL;
-	wma_target_if_close(wma_handle);
 
 	WMA_LOGD("%s: Exit", __func__);
 	return QDF_STATUS_SUCCESS;
