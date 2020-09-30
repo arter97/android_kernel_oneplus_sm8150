@@ -558,6 +558,8 @@
 		qcom,msm-bus,name = "ipa";
 		qcom,ipa-wdi3-over-gsi;
 		qcom,ipa-endp-delay-wa;
+		qcom,ipa-wdi3-holbto-2g = <8>;
+		qcom,ipa-wdi3-holbto-5g = <15>;
 		qcom,msm-bus,num-cases = <5>;
 		qcom,msm-bus,num-paths = <5>;
 		qcom,msm-bus,vectors-KBps =
@@ -1519,6 +1521,7 @@
 			compatible = "qcom,emac-smmu-embedded";
 			iommus = <&apps_smmu 0x1c0 0xf>;
 			qcom,iova-mapping = <0x80000000 0x40000000>;
+			qcom,smmu-geometry;
 		};
 	};
 
@@ -1544,6 +1547,7 @@
 #include "sdxprairie-coresight.dtsi"
 #include "sdxprairie-aqc.dtsi"
 #include "sdxprairie-thermal.dtsi"
+#include "sdxprairie-qcom-smmu.dtsi"
 
 &gdsc_usb30 {
 	status = "ok";
