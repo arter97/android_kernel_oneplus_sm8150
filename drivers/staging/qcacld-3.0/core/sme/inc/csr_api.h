@@ -1260,6 +1260,9 @@ typedef struct tagCsrConfigParam {
 	int8_t roam_bg_scan_bad_rssi_thresh;
 	uint8_t roam_bad_rssi_thresh_offset_2g;
 	uint32_t roam_bg_scan_client_bitmap;
+	uint32_t roam_data_rssi_threshold_triggers;
+	int32_t roam_data_rssi_threshold;
+	uint32_t rx_data_inactivity_time;
 	uint32_t obss_width_interval;
 	uint32_t obss_active_dwelltime;
 	uint32_t obss_passive_dwelltime;
@@ -1818,6 +1821,7 @@ typedef void (*tCsrTsmStatsCallback)(tAniTrafStrmMetrics tsmMetrics,
 #endif /* FEATURE_WLAN_ESE */
 typedef void (*tCsrSnrCallback)(int8_t snr, uint32_t staId, void *pContext);
 
+void csr_assoc_rej_free_rssi_disallow_list(struct sAniSirGlobal *mac);
 /**
  * csr_roam_issue_ft_preauth_req() - Initiate Preauthentication request
  * @max_ctx: Global MAC context

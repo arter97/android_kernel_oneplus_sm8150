@@ -42,6 +42,7 @@
 #include <sir_api.h>
 #endif
 #include "hif.h"
+#include "qdf_func_tracker.h"
 
 #if defined(LINUX_QCMBR)
 #define SIOCIOCTLTX99 (SIOCDEVPRIVATE+13)
@@ -830,6 +831,31 @@ QDF_STATUS hdd_wma_send_fastreassoc_cmd(struct hdd_adapter *adapter,
 }
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
+/**
+ * hdd_is_fast_reassoc_allowed  - check if roam offload is enabled on the given
+ * vdev else, don't allow roam invoke to be triggered.
+ * @mac_handle: Opaque mac handle
+ * @vdev_id: vdev_id
+ *
+ * This API should return true if kernel version is less than 4.9, because
+ * the earlier versions don't have the fix to handle reassociation failure.
+ *
+ * Return: true if roaming module initialization is done else false
+ */
+static bool
+hdd_is_fast_reassoc_allowed(mac_handle_t mac_handle, uint8_t vdev_id)
+{
+	return sme_is_fast_reassoc_allowed(mac_handle, vdev_id);
+}
+#else
+static inline bool
+hdd_is_fast_reassoc_allowed(mac_handle_t mac_handle, uint8_t vdev_id)
+{
+	return true;
+}
+#endif
+
 /**
  * hdd_reassoc() - perform a userspace-directed reassoc
  * @adapter:    Adapter upon which the command was received
@@ -900,6 +926,13 @@ int hdd_reassoc(struct hdd_adapter *adapter, const uint8_t *bssid,
 
 	/* Proceed with reassoc */
 	if (roaming_offload_enabled(hdd_ctx)) {
+		if (!hdd_is_fast_reassoc_allowed(adapter->hdd_ctx->mac_handle,
+						 adapter->session_id)) {
+			hdd_err("LFR3: vdev[%d] RSO is not enabled",
+				adapter->session_id);
+			ret = -EPERM;
+			goto exit;
+		}
 		status = hdd_wma_send_fastreassoc_cmd(adapter,
 						      bssid, (int)channel);
 		if (status != QDF_STATUS_SUCCESS) {
@@ -7960,6 +7993,69 @@ static int drv_cmd_get_ani_level(struct hdd_adapter *adapter,
 	return 0;
 }
 #endif
+
+#ifdef FUNC_CALL_MAP
+static int drv_cmd_get_function_call_map(struct hdd_adapter *adapter,
+					 struct hdd_context *hdd_ctx,
+					 uint8_t *command,
+					 uint8_t command_len,
+					 struct hdd_priv_data *priv_data)
+{
+	char *cc_buf = qdf_mem_malloc(QDF_FUNCTION_CALL_MAP_BUF_LEN);
+	uint8_t *param;
+	int temp_int;
+
+	param = strnchr(command, strlen(command), ' ');
+	/*no argument after the command*/
+	if (NULL == param)
+		return -EINVAL;
+
+	/*no space after the command*/
+	else if (SPACE_ASCII_VALUE != *param)
+		return -EINVAL;
+
+	param++;
+
+	/*removing empty spaces*/
+	while ((SPACE_ASCII_VALUE  == *param) && ('\0' !=  *param))
+		param++;
+
+	/*no argument followed by spaces*/
+	if ('\0' == *param)
+		return -EINVAL;
+
+	/*getting the first argument */
+	if (sscanf(param, "%d ", &temp_int) != 1) {
+		hdd_err("No option given");
+		return -EINVAL;
+	}
+
+	if (temp_int < 0 || temp_int > 1) {
+		hdd_err("Invalid option given");
+		return -EINVAL;
+	}
+
+	/* Read the buffer */
+	if (temp_int) {
+	/*
+	 * These logs are required as these indicates the start and end of the
+	 * dump for the auto script to parse
+	 */
+		hdd_info("Function call map dump start");
+		qdf_get_func_call_map(cc_buf);
+		qdf_trace_hex_dump(QDF_MODULE_ID_HDD, QDF_TRACE_LEVEL_DEBUG,
+				   cc_buf, QDF_FUNCTION_CALL_MAP_BUF_LEN);
+		hdd_info("Function call map dump end");
+	} else {
+		qdf_clear_func_call_map();
+		hdd_info("Function call map clear");
+	}
+	qdf_mem_free(cc_buf);
+
+	return 0;
+}
+#endif
+
 /*
  * The following table contains all supported WLAN HDD
  * IOCTL driver commands and the handler for each of them.
@@ -8074,6 +8170,9 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"SET_DISABLE_CHANNEL_LIST",  drv_cmd_set_disable_chan_list, true},
 	{"GET_DISABLE_CHANNEL_LIST",  drv_cmd_get_disable_chan_list, false},
 	{"GET_ANI_LEVEL",             drv_cmd_get_ani_level, false},
+#ifdef FUNC_CALL_MAP
+	{"GET_FUNCTION_CALL_MAP",     drv_cmd_get_function_call_map, true},
+#endif
 	{"STOP",                      drv_cmd_dummy, false},
 	/* Deprecated commands */
 	{"RXFILTER-START",            drv_cmd_dummy, false},
