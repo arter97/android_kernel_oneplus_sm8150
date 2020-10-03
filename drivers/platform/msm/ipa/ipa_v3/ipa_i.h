@@ -71,6 +71,7 @@
 #define IPA_HOLB_TMR_DIS 0x0
 #define IPA_HOLB_TMR_EN 0x1
 #define IPA_HOLB_TMR_VAL 65535
+#define IPA_HOLB_TMR_VAL_4_5 31
 /*
  * The transport descriptor size was changed to GSI_CHAN_RE_SIZE_16B, but
  * IPA users still use sps_iovec size as FIFO element size.
@@ -244,7 +245,11 @@ enum {
 #define IPA_WDI_CE_RING_RES			5
 #define IPA_WDI_CE_DB_RES			6
 #define IPA_WDI_TX_DB_RES			7
-#define IPA_WDI_MAX_RES				8
+#define IPA_WDI_TX1_RING_RES		8
+#define IPA_WDI_CE1_RING_RES		9
+#define IPA_WDI_CE1_DB_RES			10
+#define IPA_WDI_TX1_DB_RES			11
+#define IPA_WDI_MAX_RES				12
 
 /* use QMAP header reserved bit to identify tethered traffic */
 #define IPA_QMAP_TETH_BIT (1 << 30)
@@ -1829,6 +1834,7 @@ struct ipa3_app_clock_vote {
  * @wdi3_ctx: IPA wdi3 context
  * @gsi_info: channel/protocol info for GSI offloading uC stats
  * @app_vote: holds userspace application clock vote count
+ * @ipa_in_cpe_cfg : boolean denotes whether CPE config is enabled
  * IPA context - holds all relevant info about IPA driver and its state
  */
 struct ipa3_context {
@@ -2002,6 +2008,9 @@ struct ipa3_context {
 	bool ipa_mhi_proxy;
 	bool ipa_wan_skb_page;
 	struct ipa3_app_clock_vote app_clock_vote;
+	bool ipa_in_cpe_cfg;
+	u32 ipa_wdi3_2g_holb_timeout;
+	u32 ipa_wdi3_5g_holb_timeout;
 };
 
 struct ipa3_plat_drv_res {
@@ -2050,6 +2059,9 @@ struct ipa3_plat_drv_res {
 	u32 secure_debug_check_action;
 	bool ipa_mhi_proxy;
 	bool ipa_wan_skb_page;
+	bool ipa_in_cpe_cfg;
+	u32 ipa_wdi3_2g_holb_timeout;
+	u32 ipa_wdi3_5g_holb_timeout;
 };
 
 /**
@@ -2607,9 +2619,12 @@ void ipa3_ntn_uc_dereg_rdyCB(void);
 int ipa3_conn_wdi3_pipes(struct ipa_wdi_conn_in_params *in,
 	struct ipa_wdi_conn_out_params *out,
 	ipa_wdi_meter_notifier_cb wdi_notify);
-int ipa3_disconn_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx);
-int ipa3_enable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx);
-int ipa3_disable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx);
+int ipa3_disconn_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
+	int ipa_ep_idx_tx1);
+int ipa3_enable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
+	int ipa_ep_idx_tx1);
+int ipa3_disable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
+	int ipa_ep_idx_tx1);
 
 int ipa3_conn_wigig_rx_pipe_i(void *in,
 	struct ipa_wigig_conn_out_params *out);

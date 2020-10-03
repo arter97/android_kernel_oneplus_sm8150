@@ -431,7 +431,4 @@ int dsi_panel_send_dsi_seed_command(struct dsi_panel *panel);
 int dsi_panel_set_customer_srgb_mode(struct dsi_panel *panel, int level);
 int dsi_panel_set_customer_p3_mode(struct dsi_panel *panel, int level);
 
-void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
-		struct dsi_mode_info *timing);
-
 #endif /* _DSI_PANEL_H_ */
