@@ -199,6 +199,9 @@ static QDF_STATUS send_vdev_start_cmd_non_tlv(wmi_unified_t wmi,
 	if (param->channel.quarter_rate)
 		WMI_SET_CHANNEL_FLAG(&cmd->chan, WMI_CHAN_FLAG_QUARTER);
 
+	if (param->channel.nan_disabled)
+		WMI_SET_CHANNEL_FLAG(&cmd->chan, WMI_CHAN_FLAG_NAN_DISABLED);
+
 	if (param->is_restart) {
 		qdf_print("VDEV RESTART\n");
 		ret =  wmi_unified_cmd_send(wmi, buf, len,
@@ -4431,6 +4434,9 @@ send_pdev_set_chan_cmd_non_tlv(wmi_unified_t wmi_handle,
 
 	if (param->quarter_rate)
 		WMI_SET_CHANNEL_FLAG(&cmd->chan, WMI_CHAN_FLAG_QUARTER);
+
+	if (param->nan_disabled)
+		WMI_SET_CHANNEL_FLAG(&cmd->chan, WMI_CHAN_FLAG_NAN_DISABLED);
 
 	if ((param->phy_mode == MODE_11AC_VHT80_80) ||
 			(param->phy_mode == MODE_11AC_VHT160)) {
@@ -9413,6 +9419,8 @@ static void populate_vdev_param_non_tlv(uint32_t *vdev_param)
 		WMI_VDEV_PARAM_DISABLE_CABQ;
 	vdev_param[wmi_vdev_param_amsdu_subframe_size_per_ac] =
 		WMI_VDEV_PARAM_AMSDU_SUBFRAME_SIZE_PER_AC;
+	vdev_param[wmi_vdev_param_nan_config_features] =
+		WMI_VDEV_PARAM_ENABLE_DISABLE_NAN_CONFIG_FEATURES;
 }
 #endif
 

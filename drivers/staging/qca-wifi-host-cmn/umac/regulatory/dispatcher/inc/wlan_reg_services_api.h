@@ -394,14 +394,17 @@ bool wlan_reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev);
 
 /**
  * wlan_reg_is_etsi13_srd_chan_allowed_master_mode() - Checks if regdmn is
- * ETSI13 and SRD channels are allowed in master mode or not.
+ * ETSI13 and SRD channels are allowed in master mode or not for particular
+ * vdev.
  *
  * @pdev: pdev ptr
+ * @vdev_opmode: vdev opmode
  *
  * Return: true or false
  */
-bool wlan_reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev
-						     *pdev);
+bool
+wlan_reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev,
+					        enum QDF_OPMODE vdev_opmode);
 
 /**
  * wlan_reg_is_passive_or_disable_ch () - Checks chan state for passive
@@ -447,6 +450,16 @@ uint32_t wlan_reg_chan_to_freq(struct wlan_objmgr_pdev *pdev,
  *
  * Return: true or false
  */
+
+/**
+ * wlan_reg_legacy_chan_to_freq () - convert chan to freq, for 2G and 5G
+ * @chan: channel number
+ *
+ * Return: frequency
+ */
+uint16_t wlan_reg_legacy_chan_to_freq(struct wlan_objmgr_pdev *pdev,
+				      uint8_t chan);
+
 bool wlan_reg_is_world(uint8_t *country);
 
 /**
