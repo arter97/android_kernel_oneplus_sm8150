@@ -10,19 +10,6 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mount --bind /dev/.post_boot /system/priv-app/Houston/Houston.apk
   mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
 
-  # Workaround vdc slowing down boot
-  ( for i in $(seq 1 20); do
-      PID=$(pgrep -f "vdc checkpoint restoreCheckpoint")
-      if [ ! -z $PID ]; then
-        echo "Killing checkpoint vdc process $PID"
-        kill -9 $PID
-        exit
-      fi
-      sleep 1
-    done
-    echo "Timed out while looking for checkpoint vdc process"
-  ) &
-
   # Wait until data is mounted
   while [ ! -e /data/data/ ]; do sleep 1; done
 
