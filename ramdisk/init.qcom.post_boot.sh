@@ -2,6 +2,19 @@
 
 exec > /dev/kmsg 2>&1
 
+if ! grep -v '#' /vendor/etc/fstab.qcom | grep -q f2fs; then
+  # ECD18g== is the f2fs magic code under little-endian
+  if [[ $(dd if=/dev/block/platform/soc/1d84000.ufshc/by-name/userdata bs=4 skip=256 count=1 2>/dev/null | base64) == "ECD18g==" ]]; then
+    # fstab is missing entry for f2fs, add one
+    sed -e "s@/dev/block/bootdevice/by-name/userdata.*@$(cat /vendor/etc/fstab.qcom | grep ext4 | grep /data | grep -v '#' | while read a b c d e; do echo $a $b f2fs noatime,nosuid,nodev,discard,fsync_mode=nobarrier latemount,wait,check,encryptable=ice,wrappedkey,keydirectory=/metadata/vold/metadata_encryption,quota,formattable,reservedsize=128M; done)@g" /vendor/etc/fstab.qcom | uniq > /dev/fstab.qcom
+    chmod 644 /dev/fstab.qcom
+    mount --bind /dev/fstab.qcom /vendor/etc/fstab.qcom
+    chcon u:object_r:vendor_configs_file:s0 /vendor/etc/fstab.qcom
+    cat /dev/fstab.qcom | while read a; do echo $a; done
+    echo "Patched /vendor/etc/fstab.qcom for f2fs"
+  fi
+fi
+
 if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   # Run once
   touch /dev/.post_boot
