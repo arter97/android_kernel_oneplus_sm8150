@@ -10,9 +10,6 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
   mount --bind /dev/.post_boot /system/priv-app/Houston/Houston.apk
   mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
 
-  # Wait until data is mounted
-  while [ ! -e /data/data/ ]; do sleep 1; done
-
   # Setup binaries
   RESETPROPSIZE=47297
   MKSWAPSIZE=$((6081+$RESETPROPSIZE))
