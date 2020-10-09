@@ -52,6 +52,9 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
     sleep 1
   done
   if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh; then
+    # Kill OnePlus brain service by replacing it with ill-labeled file
+    mount --bind /dev/.post_boot /vendor/bin/hw/vendor.oneplus.hardware.brain@1.0-service
+    killall -9 vendor.oneplus.hardware.brain@1.0-service
     # Replace msm_irqbalance.conf
     echo "PRIO=1,1,1,1,0,0,0,0
 # arch_timer,arch_mem_timer,arm-pmu,kgsl-3d0,glink_lpass
