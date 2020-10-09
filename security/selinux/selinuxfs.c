@@ -122,17 +122,12 @@ static void selinux_fs_info_free(struct super_block *sb)
 static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 				size_t count, loff_t *ppos)
 {
+	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
 
-#if 0
-	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
-
 	length = scnprintf(tmpbuf, TMPBUFLEN, "%d",
 			   enforcing_enabled(fsi->state));
-#else
-	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", 1);
-#endif
 	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
 }
 
@@ -141,7 +136,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 
 {
-#if 0
 	struct selinux_fs_info *fsi = file_inode(file)->i_sb->s_fs_info;
 	struct selinux_state *state = fsi->state;
 	char *page = NULL;
@@ -190,9 +184,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 out:
 	kfree(page);
 	return length;
-#else
-	return count;
-#endif
 }
 #else
 #define sel_write_enforce NULL
