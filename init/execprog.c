@@ -32,7 +32,7 @@
  */
 
 // Do we really need these to be configurable?
-#define DELAY_MS 100
+#define DELAY_MS 10
 #define SAVE_DST CONFIG_EXECPROG_DST
 #define WAIT_FOR CONFIG_EXECPROG_WAIT_FOR
 
