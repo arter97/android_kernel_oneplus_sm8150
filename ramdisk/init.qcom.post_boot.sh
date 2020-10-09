@@ -85,6 +85,8 @@ IGNORED_IRQ=19,38,21,332,188" > /dev/msm_irqbalance.conf
     mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
     chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
 
+    echo "97" > /sys/fs/selinux/enforce
+
     exit
   fi
 fi
