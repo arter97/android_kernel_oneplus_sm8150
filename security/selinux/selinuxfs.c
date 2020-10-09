@@ -189,9 +189,58 @@ out:
 #define sel_write_enforce NULL
 #endif
 
-static const struct file_operations sel_enforce_ops = {
-	.read		= sel_read_enforce,
-	.write		= sel_write_enforce,
+#ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+static struct file_operations sel_enforce_ops;
+
+static ssize_t sel_read_enforce_spoof(struct file *filp, char __user *buf,
+				size_t count, loff_t *ppos)
+{
+	return simple_read_from_buffer(buf, count, ppos, "1", 1);
+}
+
+static ssize_t sel_write_enforce_spoof(struct file *file, const char __user *buf,
+				 size_t count, loff_t *ppos)
+
+{
+	char *page = NULL;
+	ssize_t length;
+	int new_value;
+
+	if (count >= PAGE_SIZE)
+		return -ENOMEM;
+
+	/* No partial writes. */
+	if (*ppos != 0)
+		return -EINVAL;
+
+	page = memdup_user_nul(buf, count);
+	if (IS_ERR(page))
+		return PTR_ERR(page);
+
+	length = -EINVAL;
+	if (sscanf(page, "%d", &new_value) != 1)
+		goto out;
+
+	if (new_value == 97) {
+		// Enforce SELinux
+		sel_write_enforce(file, buf, count, ppos);
+		// Disable spoof
+		sel_enforce_ops.read = sel_read_enforce;
+		sel_enforce_ops.write = sel_write_enforce;
+	}
+	length = count;
+out:
+	kfree(page);
+	return length;
+}
+#else
+#define sel_read_enforce_spoof sel_read_enforce
+#define sel_write_enforce_spoof sel_write_enforce
+#endif
+
+static struct file_operations sel_enforce_ops = {
+	.read		= sel_read_enforce_spoof,
+	.write		= sel_write_enforce_spoof,
 	.llseek		= generic_file_llseek,
 };
 
