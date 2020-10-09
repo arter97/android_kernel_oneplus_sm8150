@@ -54,6 +54,14 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
     rm /dev/mkswap
   fi
 
+  # Disable OP_SLA network boosts
+  /dev/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
+
+  # Google Camera AUX mod
+  /dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
+
+  rm /dev/resetprop
+
   # Hook up to existing init.qcom.post_boot.sh
   while [ ! -f /vendor/bin/init.qcom.post_boot.sh ]; do
     sleep 1
@@ -274,14 +282,6 @@ fi
 misc_link=$(ls -l /dev/block/bootdevice/by-name/misc)
 real_path=${misc_link##*>}
 setprop persist.vendor.mmi.misc_dev_path $real_path
-
-# Disable OP_SLA network boosts
-/dev/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
-
-# Google Camera AUX mod
-/dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
-
-rm /dev/resetprop
 
 exit 0
 
