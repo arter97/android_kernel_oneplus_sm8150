@@ -15,25 +15,35 @@ if ! grep -v '#' /vendor/etc/fstab.qcom | grep -q f2fs; then
   fi
 fi
 
-if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
+if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /dev/ep/execprog ]; then
+  # Run under a new tmpfs to avoid /dev selabel
+  mkdir /dev/ep
+  mount -t tmpfs nodev /dev/ep
+  cp -p "$0" /dev/ep/execprog
+  rm "$0"
+  chown root:shell /dev/ep/execprog
+  exec /dev/ep/execprog
+fi
+
+if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery ] && [ ! -f /dev/ep/.post_boot ]; then
   # Run once
-  touch /dev/.post_boot
+  touch /dev/ep/.post_boot
 
   # Disable Houston and cc_ctl
-  mount --bind /dev/.post_boot /system/priv-app/Houston/Houston.apk
-  mount --bind /dev/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
+  mount --bind /dev/ep/.post_boot /system/priv-app/Houston/Houston.apk
+  mount --bind /dev/ep/.post_boot /system/priv-app/OPAppCategoryProvider/OPAppCategoryProvider.apk
 
   # Setup binaries
   RESETPROPSIZE=47297
   MKSWAPSIZE=$((6081+$RESETPROPSIZE))
-  tail -c $MKSWAPSIZE "$0" > /dev/mkswap
+  tail -c $MKSWAPSIZE "$0" > /dev/ep/mkswap
   echo SIZE: $(($(stat -c%s "$0") - $MKSWAPSIZE))
   head -c $(($(stat -c%s "$0") - $MKSWAPSIZE)) "$0" >> "$0".tmp
   mv "$0".tmp "$0"
   chmod 755 "$0"
-  chmod 755 /dev/mkswap
-  tail -c $RESETPROPSIZE /dev/mkswap > /dev/resetprop
-  chmod 755 /dev/resetprop
+  chmod 755 /dev/ep/mkswap
+  tail -c $RESETPROPSIZE /dev/ep/mkswap > /dev/ep/resetprop
+  chmod 755 /dev/ep/resetprop
 
   # Setup swap
   while [ ! -e /dev/block/vbswap0 ]; do
@@ -44,43 +54,41 @@ if [ ! -f /sbin/recovery ] && [ ! -f /dev/.post_boot ]; then
     echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
     echo 130 > /proc/sys/vm/swappiness
     # System mkswap behaves incorrectly with vbswap
-    /dev/mkswap /dev/block/vbswap0
+    /dev/ep/mkswap /dev/block/vbswap0
     swapon /dev/block/vbswap0
-    rm /dev/mkswap
+    rm /dev/ep/mkswap
   fi
 
   # Disable OP_SLA network boosts
-  /dev/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
+  /dev/ep/resetprop persist.dynamic.OP_FEATURE_OPSLA 0
 
   # Google Camera AUX mod
-  /dev/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
+  /dev/ep/resetprop vendor.camera.aux.packagelist com.google.android.GoogleCamera,org.codeaurora.snapcam,com.oneplus.camera
 
-  rm /dev/resetprop
+  rm /dev/ep/resetprop
 
   # Hook up to existing init.qcom.post_boot.sh
-  while [ ! -f /vendor/bin/init.qcom.post_boot.sh ]; do
-    sleep 1
-  done
-  if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh; then
-    # Kill OnePlus brain service by replacing it with ill-labeled file
-    mount --bind /dev/.post_boot /vendor/bin/hw/vendor.oneplus.hardware.brain@1.0-service
-    killall -9 vendor.oneplus.hardware.brain@1.0-service
-    # Replace msm_irqbalance.conf
-    echo "PRIO=1,1,1,1,0,0,0,0
+  # Kill OnePlus brain service by replacing it with ill-labeled file
+  mount --bind /dev/ep/.post_boot /vendor/bin/hw/vendor.oneplus.hardware.brain@1.0-service
+  killall -9 vendor.oneplus.hardware.brain@1.0-service
+  # Replace msm_irqbalance.conf
+  echo "PRIO=1,1,1,1,0,0,0,0
 # arch_timer,arch_mem_timer,arm-pmu,kgsl-3d0,glink_lpass
-IGNORED_IRQ=19,38,21,332,188" > /dev/msm_irqbalance.conf
-    chmod 644 /dev/msm_irqbalance.conf
-    mount --bind /dev/msm_irqbalance.conf /vendor/etc/msm_irqbalance.conf
-    chcon "u:object_r:vendor_configs_file:s0" /vendor/etc/msm_irqbalance.conf
-    killall msm_irqbalance
+IGNORED_IRQ=19,38,21,332,188" > /dev/ep/msm_irqbalance.conf
+  chmod 644 /dev/ep/msm_irqbalance.conf
+  mount --bind /dev/ep/msm_irqbalance.conf /vendor/etc/msm_irqbalance.conf
+  chcon "u:object_r:vendor_configs_file:s0" /vendor/etc/msm_irqbalance.conf
+  killall msm_irqbalance
 
-    mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
-    chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
+  mount --bind "$0" /vendor/bin/init.qcom.post_boot.sh
+  chcon "u:object_r:qti_init_shell_exec:s0" /vendor/bin/init.qcom.post_boot.sh
 
-    echo "97" > /sys/fs/selinux/enforce
+  # lazy unmount /dev/ep for invisibility
+  umount -l /dev/ep
 
-    exit
-  fi
+  echo "97" > /sys/fs/selinux/enforce
+
+  exit
 fi
 
 # Setup readahead
