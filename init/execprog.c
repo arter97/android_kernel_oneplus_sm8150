@@ -64,7 +64,7 @@ static void execprog_worker(struct work_struct *work)
 	loff_t off = 0;
 	u32 pos = 0;
 	u32 diff;
-	int ret, i;
+	int ret, i = 0;
 
 	pr_info("worker started\n");
 
