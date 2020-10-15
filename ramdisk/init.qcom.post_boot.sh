@@ -52,7 +52,7 @@ if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery
   if ! grep -q vbswap /proc/swaps; then
     # 4GB
     echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
-    echo 130 > /proc/sys/vm/swappiness
+    echo 130 > /proc/sys/vm/rswappiness
     # System mkswap behaves incorrectly with vbswap
     /dev/ep/mkswap /dev/block/vbswap0
     swapon /dev/block/vbswap0
