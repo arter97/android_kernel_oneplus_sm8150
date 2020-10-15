@@ -52,7 +52,18 @@ if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery
   if ! grep -q vbswap /proc/swaps; then
     # 4GB
     echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
-    echo 130 > /proc/sys/vm/rswappiness
+
+    # Set swappiness reflecting the device's RAM size
+    RamStr=$(cat /proc/meminfo | grep MemTotal)
+    RamMB=$((${RamStr:16:8} / 1024))
+    if [ $RamMB -le 6144 ]; then
+        echo 200 > /proc/sys/vm/rswappiness
+    elif [ $RamMB -le 8192 ]; then
+        echo 160 > /proc/sys/vm/rswappiness
+    else
+        echo 130 > /proc/sys/vm/rswappiness
+    fi
+
     # System mkswap behaves incorrectly with vbswap
     /dev/ep/mkswap /dev/block/vbswap0
     swapon /dev/block/vbswap0
