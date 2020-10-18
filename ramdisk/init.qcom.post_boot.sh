@@ -54,7 +54,7 @@ if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery
     RamStr=$(cat /proc/meminfo | grep MemTotal)
     RamMB=$((${RamStr:16:8} / 1024))
     if [ $RamMB -le 6144 ]; then
-        echo 200 > /proc/sys/vm/rswappiness
+        echo 190 > /proc/sys/vm/rswappiness
     elif [ $RamMB -le 8192 ]; then
         echo 160 > /proc/sys/vm/rswappiness
     else
