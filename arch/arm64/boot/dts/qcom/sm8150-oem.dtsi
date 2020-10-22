@@ -1205,25 +1205,9 @@ tp_irq_active: tp_irq_active {
 			linux,can-disable;
 		};
 	};
-
-	bootloader_log {
-		compatible = "bootloader_log";
-		linux,contiguous-region = <&bootloader_log_mem>;
-	};
 };
 
 &reserved_memory {
-
-	bootloader_log_mem: bootloader_log_mem@0x9FFF7000 {
-		reg = <0 0x9FFF7000 0 0x00009000>;
-		label = "bootloader_log_mem";
-	};
-
-	param_mem: param_mem@ac200000 {
-		reg = <0 0xAC200000 0 0x00100000>;
-		label = "param_mem";
-	};
-
 	//after cdsp_sec_mem
 	ramoops: ramoops@0xA9800000 {
 		compatible = "ramoops";
@@ -1234,11 +1218,6 @@ tp_irq_active: tp_irq_active {
 		pmsg-size=	   <0x200000>;
 		devinfo-size=  <0x01000>;
 		ecc-size=	   <0x0>;
-	};
-
-	mtp_mem: mtp_mem@ac300000 {
-		reg = <0 0xAC300000 0 0x00B00000>;
-		label = "mtp_mem";
 	};
 };
 
