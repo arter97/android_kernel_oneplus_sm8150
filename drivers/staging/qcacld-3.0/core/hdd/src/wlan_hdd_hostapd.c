@@ -2678,6 +2678,10 @@ QDF_STATUS hdd_hostapd_sap_event_cb(struct sap_event *sap_event,
 		policy_mgr_set_chan_switch_complete_evt(hdd_ctx->psoc);
 		wlan_hdd_enable_roaming(adapter,
 					RSO_SAP_CHANNEL_CHANGE);
+		if (CHANNEL_STATE_DFS !=
+		    wlan_reg_get_channel_state_for_freq(hdd_ctx->pdev,
+						ap_ctx->operating_chan_freq))
+			ap_ctx->dfs_cac_block_tx = false;
 
 		/* Check any other sap need restart */
 		if (ap_ctx->sap_context->csa_reason ==
@@ -6103,7 +6107,7 @@ static void hdd_update_beacon_rate(struct hdd_adapter *adapter,
 	struct cfg80211_bitrate_mask *beacon_rate_mask;
 	enum nl80211_band band;
 
-	band = params->chandef.chan->band;
+	band = (enum nl80211_band)(params->chandef.chan->band);
 	beacon_rate_mask = &params->beacon_rate;
 	if (beacon_rate_mask->control[band].legacy) {
 		adapter->session.ap.sap_config.beacon_tx_rate =
