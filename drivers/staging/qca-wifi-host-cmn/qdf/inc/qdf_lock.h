@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -44,13 +44,8 @@
 
 /* Max hold time in micro seconds, 0 to disable detection*/
 #define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_IRQ         10000
-#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK                 0
-
-#if QDF_LOCK_STATS
-#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH        2000000
-#else
 #define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH        1000000
-#endif
+#define QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK                 0
 
 #if !QDF_LOCK_STATS
 struct lock_stats {};
@@ -149,9 +144,8 @@ do {\
 		lock->stats.num_large_holds++; \
 	if (QDF_LOCK_STATS_BUG_ON && max_hold_time && \
 	    held_time > qdf_usecs_to_log_timestamp(max_hold_time)) { \
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR, \
-			"BEFORE_UNLOCK: lock held too long (%lluus)", \
-			qdf_log_timestamp_to_usecs(held_time)); \
+		qdf_print("BEFORE_UNLOCK: lock held too long (%lluus)\n", \
+		       qdf_log_timestamp_to_usecs(held_time)); \
 		QDF_BUG(0); \
 	} \
 	lock->stats.acquired_by = NULL; \
@@ -164,12 +158,11 @@ void qdf_lock_stats_cookie_create(struct lock_stats *stats,
 static inline void qdf_lock_stats_destroy(struct lock_stats *stats)
 {
 	if (QDF_LOCK_STATS_DESTROY_PRINT) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_DEBUG,
-			"%s: lock: %s %d \t"
+		qdf_print("%s: lock: %s %d \t"
 			"acquired:\t%d\tcontended:\t%d\t"
 			"contention_time\t%llu\tmax_contention_wait:\t%llu\t"
 			"non_contention_time\t%llu\t"
-			"held_time\t%llu\tmax_held:\t%llu"
+			"held_time\t%llu\tmax_held:\t%llu\t\n"
 			, __func__, stats->initialization_fn, stats->line,
 			stats->acquired, stats->contended,
 			qdf_log_timestamp_to_usecs(stats->contention_time),
@@ -303,23 +296,7 @@ static inline int qdf_spin_trylock_bh(qdf_spinlock_t *lock, const char *func)
 }
 #define qdf_spin_trylock_bh(lock) qdf_spin_trylock_bh(lock, __func__)
 
-/**
- * qdf_spin_trylock() - spin trylock
- * @lock: spinlock object
- * Return: int
- */
-static inline int qdf_spin_trylock(qdf_spinlock_t *lock, const char *func)
-{
-	int result = 0;
-
-	BEFORE_LOCK(lock, qdf_spin_is_locked(lock));
-	result = __qdf_spin_trylock(&lock->lock);
-	AFTER_LOCK(lock, func);
-
-	return result;
-}
-
-#define qdf_spin_trylock(lock) qdf_spin_trylock(lock, __func__)
+int qdf_spin_trylock_bh_outline(qdf_spinlock_t *lock);
 
 /**
  * qdf_spin_lock_bh() - locks the spinlock mutex in soft irq context
@@ -335,6 +312,8 @@ static inline void qdf_spin_lock_bh(qdf_spinlock_t *lock, const char *func)
 
 #define qdf_spin_lock_bh(lock) qdf_spin_lock_bh(lock, __func__)
 
+void qdf_spin_lock_bh_outline(qdf_spinlock_t *lock);
+
 /**
  * qdf_spin_unlock_bh() - unlocks the spinlock mutex in soft irq context
  * @lock: spinlock object pointer
@@ -345,6 +324,8 @@ static inline void qdf_spin_unlock_bh(qdf_spinlock_t *lock)
 	BEFORE_UNLOCK(lock, QDF_MAX_HOLD_TIME_ALOWED_SPINLOCK_BH);
 	__qdf_spin_unlock_bh(&lock->lock);
 }
+
+void qdf_spin_unlock_bh_outline(qdf_spinlock_t *lock);
 
 /**
  * qdf_spinlock_irq_exec - Execute the input function with spinlock held
@@ -498,8 +479,6 @@ QDF_STATUS qdf_wake_lock_timeout_acquire(qdf_wake_lock_t *lock,
 QDF_STATUS qdf_wake_lock_release(qdf_wake_lock_t *lock, uint32_t reason);
 
 QDF_STATUS qdf_wake_lock_destroy(qdf_wake_lock_t *lock);
-
-void qdf_pm_system_wakeup(void);
 
 QDF_STATUS qdf_runtime_pm_get(void);
 QDF_STATUS qdf_runtime_pm_put(void);

@@ -147,6 +147,7 @@ config PPC
 	select ARCH_USE_BUILTIN_BSWAP
 	select ARCH_USE_CMPXCHG_LOCKREF		if PPC64
 	select ARCH_WANT_IPC_PARSE_VERSION
+	select ARCH_WANT_IRQS_OFF_ACTIVATE_MM
 	select ARCH_WEAK_RELEASE_ACQUIRE
 	select BINFMT_ELF
 	select BUILDTIME_EXTABLE_SORT
@@ -209,6 +210,8 @@ config PPC
 	select HAVE_PERF_REGS
 	select HAVE_PERF_USER_STACK_DUMP
 	select HAVE_RCU_TABLE_FREE		if SMP
+	select HAVE_RCU_TABLE_NO_INVALIDATE	if HAVE_RCU_TABLE_FREE
+	select HAVE_MMU_GATHER_PAGE_SIZE
 	select HAVE_REGS_AND_STACK_ACCESS_API
 	select HAVE_SYSCALL_TRACEPOINTS
 	select HAVE_VIRT_CPU_ACCOUNTING
@@ -1018,6 +1021,19 @@ config FSL_RIO
 	  processors (MPC8548, MPC8641, etc).
 
 source "drivers/rapidio/Kconfig"
+
+config PPC_RTAS_FILTER
+	bool "Enable filtering of RTAS syscalls"
+	default y
+	depends on PPC_RTAS
+	help
+	  The RTAS syscall API has security issues that could be used to
+	  compromise system integrity. This option enforces restrictions on the
+	  RTAS calls and arguments passed by userspace programs to mitigate
+	  these issues.
+
+	  Say Y unless you know what you are doing and the filter is causing
+	  problems for you.
 
 endmenu
 

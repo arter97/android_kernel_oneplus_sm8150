@@ -154,10 +154,6 @@ static inline int pld_snoc_is_fw_rejuvenate(void)
 	return 0;
 }
 
-static inline void pld_snoc_block_shutdown(bool status)
-{
-}
-
 #ifdef FEATURE_WLAN_TIME_SYNC_FTM
 static inline int
 pld_snoc_get_audio_wlan_timestamp(struct device *dev,
@@ -194,12 +190,20 @@ pld_snoc_get_audio_wlan_timestamp(struct device *dev,
 				  enum pld_wlan_time_sync_trigger_type type,
 				  uint64_t *ts)
 {
+	enum wlan_time_sync_trigger_type edge_type;
+
 	if (!dev)
 		return -ENODEV;
 
-	return 0;
+	if (type == PLD_TRIGGER_POSITIVE_EDGE)
+		edge_type = CNSS_POSITIVE_EDGE_TRIGGER;
+	else
+		edge_type = CNSS_NEGATIVE_EDGE_TRIGGER;
+
+	return cnss_get_audio_wlan_timestamp(dev, edge_type, ts);
 }
 #endif /* FEATURE_WLAN_TIME_SYNC_FTM */
+
 static inline int pld_snoc_ce_request_irq(struct device *dev,
 					  unsigned int ce_id,
 					  irqreturn_t (*handler)(int, void *),
@@ -345,10 +349,14 @@ static inline int pld_snoc_is_fw_rejuvenate(void)
 {
 	return icnss_is_rejuvenate();
 }
-
-static inline void pld_snoc_block_shutdown(bool status)
+static inline int pld_snoc_idle_restart(struct device *dev)
 {
-	icnss_block_shutdown(status);
+	return icnss_idle_restart(dev);
+}
+
+static inline int pld_snoc_idle_shutdown(struct device *dev)
+{
+	return icnss_idle_shutdown(dev);
 }
 #endif
 #endif
