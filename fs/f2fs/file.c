@@ -864,6 +864,7 @@ static void __setattr_copy(struct inode *inode, const struct iattr *attr)
 		if (!in_group_p(inode->i_gid) &&
 			!capable_wrt_inode_uidgid(inode, CAP_FSETID))
 			mode &= ~S_ISGID;
+		inode->i_mode = (inode->i_mode & S_IRWXUGO) | (mode & ~S_IRWXUGO);
 		set_acl_inode(inode, mode);
 	}
 }
