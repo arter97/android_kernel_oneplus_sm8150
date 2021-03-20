@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1154,6 +1154,8 @@ static int msm_vidc_populate_context_bank(struct device *dev,
 	int rc = 0;
 	struct context_bank_info *cb = NULL;
 	struct device_node *np = NULL;
+	unsigned int i = 0, j = 0, count = 0;
+	u32 mask = 0;
 
 	if (!dev || !core) {
 		dprintk(VIDC_ERR, "%s - invalid inputs\n", __func__);
@@ -1178,6 +1180,22 @@ static int msm_vidc_populate_context_bank(struct device *dev,
 	}
 
 	dprintk(VIDC_DBG, "%s: context bank has name %s\n", __func__, cb->name);
+	of_get_property(np, "iommus", &count);
+	memset(&cb->sids, -1, sizeof(cb->sids));
+	count /= 4;
+	for (i = 1, j = 0 ; i < count; i = i+2, j++) {
+		rc = of_property_read_u32_index
+			(dev->of_node, "iommus", i, &cb->sids[j]);
+		if (rc < 0)
+			dprintk(VIDC_ERR, "can't fetch SID\n");
+		rc = of_property_read_u32_index
+					(dev->of_node, "iommus", i+1, &mask);
+		cb->sids[j] = (mask << 16 | cb->sids[j]);
+		dprintk(VIDC_DBG, "%s sid[%d]:0x%x\n",
+				cb->name, j, cb->sids[j]);
+	}
+	cb->num_sids = j;
+
 	rc = of_property_read_u32_array(np, "virtual-addr-pool",
 			(u32 *)&cb->addr_range, 2);
 	if (rc) {
@@ -1186,6 +1204,12 @@ static int msm_vidc_populate_context_bank(struct device *dev,
 			cb->name, rc);
 		goto err_setup_cb;
 	}
+
+	rc = of_property_read_u32_array(np, "cma-addr-pool",
+			(u32 *)&cb->cma.addr_range, 2);
+	cb->cma.s1_bypass = of_property_read_bool(np, "qcom,cma-s1-bypass");
+	if (cb->cma.s1_bypass && !rc)
+		core->resources.cma_exist = true;
 
 	cb->is_secure = of_property_read_bool(np, "qcom,secure-context-bank");
 	dprintk(VIDC_DBG, "context bank %s : secure = %d\n",
@@ -1199,9 +1223,11 @@ static int msm_vidc_populate_context_bank(struct device *dev,
 		goto err_setup_cb;
 	}
 	dprintk(VIDC_DBG,
-		"context bank %s address start = %x address size = %x buffer_type = %x\n",
+"cb %s addr: %x size: %x cma_addr: %x cma__size: %x s1_bp: %d  buf_typ: %x\n",
 		cb->name, cb->addr_range.start,
-		cb->addr_range.size, cb->buffer_type);
+		cb->addr_range.size, cb->cma.addr_range.start,
+		cb->cma.addr_range.size,
+		cb->cma.s1_bypass, cb->buffer_type);
 
 	rc = msm_vidc_setup_context_bank(&core->resources, cb, dev);
 	if (rc) {

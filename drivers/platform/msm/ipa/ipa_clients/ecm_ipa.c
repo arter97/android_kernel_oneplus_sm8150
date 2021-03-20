@@ -877,7 +877,9 @@ void ecm_ipa_cleanup(void *priv)
 	ecm_ipa_rules_destroy(ecm_ipa_ctx);
 	ecm_ipa_debugfs_destroy(ecm_ipa_ctx);
 
+	ECM_IPA_DEBUG("ECM_IPA unregister_netdev started\n");
 	unregister_netdev(ecm_ipa_ctx->net);
+	ECM_IPA_DEBUG("ECM_IPA unregister_netdev completed\n");
 	free_netdev(ecm_ipa_ctx->net);
 
 	ECM_IPA_INFO("ECM_IPA was destroyed successfully\n");
@@ -1491,6 +1493,12 @@ static int ecm_ipa_ep_registers_cfg(u32 usb_to_ipa_hdl, u32 ipa_to_usb_hdl,
 
 	/* enable hdr_metadata_reg_valid */
 	usb_to_ipa_ep_cfg.hdr.hdr_metadata_reg_valid = true;
+	/*xlat config in vlan mode */
+	if (is_vlan_mode) {
+		usb_to_ipa_ep_cfg.hdr.hdr_ofst_metadata_valid = 1;
+		usb_to_ipa_ep_cfg.hdr.hdr_ofst_metadata = ETH_HLEN;
+		usb_to_ipa_ep_cfg.hdr.hdr_metadata_reg_valid = false;
+	}
 
 	result = ipa_cfg_ep(usb_to_ipa_hdl, &usb_to_ipa_ep_cfg);
 	if (result) {
