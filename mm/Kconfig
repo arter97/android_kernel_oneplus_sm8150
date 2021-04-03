@@ -640,17 +640,14 @@ config ZSMALLOC_STAT
 
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
-	depends on ZSWAP
 	default n
 
 config INCREASE_MAXIMUM_SWAPPINESS
 	bool "Allow swappiness to be set up to 200"
-	depends on ZSWAP
 	default n
 
 config FIX_INACTIVE_RATIO
 	bool "Fix active:inactive anon ratio to 1:1"
-	depends on ZSWAP
 	default n
 
 config SWAP_ENABLE_READAHEAD
