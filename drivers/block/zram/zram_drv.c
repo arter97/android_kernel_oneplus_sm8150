@@ -33,6 +33,9 @@
 #include <linux/sysfs.h>
 #include <linux/debugfs.h>
 #include <linux/cpuhotplug.h>
+#include <linux/msm_drm_notify.h>
+#include <linux/input.h>
+#include <linux/power_supply.h>
 
 #include "zram_drv.h"
 
@@ -50,6 +53,30 @@ static unsigned int num_devices = 1;
  * uncompressed in memory.
  */
 static size_t huge_class_size;
+
+static bool screen_on = true;
+static unsigned long long total_touch_clock;
+module_param(total_touch_clock, ullong, 0644);
+static DEFINE_MUTEX(zram_wb_wakelock_mutex);
+static struct wakeup_source zram_wb_wakelock;
+
+/*
+ * Blocks that hasn't been accessed in wb_start_mins
+ * while the touch event is present will be writebacked.
+ *
+ * This is to prevent writebacking blocks that'll be used
+ * right after the screen goes back on.
+ * (e.g., using the phone after waking up in the morning)
+ *
+ * Note that total_touch_clock is increased only during
+ * BTN_TOUCH events are received.
+ * This means that wb_start_mins will work with BTN_TOUCH's
+ * perspective, not system uptime.
+ */
+static int wb_start_mins = 240;
+module_param(wb_start_mins, int, 0644);
+
+static struct work_struct zram_wb_fb_worker;
 
 static void zram_free_page(struct zram *zram, size_t index);
 static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
@@ -288,15 +315,11 @@ static ssize_t mem_used_max_store(struct device *dev,
 	return len;
 }
 
-static ssize_t idle_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t len)
+// Returns the number of marked blocks
+static int mark_idle(struct zram *zram, unsigned long long threshold)
 {
-	struct zram *zram = dev_to_zram(dev);
 	unsigned long nr_pages = zram->disksize >> PAGE_SHIFT;
-	int index;
-
-	if (!sysfs_streq(buf, "all"))
-		return -EINVAL;
+	int index, ret = 0;
 
 	down_read(&zram->init_lock);
 	if (!init_done(zram)) {
@@ -311,14 +334,21 @@ static ssize_t idle_store(struct device *dev,
 		 */
 		zram_slot_lock(zram, index);
 		if (zram_allocated(zram, index) &&
-				!zram_test_flag(zram, index, ZRAM_UNDER_WB))
+				!zram_test_flag(zram, index, ZRAM_UNDER_WB) &&
+				!zram_test_flag(zram, index, ZRAM_WB) &&
+				!zram_test_flag(zram, index, ZRAM_IDLE) &&
+				!zram_test_flag(zram, index, ZRAM_SAME) &&
+				!zram_test_flag(zram, index, ZRAM_DEDUPED) &&
+				threshold >= zram->table[index].ac_time) {
 			zram_set_flag(zram, index, ZRAM_IDLE);
+			ret++;
+		}
 		zram_slot_unlock(zram, index);
 	}
 
 	up_read(&zram->init_lock);
 
-	return len;
+	return ret;
 }
 
 #ifdef CONFIG_ZRAM_WRITEBACK
@@ -546,38 +576,17 @@ static int read_from_bdev_async(struct zram *zram, struct bio_vec *bvec,
 	return 1;
 }
 
-#define PAGE_WB_SIG "page_index="
-
-#define PAGE_WRITEBACK 0
-#define IDLE_WRITEBACK 1
-
-
-static ssize_t writeback_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t len)
+#define FOUR_K(x) ((x) * (1 << (PAGE_SHIFT - 12)))
+static int do_writeback(struct zram *zram)
 {
-	struct zram *zram = dev_to_zram(dev);
 	unsigned long nr_pages = zram->disksize >> PAGE_SHIFT;
 	unsigned long index = 0;
 	struct bio bio;
 	struct bio_vec bio_vec;
 	struct page *page;
-	ssize_t ret = len;
-	int mode, err;
+	int ret = 0;
+	int err;
 	unsigned long blk_idx = 0;
-
-	if (sysfs_streq(buf, "idle"))
-		mode = IDLE_WRITEBACK;
-	else {
-		if (strncmp(buf, PAGE_WB_SIG, sizeof(PAGE_WB_SIG) - 1))
-			return -EINVAL;
-
-		if (kstrtol(buf + sizeof(PAGE_WB_SIG) - 1, 10, &index) ||
-				index >= nr_pages)
-			return -EINVAL;
-
-		nr_pages = 1;
-		mode = PAGE_WRITEBACK;
-	}
 
 	down_read(&zram->init_lock);
 	if (!init_done(zram)) {
@@ -617,8 +626,7 @@ static ssize_t writeback_store(struct device *dev,
 				zram_test_flag(zram, index, ZRAM_UNDER_WB))
 			goto next;
 
-		if (mode == IDLE_WRITEBACK &&
-			  !zram_test_flag(zram, index, ZRAM_IDLE))
+		if (!zram_test_flag(zram, index, ZRAM_IDLE))
 			goto next;
 		/*
 		 * Clearing ZRAM_UNDER_WB is duty of caller.
@@ -698,6 +706,11 @@ next:
 		free_block_bdev(zram, blk_idx);
 	__free_page(page);
 release_init_lock:
+	pr_info("writeback: C: %llu MiB, R: %llu MiB, W: %llu MiB\n",
+			FOUR_K((u64)atomic64_read(&zram->stats.bd_count)) / 256,
+			FOUR_K((u64)atomic64_read(&zram->stats.bd_reads)) / 256,
+			FOUR_K((u64)atomic64_read(&zram->stats.bd_writes)) / 256);
+
 	up_read(&zram->init_lock);
 
 	return ret;
@@ -790,7 +803,7 @@ static void zram_debugfs_destroy(void)
 static void zram_accessed(struct zram *zram, u32 index)
 {
 	zram_clear_flag(zram, index, ZRAM_IDLE);
-	zram->table[index].ac_time = ktime_get_boottime();
+	zram->table[index].ac_time = total_touch_clock;
 }
 
 static ssize_t read_block_state(struct file *file, char __user *buf,
@@ -800,7 +813,7 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 	ssize_t index, written = 0;
 	struct zram *zram = file->private_data;
 	unsigned long nr_pages = zram->disksize >> PAGE_SHIFT;
-	struct timespec64 ts;
+	unsigned long long *clock;
 
 	kbuf = kvmalloc(count, GFP_KERNEL);
 	if (!kbuf)
@@ -820,11 +833,12 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 		if (!zram_allocated(zram, index))
 			goto next;
 
-		ts = ktime_to_timespec64(zram->table[index].ac_time);
+		clock = &zram->table[index].ac_time;
 		copied = snprintf(kbuf + written, count,
-			"%12zd %12lld.%06lu %c%c%c%c\n",
-			index, (s64)ts.tv_sec,
-			ts.tv_nsec / NSEC_PER_USEC,
+			"%12zd %12llu.%06llu %c%c%c%c\n",
+			index,
+			*clock / NSEC_PER_SEC,
+			*clock / NSEC_PER_USEC % USEC_PER_SEC,
 			zram_test_flag(zram, index, ZRAM_SAME) ? 's' : '.',
 			zram_test_flag(zram, index, ZRAM_WB) ? 'w' : '.',
 			zram_test_flag(zram, index, ZRAM_IDLE) ? 'i' : '.',
@@ -1050,7 +1064,6 @@ static ssize_t mm_stat_show(struct device *dev,
 }
 
 #ifdef CONFIG_ZRAM_WRITEBACK
-#define FOUR_K(x) ((x) * (1 << (PAGE_SHIFT - 12)))
 static ssize_t bd_stat_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1578,6 +1591,180 @@ static int zram_bvec_rw(struct zram *zram, struct bio_vec *bvec, u32 index,
 	return ret;
 }
 
+static void zram_wb_input_event(struct input_handle *handle,
+		unsigned int type, unsigned int code, int value)
+{
+	static unsigned int prev_value = UINT_MAX;
+	static unsigned long long prev;
+	unsigned long long delta;
+
+	if (code != BTN_TOUCH)
+		return;
+	if (prev_value == value)
+		return;
+	if (!screen_on)
+		return;
+
+	if (value == 1) {
+		prev = sched_clock();
+	} else {
+		delta = sched_clock() - prev;
+		total_touch_clock += delta;
+	}
+
+	prev_value = value;
+}
+
+static int zram_wb_input_connect(struct input_handler *handler,
+		struct input_dev *dev, const struct input_device_id *id)
+{
+	struct input_handle *handle;
+	int error;
+
+	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!handle)
+		return -ENOMEM;
+
+	handle->dev = dev;
+	handle->handler = handler;
+	handle->name = "zram_wb";
+
+	// Initialize zram_wb_input_event()'s prev
+	zram_wb_input_event(NULL, 1, BTN_TOUCH, UINT_MAX);
+
+	error = input_register_handle(handle);
+	if (error)
+		goto err2;
+
+	error = input_open_device(handle);
+	if (error)
+		goto err1;
+	pr_info("%s found and connected!\n", dev->name);
+	return 0;
+err1:
+	input_unregister_handle(handle);
+err2:
+	kfree(handle);
+	return error;
+}
+
+static void zram_wb_input_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static const struct input_device_id zram_wb_input_ids[] = {
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_KEYBIT,
+		.keybit = { [BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH) },
+	},
+	{ },
+};
+
+static struct input_handler zram_wb_input_handler = {
+	.event          = zram_wb_input_event,
+	.connect        = zram_wb_input_connect,
+	.disconnect     = zram_wb_input_disconnect,
+	.name           = "zram_wb_input_handler",
+	.id_table       = zram_wb_input_ids,
+};
+
+static void zram_wb_fb_work(struct work_struct *work)
+{
+	struct blk_plug plug;
+	struct zram *zram;
+	int ret, id;
+
+	if (screen_on)
+		return;
+
+	// Force finger-up to zram_wb_input_event()
+	zram_wb_input_event(NULL, 1, BTN_TOUCH, 0);
+
+	// Work only if charger is connected
+	if (power_supply_is_system_supplied() <= 0)
+		return;
+
+	if (total_touch_clock <= (wb_start_mins * NSEC_PER_SEC * 60))
+		return;
+
+	mutex_lock(&zram_wb_wakelock_mutex);
+	__pm_stay_awake(&zram_wb_wakelock);
+	blk_start_plug(&plug);
+	idr_for_each_entry(&zram_index_idr, zram, id) {
+		// Start marking blocks if they are old enough
+		ret = mark_idle(zram, total_touch_clock - (wb_start_mins * NSEC_PER_SEC * 60));
+		pr_err("mark_idle() returned %d\n", ret);
+		if (ret <= 0)
+			continue;
+
+		// Start writeback
+		pr_info("do_writeback()++\n");
+		ret = do_writeback(zram);
+		pr_info("do_writeback()--\n");
+	}
+	blk_finish_plug(&plug);
+	__pm_relax(&zram_wb_wakelock);
+	mutex_unlock(&zram_wb_wakelock_mutex);
+}
+
+static int msm_drm_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct msm_drm_notifier *evdata = data;
+	int *blank;
+
+	if (event != MSM_DRM_EVENT_BLANK && event != MSM_DRM_EARLY_EVENT_BLANK)
+		goto out;
+
+	if (!evdata || !evdata->data || evdata->id != MSM_DRM_PRIMARY_DISPLAY)
+		goto out;
+
+	blank = evdata->data;
+	switch (*blank) {
+	case MSM_DRM_BLANK_POWERDOWN_CUST:
+	case MSM_DRM_BLANK_POWERDOWN:
+	case MSM_DRM_BLANK_NORMAL:
+		if (!screen_on)
+			goto out;
+		screen_on = false;
+		queue_work(system_power_efficient_wq, &zram_wb_fb_worker);
+		break;
+	case MSM_DRM_BLANK_UNBLANK_CUST:
+		if (screen_on)
+			goto out;
+		screen_on = true;
+		queue_work(system_power_efficient_wq, &zram_wb_fb_worker);
+		break;
+	}
+
+out:
+	return NOTIFY_OK;
+}
+
+static struct notifier_block fb_notifier_block = {
+	.notifier_call = msm_drm_notifier_callback,
+};
+
+static void __init init_zram_wb(void)
+{
+	int i;
+
+	INIT_WORK(&zram_wb_fb_worker, zram_wb_fb_work);
+	wakeup_source_init(&zram_wb_wakelock, "zram_wb_wakelock");
+	msm_drm_register_client(&fb_notifier_block);
+	i = input_register_handler(&zram_wb_input_handler);
+}
+
+static void __exit destroy_zram_wb(void)
+{
+	input_unregister_handler(&zram_wb_input_handler);
+	msm_drm_unregister_client(&fb_notifier_block);
+	wakeup_source_trash(&zram_wb_wakelock);
+}
+
 static void __zram_make_request(struct zram *zram, struct bio *bio)
 {
 	int offset;
@@ -1864,12 +2051,10 @@ static DEVICE_ATTR_RO(initstate);
 static DEVICE_ATTR_WO(reset);
 static DEVICE_ATTR_WO(mem_limit);
 static DEVICE_ATTR_WO(mem_used_max);
-static DEVICE_ATTR_WO(idle);
 static DEVICE_ATTR_RW(max_comp_streams);
 static DEVICE_ATTR_RW(comp_algorithm);
 #ifdef CONFIG_ZRAM_WRITEBACK
 static DEVICE_ATTR_RW(backing_dev);
-static DEVICE_ATTR_WO(writeback);
 #endif
 #ifdef CONFIG_ZRAM_DEDUP
 static DEVICE_ATTR_RW(use_dedup);
@@ -1884,12 +2069,10 @@ static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_compact.attr,
 	&dev_attr_mem_limit.attr,
 	&dev_attr_mem_used_max.attr,
-	&dev_attr_idle.attr,
 	&dev_attr_max_comp_streams.attr,
 	&dev_attr_comp_algorithm.attr,
 #ifdef CONFIG_ZRAM_WRITEBACK
 	&dev_attr_backing_dev.attr,
-	&dev_attr_writeback.attr,
 #endif
 	&dev_attr_use_dedup.attr,
 	&dev_attr_io_stat.attr,
@@ -2163,6 +2346,8 @@ static int __init zram_init(void)
 		num_devices--;
 	}
 
+	init_zram_wb();
+
 	return 0;
 
 out_error:
@@ -2172,6 +2357,7 @@ out_error:
 
 static void __exit zram_exit(void)
 {
+	destroy_zram_wb();
 	destroy_devices();
 }
 

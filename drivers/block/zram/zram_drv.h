@@ -74,7 +74,7 @@ struct zram_table_entry {
 	};
 	unsigned long flags;
 #ifdef CONFIG_ZRAM_MEMORY_TRACKING
-	ktime_t ac_time;
+	unsigned long long ac_time;
 #endif
 };
 
