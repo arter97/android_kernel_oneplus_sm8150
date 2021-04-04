@@ -43,12 +43,24 @@ if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery
   chmod 755 /dev/ep/resetprop
 
   # Setup swap
-  while [ ! -e /dev/block/vbswap0 ]; do
+  while [ ! -e /dev/block/zram0 ]; do
     sleep 1
   done
-  if ! grep -q vbswap /proc/swaps; then
+  if ! grep -q zram /proc/swaps; then
+    # Setup backing device
+    if [ -e /dev/block/by-name/swap ]; then
+      BDEV="/dev/block/by-name/swap"
+    elif [ -e /dev/block/by-name/system_a ]; then
+      if [[ "$(getprop ro.boot.slot_suffix)" == "_a" ]]; then
+        BDEV="/dev/block/by-name/system_b"
+      elif [[ "$(getprop ro.boot.slot_suffix)" == "_b" ]]; then
+        BDEV="/dev/block/by-name/system_a"
+      fi
+    fi
+    echo "post_boot: using $BDEV for zram backing_dev"
+    realpath $BDEV > /sys/block/zram0/backing_dev
     # 4GB
-    echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize
+    echo 4294967296 > /sys/block/zram0/disksize
 
     # Set swappiness reflecting the device's RAM size
     RamStr=$(cat /proc/meminfo | grep MemTotal)
@@ -61,8 +73,8 @@ if ! mount | grep -q /vendor/bin/init.qcom.post_boot.sh && [ ! -f /sbin/recovery
         echo 130 > /proc/sys/vm/rswappiness
     fi
 
-    mkswap /dev/block/vbswap0
-    swapon /dev/block/vbswap0
+    mkswap /dev/block/zram0
+    swapon /dev/block/zram0
   fi
 
   # Disable OP_SLA network boosts
