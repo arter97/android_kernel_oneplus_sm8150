@@ -50,8 +50,8 @@ enum zram_pageflags {
 	ZRAM_SAME,	/* Page consists the same element */
 	ZRAM_WB,	/* page is stored on backing_device */
 	ZRAM_UNDER_WB,	/* page is under writeback */
-	ZRAM_HUGE,	/* Incompressible page */
 	ZRAM_IDLE,	/* not accessed page since last idle marking */
+	ZRAM_DEDUPED,	/* Deduplicated with existing entry */
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -74,7 +74,7 @@ struct zram_table_entry {
 	};
 	unsigned long flags;
 #ifdef CONFIG_ZRAM_MEMORY_TRACKING
-	ktime_t ac_time;
+	unsigned long long ac_time;
 #endif
 };
 
@@ -87,21 +87,20 @@ struct zram_stats {
 	atomic64_t invalid_io;	/* non-page-aligned I/O requests */
 	atomic64_t notify_free;	/* no. of swap slot free notifications */
 	atomic64_t same_pages;		/* no. of same element filled pages */
-	atomic64_t huge_pages;		/* no. of huge pages */
 	atomic64_t pages_stored;	/* no. of pages currently stored */
 	atomic_long_t max_used_pages;	/* no. of maximum pages stored */
 	atomic64_t writestall;		/* no. of write slow paths */
-	atomic64_t dup_data_size;	/*
-					 * compressed size of pages
-					 * duplicated
-					 */
-	atomic64_t meta_data_size;	/* size of zram_entries */
 	atomic64_t miss_free;		/* no. of missed free */
 #ifdef	CONFIG_ZRAM_WRITEBACK
 	atomic64_t bd_count;		/* no. of pages in backing device */
 	atomic64_t bd_reads;		/* no. of reads from backing device */
 	atomic64_t bd_writes;		/* no. of writes from backing device */
 #endif
+	atomic64_t dup_data_size;	/*
+					 * compressed size of pages
+					 * duplicated
+					 */
+	atomic64_t meta_data_size;	/* size of zram_entries */
 };
 
 struct zram_hash {
@@ -137,11 +136,7 @@ struct zram {
 	bool use_dedup;
 	struct file *backing_dev;
 #ifdef CONFIG_ZRAM_WRITEBACK
-	spinlock_t wb_limit_lock;
-	bool wb_limit_enable;
-	u64 bd_wb_limit;
 	struct block_device *bdev;
-	unsigned int old_block_size;
 	unsigned long *bitmap;
 	unsigned long nr_pages;
 #endif

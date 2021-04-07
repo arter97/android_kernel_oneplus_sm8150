@@ -286,6 +286,14 @@ enum req_flag_bits {
 #define REQ_NOMERGE_FLAGS \
 	(REQ_NOMERGE | REQ_PREFLUSH | REQ_FUA)
 
+enum stat_group {
+	STAT_READ,
+	STAT_WRITE,
+	STAT_DISCARD,
+
+	NR_STAT_GROUPS
+};
+
 #define bio_op(bio) \
 	((bio)->bi_opf & REQ_OP_MASK)
 #define req_op(req) \
@@ -321,6 +329,18 @@ static inline bool op_is_sync(unsigned int op)
 {
 	return (op & REQ_OP_MASK) == REQ_OP_READ ||
 		(op & (REQ_SYNC | REQ_FUA | REQ_PREFLUSH));
+}
+
+static inline bool op_is_discard(unsigned int op)
+{
+	return (op & REQ_OP_MASK) == REQ_OP_DISCARD;
+}
+
+static inline int op_stat_group(unsigned int op)
+{
+	if (op_is_discard(op))
+		return STAT_DISCARD;
+	return op_is_write(op);
 }
 
 typedef unsigned int blk_qc_t;

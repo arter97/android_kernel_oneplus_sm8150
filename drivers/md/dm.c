@@ -536,7 +536,8 @@ static void end_io_acct(struct dm_io *io)
 	int pending;
 	int rw = bio_data_dir(bio);
 
-	generic_end_io_acct(md->queue, rw, &dm_disk(md)->part0, io->start_time);
+	generic_end_io_acct(md->queue, bio_op(bio), &dm_disk(md)->part0,
+			    io->start_time);
 
 	if (unlikely(dm_stats_used(&md->stats)))
 		dm_stats_account_io(&md->stats, bio_data_dir(bio),
@@ -1534,7 +1535,8 @@ static blk_qc_t dm_make_request(struct request_queue *q, struct bio *bio)
 
 	map = dm_get_live_table(md, &srcu_idx);
 
-	generic_start_io_acct(q, rw, bio_sectors(bio), &dm_disk(md)->part0);
+	generic_start_io_acct(q, bio_op(bio), bio_sectors(bio),
+			      &dm_disk(md)->part0);
 
 	/* if we're suspended, we have to queue this io for later */
 	if (unlikely(test_bit(DMF_BLOCK_IO_FOR_SUSPEND, &md->flags))) {
