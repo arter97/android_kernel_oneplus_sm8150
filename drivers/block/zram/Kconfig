@@ -56,8 +56,7 @@ config ZRAM_DEF_COMP
 
 config ZRAM_DEDUP
 	bool "Deduplication support for ZRAM data"
-	depends on ZRAM
-	select XXHASH
+	depends on ZRAM && LIBCRC32C
 	default n
 	help
 	  Deduplicate ZRAM data to reduce amount of memory consumption.
