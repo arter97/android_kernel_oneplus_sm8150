@@ -120,8 +120,7 @@ SYSCALL_DEFINE0(sync)
 	return 0;
 }
 
-static void do_sync_work(struct work_struct *work)
-{
+void emergency_sync_synchronous(void) {
 	int nowait = 0;
 
 	/*
@@ -135,6 +134,11 @@ static void do_sync_work(struct work_struct *work)
 	iterate_supers(sync_fs_one_sb, &nowait);
 	iterate_bdevs(fdatawrite_one_bdev, NULL);
 	printk("Emergency Sync complete\n");
+}
+
+static void do_sync_work(struct work_struct *work)
+{
+	emergency_sync_synchronous();
 	kfree(work);
 }
 
