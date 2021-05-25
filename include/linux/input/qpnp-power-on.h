@@ -65,6 +65,7 @@ struct qpnp_pon {
 	struct mutex		restore_lock;
 	struct delayed_work	bark_work;
 	struct delayed_work     press_work;
+	struct delayed_work	sync_work;
 	struct work_struct  up_work;
 	atomic_t	   press_count;
 	struct dentry		*debugfs;

@@ -13,6 +13,7 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
+#include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
@@ -957,9 +958,11 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		if ((pon_rt_sts & pon_rt_bit) == 0) {
 			pr_info("Power-Key UP\n");
 			schedule_work(&pon->up_work);
+			cancel_delayed_work(&pon->sync_work);
 			cancel_delayed_work(&pon->press_work);
 		} else {
 			pr_info("Power-Key DOWN\n");
+			schedule_delayed_work(&pon->sync_work, msecs_to_jiffies(1000));
 			schedule_delayed_work(&pon->press_work, msecs_to_jiffies(4000));
 		}
 		break;
@@ -1194,6 +1197,14 @@ static void up_work_func(struct work_struct *work)
     return;
 }
 
+// Do an emergency sync and a full sync
+static void sync_work_func(struct work_struct *work)
+{
+	emergency_sync_synchronous();
+	msleep(20);
+	sys_sync();
+}
+
 static void press_work_func(struct work_struct *work)
 {
 	int display_bl, boot_mode;
@@ -1226,7 +1237,7 @@ static void press_work_func(struct work_struct *work)
 		}
 	}
 	msleep(20);
-	sys_sync();
+	sync_work_func(NULL);
 err_return:
 	return;
 }
@@ -2716,6 +2727,7 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&pon->bark_work, bark_work_func);
 	INIT_DELAYED_WORK(&pon->press_work, press_work_func);
+	INIT_DELAYED_WORK(&pon->sync_work, sync_work_func);
 	INIT_WORK(&pon->up_work, up_work_func);
 
 	rc = qpnp_pon_parse_dt_power_off_config(pon);
