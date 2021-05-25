@@ -13,10 +13,6 @@
 #include <linux/vmpressure.h>
 #include <uapi/linux/sched/types.h>
 
-/* Needed to prevent Android from thinking there's no LMK and thus rebooting */
-#undef MODULE_PARAM_PREFIX
-#define MODULE_PARAM_PREFIX "lowmemorykiller."
-
 /* The minimum number of pages to free per reclaim */
 #define MIN_FREE_PAGES (CONFIG_ANDROID_SIMPLE_LMK_MINFREE * SZ_1M / PAGE_SIZE)
 
@@ -30,7 +26,6 @@ struct victim_info {
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	unsigned long size;
-	int adj_index;
 };
 
 /* Pulled from the Android framework. Lower adj means higher priority. */
@@ -58,9 +53,6 @@ static DEFINE_RWLOCK(mm_free_lock);
 static int nr_victims;
 static atomic_t needs_reclaim = ATOMIC_INIT(0);
 static atomic_t nr_killed = ATOMIC_INIT(0);
-
-static int lmk_count[ARRAY_SIZE(adjs)];
-module_param_array(lmk_count, int, NULL, S_IRUGO);
 
 static int victim_size_cmp(const void *lhs_ptr, const void *rhs_ptr)
 {
@@ -93,13 +85,12 @@ static unsigned long get_total_mm_pages(struct mm_struct *mm)
 	return pages;
 }
 
-static unsigned long find_victims(int *vindex, int adj_index)
+static unsigned long find_victims(int *vindex, unsigned short target_adj_min,
+				  unsigned short target_adj_max)
 {
 	unsigned long pages_found = 0;
 	int old_vindex = *vindex;
 	struct task_struct *tsk;
-	unsigned short target_adj_min = adjs[adj_index];
-	unsigned short target_adj_max = adjs[adj_index - 1];
 
 	for_each_process(tsk) {
 		struct signal_struct *sig;
@@ -131,7 +122,6 @@ static unsigned long find_victims(int *vindex, int adj_index)
 		victims[*vindex].tsk = vtsk;
 		victims[*vindex].mm = vtsk->mm;
 		victims[*vindex].size = get_total_mm_pages(vtsk->mm);
-		victims[*vindex].adj_index = adj_index;
 
 		/* Keep track of the number of pages that have been found */
 		pages_found += victims[*vindex].size;
@@ -185,7 +175,7 @@ static void scan_and_kill(unsigned long pages_needed)
 	/* Hold an RCU read lock while traversing the global process list */
 	rcu_read_lock();
 	for (i = 1; i < ARRAY_SIZE(adjs); i++) {
-		pages_found += find_victims(&nr_found, i);
+		pages_found += find_victims(&nr_found, adjs[i], adjs[i - 1]);
 		if (pages_found >= pages_needed || nr_found == MAX_VICTIMS)
 			break;
 	}
@@ -224,9 +214,6 @@ static void scan_and_kill(unsigned long pages_needed)
 		pr_info("Killing %s with adj %d to free %lu KiB\n", vtsk->comm,
 			vtsk->signal->oom_score_adj,
 			victim->size << (PAGE_SHIFT - 10));
-
-		/* Count kills */
-		lmk_count[ARRAY_SIZE(adjs) - victim->adj_index - 1]++;
 
 		/* Accelerate the victim's death by forcing the kill signal */
 		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, vtsk, true);
@@ -326,4 +313,7 @@ static const struct kernel_param_ops simple_lmk_init_ops = {
 	.set = simple_lmk_init_set
 };
 
+/* Needed to prevent Android from thinking there's no LMK and thus rebooting */
+#undef MODULE_PARAM_PREFIX
+#define MODULE_PARAM_PREFIX "lowmemorykiller."
 module_param_cb(minfree, &simple_lmk_init_ops, NULL, 0200);
