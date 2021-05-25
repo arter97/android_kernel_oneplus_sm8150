@@ -138,7 +138,7 @@ int f2fs_init_compress_ctx(struct compress_ctx *cc)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(cc->inode);
 
-	if (cc->nr_rpages)
+	if (cc->rpages)
 		return 0;
 
 	cc->rpages = f2fs_kzalloc(sbi, sizeof(struct page *) <<

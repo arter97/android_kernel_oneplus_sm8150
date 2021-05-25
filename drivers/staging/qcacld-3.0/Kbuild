@@ -2260,6 +2260,7 @@ ccflags-y += -DWLAN_MAX_VDEVS=$(CONFIG_WLAN_MAX_VDEVS)
 KBUILD_CPPFLAGS += $(cppflags-y)
 
 ccflags-y += -Wmissing-prototypes
+ccflags-y += -Wno-error=array-parameter
 
 ifeq ($(call cc-option-yn, -Wheader-guard), y)
 ccflags-y += -Wheader-guard

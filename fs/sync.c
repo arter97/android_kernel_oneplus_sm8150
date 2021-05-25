@@ -120,8 +120,7 @@ SYSCALL_DEFINE0(sync)
 	return 0;
 }
 
-static void do_sync_work(struct work_struct *work)
-{
+void emergency_sync_synchronous(void) {
 	int nowait = 0;
 
 	/*
@@ -135,6 +134,11 @@ static void do_sync_work(struct work_struct *work)
 	iterate_supers(sync_fs_one_sb, &nowait);
 	iterate_bdevs(fdatawrite_one_bdev, NULL);
 	printk("Emergency Sync complete\n");
+}
+
+static void do_sync_work(struct work_struct *work)
+{
+	emergency_sync_synchronous();
 	kfree(work);
 }
 
@@ -156,7 +160,7 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 {
 	struct fd f = fdget(fd);
 	struct super_block *sb;
-	int ret;
+	int ret, ret2;
 
 	if (!f.file)
 		return -EBADF;
@@ -166,8 +170,10 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	ret = sync_filesystem(sb);
 	up_read(&sb->s_umount);
 
+	ret2 = errseq_check_and_advance(&sb->s_wb_err, &f.file->f_sb_err);
+
 	fdput(f);
-	return ret;
+	return ret ? ret : ret2;
 }
 
 /**
