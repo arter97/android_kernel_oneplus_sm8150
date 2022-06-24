@@ -1161,6 +1161,8 @@ static enum power_supply_property smb5_usb_props[] = {
 	POWER_SUPPLY_PROP_APSD_TIMEOUT,
 };
 
+static struct smb_charger *smb_main_charger;
+
 static int smb5_usb_get_prop(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -1170,6 +1172,7 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 	union power_supply_propval pval;
 	int rc = 0;
 	val->intval = 0;
+	smb_main_charger = chg;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -1371,6 +1374,8 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 
 	return 0;
 }
+
+#include "qti_power_meter.c"
 
 #define MIN_THERMAL_VOTE_UA	500000
 static int smb5_usb_set_prop(struct power_supply *psy,

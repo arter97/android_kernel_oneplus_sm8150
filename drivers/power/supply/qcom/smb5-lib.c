@@ -8342,6 +8342,8 @@ static int get_prop_batt_current_now(struct smb_charger *chg)
 		ua = DEFAULT_BATT_CURRENT_NOW;
 	}
 
+pr_info("%s: %d\n", __func__, ua);
+
 	return ua;
 }
 
@@ -8355,6 +8357,8 @@ static int get_prop_batt_voltage_now(struct smb_charger *chg)
 		pr_err("Couldn't get voltage rc=%d\n", rc);
 		uv = DEFAULT_BATT_VOLTAGE_NOW;
 	}
+
+pr_info("%s: %d\n", __func__, uv);
 
 	return uv;
 }
@@ -8386,6 +8390,8 @@ static int get_prop_fg_current_now(struct smb_charger *chg)
 		ua = DEFAULT_BATT_CURRENT_NOW;
 	}
 
+pr_info("%s: %d\n", __func__, ua);
+
 	return ua;
 }
 
@@ -8398,6 +8404,8 @@ static int get_prop_fg_voltage_now(struct smb_charger *chg)
 		pr_err("Couldn't get voltage rc=%d\n", rc);
 		uv = DEFAULT_BATT_VOLTAGE_NOW;
 	}
+
+pr_info("%s: %d\n", __func__, uv);
 
 	return uv;
 }
